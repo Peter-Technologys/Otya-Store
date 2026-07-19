@@ -1,48 +1,55 @@
-name = "otya-store"
-main = "src/index.js"
-compatibility_date = "2026-07-07"
+name = "getotya"
+compatibility_date = "2026-07-19"
+compatibility_flags = ["nodejs_compat"]
+main = "./.open-next/worker.js"
 
-# ── 5. Observability: logs & traces ──────────────────────────────────────────
 [observability]
 enabled = true
 
-# ── 4. Environment Variables ──────────────────────────────────────────────────
 [vars]
 ENVIRONMENT = "production"
 APP_NAME    = "Otya Store"
-WEBSITE_URL = "https://petersmartlink.com/download/otya-player"
+WEBSITE_URL = "https://petersmartlink.com"
 
-# Secrets (not stored here — set via GitHub Actions or `wrangler secret put`):
-#   wrangler secret put NOTIFY_EMAIL_TO
-#   wrangler secret put ADMIN_TOKEN
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/download", "/apk/*", "/version", "/latest", "/stats"]
 
-# ── 2. KV: sessions & version caching ────────────────────────────────────────
-[[kv_namespaces]]
-binding  = "KV"
-id       = "3f179286e0fc4dbfa2332884cdf81312"
-
-# ── R2: APK file storage (existing) ──────────────────────────────────────────
 [[r2_buckets]]
 binding     = "R2"
 bucket_name = "otya-player-releases"
 
-# ── 3. D1: download analytics & version history ───────────────────────────────
+[[kv_namespaces]]
+binding = "KV"
+id      = "3f179286e0fc4dbfa2332884cdf81312"
+
 [[d1_databases]]
 binding       = "DB"
 database_name = "otya-store-db"
 database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 
-# ── 6. Rate Limiting: protect download endpoints ─────────────────────────────
 [[unsafe.bindings]]
 type         = "ratelimit"
 name         = "RATE_LIMITER"
 namespace_id = "1001"
 
   [unsafe.bindings.simple]
-  limit  = 60    # max 60 requests
-  period = 60    # per 60 seconds per IP
+  limit  = 60
+  period = 60
 
-# ── 7. Email: error alerts & download notifications ───────────────────────────
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
+
+[[routes]]
+pattern = "petersmartlink.com/*"
+custom_domain = true
+
+[[routes]]
+pattern = "www.petersmartlink.com/*"
+custom_domain = true
+
+[[routes]]
+pattern = "getotya.petersmartlink.com/*"
+custom_domain = true
