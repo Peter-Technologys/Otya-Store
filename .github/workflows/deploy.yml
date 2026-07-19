@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:  # allows manual trigger from GitHub Actions tab
 
 jobs:
   deploy:
@@ -25,11 +26,8 @@ jobs:
         run: npm ci
 
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Using Global API Key (more reliable than API Token for this account)
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
           CF_EMAIL: petersmartlink@gmail.com
