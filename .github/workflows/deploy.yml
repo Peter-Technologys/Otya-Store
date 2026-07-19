@@ -27,5 +27,9 @@ jobs:
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Using Global API Key (more reliable than API Token for this account)
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        env:
+          CF_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CF_EMAIL: petersmartlink@gmail.com
