@@ -1,6 +1,6 @@
 # Otya Store — Cloudflare Worker
 
-Serves OTYA Player APK downloads from Cloudflare R2.
+Serves OTYA Player APK downloads from Cloudflare R2, with analytics, caching, rate limiting, and email alerts.
 
 **Live at:** https://getotya.petersmartlink.com
 
@@ -9,11 +9,22 @@ Serves OTYA Player APK downloads from Cloudflare R2.
 | Route | Description |
 |---|---|
 | `GET /` | Redirects to download page |
-| `GET /version` | Returns current version info from R2 `version.json` |
-| `GET /latest` | Returns full version + download links JSON |
-| `GET /download` | Auto-detects ABI and redirects to APK |
-| `GET /apk/arm64` | Streams arm64 APK from R2 |
-| `GET /apk/arm32` | Streams arm32 APK from R2 |
+| `GET /version` | Current version info (KV-cached, 5 min TTL) |
+| `GET /latest` | Full version + download links JSON |
+| `GET /download` | Auto-detects ABI, redirects to APK |
+| `GET /apk/arm64` | Streams arm64 APK from R2 (rate-limited) |
+| `GET /apk/arm32` | Streams arm32 APK from R2 (rate-limited) |
+| `GET /stats` | Download analytics from D1 |
+
+## Bindings
+
+| Binding | Type | Resource | Purpose |
+|---|---|---|---|
+| `R2` | R2 Bucket | `otya-player-releases` | APK file storage |
+| `KV` | KV Namespace | `otya-store-kv` | Version info cache (5 min TTL) |
+| `DB` | D1 Database | `otya-store-db` | Download analytics & version history |
+| `RATE_LIMITER` | Rate Limit | — | 60 req/min per IP on downloads |
+| `EMAIL` | Send Email | petersmartlink@gmail.com | Error alerts |
 
 ## R2 Bucket Structure
 
@@ -33,14 +44,44 @@ Push to `main` → GitHub Actions auto-deploys via Wrangler.
 
 ### Required GitHub Secrets
 
-| Secret | Value |
+| Secret | Description |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers:Edit permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare Account ID |
+| `CLOUDFLARE_GLOBAL_API_KEY` | Cloudflare Global API Key |
+
+### Adding Wrangler Secrets (run once)
+
+```bash
+npx wrangler secret put NOTIFY_EMAIL_TO
+npx wrangler secret put ADMIN_TOKEN
+```
 
 ### Manual Deploy
 
 ```bash
 npm install
 npm run deploy
+```
+
+## D1 Schema
+
+Tables are auto-created on first request:
+
+```sql
+-- Download tracking
+CREATE TABLE downloads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  abi TEXT NOT NULL,
+  version TEXT,
+  ip TEXT,
+  user_agent TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Version release history
+CREATE TABLE version_history (
+  tag TEXT PRIMARY KEY,
+  version TEXT,
+  released_at TEXT DEFAULT (datetime('now'))
+);
 ```
