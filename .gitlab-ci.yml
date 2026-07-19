@@ -1,0 +1,68 @@
+# Otya Store — Cloudflare Worker CI/CD Pipeline
+#
+# Stages:
+#   validate  - lint + dry-run check
+#   deploy    - deploy to Cloudflare Workers (main branch only)
+#
+# Required CI/CD Variables (set in GitLab → Settings → CI/CD → Variables):
+#   CLOUDFLARE_ACCOUNT_ID   — your Cloudflare account ID
+#   CLOUDFLARE_API_TOKEN    — API token with Workers:Edit permission
+#                             (preferred over Global API Key)
+#
+# The GitHub Actions workflow (.github/workflows/deploy.yml) is kept
+# as a reference but GitLab CI is now the primary deployment pipeline.
+
+image: node:20-alpine
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+variables:
+  WRANGLER_VERSION: "3"
+
+cache:
+  key: "npm-$CI_COMMIT_REF_SLUG"
+  paths:
+    - node_modules/
+
+stages:
+  - validate
+  - deploy
+
+# ── Install ────────────────────────────────────────────────────────────────────
+.install: &install
+  before_script:
+    - npm install --silent
+
+# ── Validate: dry-run deploy (no secrets needed) ───────────────────────────────
+# Catches syntax errors and wrangler.toml misconfigurations on every MR
+# without actually deploying anything.
+validate:
+  stage: validate
+  <<: *install
+  script:
+    # wrangler deploy --dry-run parses wrangler.toml and the worker JS
+    # for errors without sending anything to Cloudflare.
+    - npx wrangler@$WRANGLER_VERSION deploy --dry-run
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ── Deploy: push to Cloudflare Workers (main only) ────────────────────────────
+deploy:
+  stage: deploy
+  <<: *install
+  script:
+    - npx wrangler@$WRANGLER_VERSION deploy
+  environment:
+    name: production
+    url: https://getotya.petersmartlink.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_TOKEN'
+  variables:
+    CLOUDFLARE_ACCOUNT_ID: $CLOUDFLARE_ACCOUNT_ID
+    CLOUDFLARE_API_TOKEN: $CLOUDFLARE_API_TOKEN
