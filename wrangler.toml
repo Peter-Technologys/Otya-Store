@@ -1,0 +1,11 @@
+name = "otya-store"
+main = "src/index.js"
+compatibility_date = "2026-07-07"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "otya-player-releases"
+
+[routes]
+# Served via custom domain: getotya.petersmartlink.com
+# (configured in Cloudflare dashboard — no route pattern needed here)
