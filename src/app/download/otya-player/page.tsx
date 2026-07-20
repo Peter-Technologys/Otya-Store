@@ -1,12 +1,14 @@
+import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Download OTYA Player - Free Android App | PeterSmart Link',
+  title: 'Download OTYA Player - Free Android App | PeterSmart Technologies',
   description: 'Download OTYA Player for free. Works on all Android phones.',
   alternates: { canonical: 'https://petersmartlink.com/download/otya-player' },
 }
 
-const WORKER_BASE = 'https://getotya.petersmartlink.com'
+// Worker is on the same domain — use relative paths for API calls
+const WORKER_BASE = 'https://petersmartlink.com'
 
 async function getLatestVersion(): Promise<string> {
   try {
@@ -25,8 +27,8 @@ export default async function DownloadPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
         <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-20 h-20 rounded-[20px] flex items-center justify-center mb-5" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 8px 32px rgba(138,43,226,0.35)' }}>
-            <svg width="40" height="40" viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="20" fill="rgba(255,255,255,0.15)" /><polygon points="17,13 17,31 35,22" fill="#00BFFF" /></svg>
+          <div className="w-20 h-20 rounded-[20px] overflow-hidden mb-5" style={{ boxShadow: '0 8px 32px rgba(138,43,226,0.35)' }}>
+            <Image src="/played-icon.png" alt="OTYA Player" width={80} height={80} style={{ objectFit: 'cover' }} priority />
           </div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-purple-200 bg-purple-50 text-purple-700">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -26,15 +27,15 @@ export default function OtyaPlayerPage() {
             <span style={{ color: 'var(--border)' }}>/</span>
             <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>OTYA Player</span>
           </div>
-          <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+          <a href="/download/otya-player"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-semibold text-xs"
             style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>Download APK</a>
         </div>
       </nav>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex flex-col sm:flex-row items-start gap-6 mb-12">
-          <div className="w-24 h-24 rounded-[24px] flex-shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 12px 40px rgba(138,43,226,0.4)' }}>
-            <svg width="48" height="48" viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="20" fill="rgba(255,255,255,0.15)" /><polygon points="17,12 17,32 36,22" fill="white" /></svg>
+          <div className="w-24 h-24 rounded-[24px] overflow-hidden flex-shrink-0" style={{ boxShadow: '0 12px 40px rgba(138,43,226,0.4)' }}>
+            <Image src="/played-icon.png" alt="OTYA Player" width={96} height={96} style={{ objectFit: 'cover' }} priority />
           </div>
           <div className="flex-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-purple-200 bg-purple-50 text-purple-700">
@@ -44,7 +45,7 @@ export default function OtyaPlayerPage() {
             <p className="text-sm font-semibold mb-3" style={{ color: '#8A2BE2' }}>Offline Media Player - Android - by PeterSmart Technologies</p>
             <p className="text-sm leading-relaxed mb-5 max-w-xl" style={{ color: 'var(--text-sub)' }}>A free, offline-first media player for Android built in Uganda. Play your music and videos without internet, share files directly device-to-device, protect private media in an encrypted vault, and stream your library to any PC browser on your Wi-Fi.</p>
             <div className="flex flex-wrap gap-2">
-              <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+              <a href="/download/otya-player"
                 className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-white font-semibold text-sm"
                 style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 4px 16px rgba(138,43,226,0.35)' }}>Download APK (Free)</a>
               <a href="https://wa.me/256775912582?text=Hi! I need help with OTYA Player" target="_blank" rel="noopener noreferrer"
