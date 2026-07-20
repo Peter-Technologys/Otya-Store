@@ -165,9 +165,11 @@ export default {
     // Init D1 tables (no-op after first run)
     try { await initDb(env) } catch (_) {}
 
-    // Root → redirect to download page
-    if (path === '/' || path === '') {
-      return Response.redirect(env.WEBSITE_URL || 'https://petersmartlink.com/download/otya-player', 302)
+    // Root and all non-API paths → pass through to Next.js (ASSETS binding)
+    // The Worker only owns its specific API routes listed below.
+    const apiRoutes = ['/version', '/latest', '/stats', '/download', '/apk/arm64', '/apk/arm32']
+    if (!apiRoutes.includes(path)) {
+      return env.ASSETS.fetch(request)
     }
 
     // ── /version ─────────────────────────────────────────────────────────────
@@ -263,6 +265,7 @@ export default {
       return serveApk(env, key)
     }
 
-    return new Response('Not found', { status: 404 })
+    // Fallback — pass through to Next.js assets
+    return env.ASSETS.fetch(request)
   },
 }
