@@ -13,19 +13,17 @@ const ADSENSE_ID = 'ca-pub-2517163652161686'
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default:  'OTYA Player — Free Offline Media Player for Android | PeterSmart Technologies',
+    default:  'PeterSmart Technologies — Mobile Money, Phone Sales & OTYA Player | Mbirizi, Uganda',
     template: '%s | PeterSmart Technologies',
   },
   description:
-    'OTYA Player is a free offline media player for Android built in Uganda. ' +
-    'Play music and videos without internet, share files via Flash Share, ' +
-    'protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.',
+    'PeterSmart Technologies is a tech company in Mbirizi, Uganda. We run a mobile money and phone shop and build OTYA Player — a free offline media player for Android.',
   keywords: [
-    'OTYA Player', 'offline media player Android', 'free music player Uganda',
-    'free video player Android', 'com.otyaplayer.app', 'PeterSmart Technologies',
-    'PeterSmart Link', 'Flash Share', 'Web Mirror Android', 'Private Vault Android',
-    'offline media player Uganda', 'Mbirizi Uganda', 'download OTYA Player APK',
-    'Android media player free', 'music player no internet', 'mobile money Uganda',
+    'PeterSmart Technologies', 'PeterSmart Link', 'Mbirizi Uganda', 'mobile money Uganda',
+    'MTN MoMo Uganda', 'Airtel Money Uganda', 'phone sales Uganda', 'OTYA Player',
+    'offline media player Android', 'free music player Uganda', 'free video player Android',
+    'com.otyaplayer.app', 'Flash Share', 'Private Vault Android', 'download OTYA Player APK',
+    'Lwengo District Uganda', 'Android media player free',
   ],
   authors:         [{ name: 'PeterSmart Technologies', url: SITE_URL }],
   creator:         'PeterSmart Technologies',
@@ -117,7 +115,7 @@ const schemaOrg = {
       applicationCategory: 'MultimediaApplication',
       softwareVersion: '1.3.3',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
-      url: `${SITE_URL}/apps/otya-player/`,
+      url: `${SITE_URL}/otya-player`,
       downloadUrl: `${SITE_URL}/download/otya-player`,
       author: { '@id': `${SITE_URL}/#organization` },
       description: 'Free offline media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault.',

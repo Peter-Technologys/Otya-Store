@@ -13,9 +13,8 @@ const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.
 const SHOP = [
   { emoji: '💳', name: 'Mobile Money', desc: 'MTN & Airtel MoMo — deposits, withdrawals, transfers, bill payments.', badge: 'MTN · Airtel' },
   { emoji: '📱', name: 'Phone Sales', desc: 'Latest Android smartphones and accessories at the best prices.', badge: 'In stock' },
-  { emoji: '🔧', name: 'Phone Repairs', desc: 'Screen, battery, charging port replacements. Same-day service.', badge: 'Same day' },
-  { emoji: '💰', name: 'Phone Loans', desc: 'Get a smartphone on loan via Watu Credit with easy repayments.', badge: 'Watu Credit' },
   { emoji: '📦', name: 'Data & Airtime', desc: 'MTN and Airtel bundles at competitive rates, always available.', badge: 'Always open' },
+  { emoji: '💰', name: 'Phone Loans', desc: 'Get a smartphone on loan with easy repayments.', badge: 'Flexible' },
 ]
 
 export default function HomePage() {
