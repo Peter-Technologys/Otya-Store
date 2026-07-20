@@ -11,8 +11,8 @@
  *
  * R2 layout (written by scripts/publish_r2.sh):
  *   version.json                    ← { version, versionCode, date, arm64, arm32, changelog, ... }
- *   app-arm64-v8a-release.apk       ← current arm64 APK (flat root)
- *   app-armeabi-v7a-release.apk     ← current arm32 APK (flat root)
+ *   OtyaPlayer-arm64.apk             ← current arm64 APK (flat root)
+ *   OtyaPlayer-arm32.apk             ← current arm32 APK (flat root)
  *   releases/v1.x.x/...            ← archived previous versions
  */
 
@@ -88,10 +88,9 @@ async function getVersionInfo(env) {
 function resolveApkKey(info, abi) {
   if (!info) return null
   if (abi === 'arm64') {
-    // Use filename from version.json if present, else canonical default
-    return info.arm64 || 'app-arm64-v8a-release.apk'
+    return info.arm64 || 'OtyaPlayer-arm64.apk'
   }
-  return info.arm32 || 'app-armeabi-v7a-release.apk'
+  return info.arm32 || 'OtyaPlayer-arm32.apk'
 }
 
 // ── APK streaming from R2 ─────────────────────────────────────────────────────
