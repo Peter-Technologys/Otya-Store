@@ -42,14 +42,6 @@ namespace_id = "1001"
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
 
-[[routes]]
-pattern = "petersmartlink.com"
-custom_domain = true
-
-[[routes]]
-pattern = "www.petersmartlink.com"
-custom_domain = true
-
-[[routes]]
-pattern = "getotya.petersmartlink.com"
-custom_domain = true
+# Custom domains are managed manually in the Cloudflare dashboard:
+# Workers & Pages > getotya > Settings > Domains & Routes
+# Domains: petersmartlink.com, www.petersmartlink.com, getotya.petersmartlink.com
