@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState } from 'next/react'
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { SiteNav, PageWrapper, Card, SectionHeading, Skeleton } from '@/components/ui'
 import { databases } from '@/lib/appwrite'
