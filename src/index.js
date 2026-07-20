@@ -254,7 +254,21 @@ export default {
     // ── Route: only handle known API paths; everything else → Next.js ────
     const apiRoutes = ['/version', '/latest', '/stats', '/download', '/apk/arm64', '/apk/arm32']
     if (!apiRoutes.includes(path)) {
-      return env.ASSETS.fetch(request)
+      // Try to serve the static asset first.
+      // If the asset is not found (404), fall back to the root index.html
+      // so Next.js client-side routing can handle the path.
+      const assetRes = await env.ASSETS.fetch(request)
+      if (assetRes.status === 404) {
+        // Serve root index.html for all unmatched paths (SPA fallback)
+        const indexReq = new Request(new URL('/', request.url).toString(), request)
+        const indexRes = await env.ASSETS.fetch(indexReq)
+        // Return index.html with 200 so the browser doesn't cache the 404
+        return new Response(indexRes.body, {
+          status: 200,
+          headers: indexRes.headers,
+        })
+      }
+      return assetRes
     }
 
     // ── Lazy DB init (once per isolate, not per request) ──────────────────
