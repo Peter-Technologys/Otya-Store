@@ -27,10 +27,10 @@ const FEATURES = [
 ]
 
 const CHANGELOG = [
-  { label: 'Flash Share', desc: 'P2P file sharing — no internet, pure Dart HTTP' },
-  { label: 'Web Mirror', desc: 'Stream library to any PC browser on Wi-Fi' },
-  { label: 'Vault XOR', desc: 'Gallery-proof encryption — files invisible to other apps' },
-  { label: 'Storage Analyzer', desc: 'Ring chart + one-tap cache purge' },
+  { label: 'Favorites Tab', desc: 'Heart your songs — dedicated Favorites tab in My Space' },
+  { label: 'Recently Added', desc: 'Shelf showing files added in the last 7 days' },
+  { label: 'Unified Search', desc: 'Search songs, videos, playlists and folders at once' },
+  { label: 'Video Gestures', desc: 'Swipe for brightness & volume with overlay feedback' },
 ]
 
 const SHOP = [
@@ -90,7 +90,7 @@ export default function HomePage() {
               {/* Text */}
               <div className="flex-1 text-center sm:text-left">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4 border border-purple-200 bg-purple-50 text-purple-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.3+6 · Free · Android 5.0+
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.4.0+7 · Free · Android 5.0+
                 </div>
                 <h1 className="text-4xl sm:text-5xl font-black mb-3 leading-tight" style={{ color: 'var(--text)' }}>
                   <AnimatedGradientText>OTYA Player</AnimatedGradientText>
@@ -155,7 +155,7 @@ export default function HomePage() {
         {/* ── v1.3.3 Highlights ── */}
         <section className="py-10" style={{ background: 'var(--bg)' }}>
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <h2 className="text-xl font-black mb-6" style={{ color: 'var(--text)' }}>v1.3.3 Highlights</h2>
+            <h2 className="text-xl font-black mb-6" style={{ color: 'var(--text)' }}>v1.4.0 Highlights</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {CHANGELOG.map(c => (
                 <Card key={c.label}>
