@@ -44,7 +44,7 @@ export default function OtyaPlayerPage() {
           </div>
           <div className="flex-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-2 border border-purple-200 bg-purple-50 text-purple-700">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.3+6 · Free · Android 5.0+
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Latest Update · July 2026 · Free · Android 5.0+
             </div>
             <h1 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>OTYA Player</h1>
             <p className="text-sm font-semibold mb-2" style={{ color: '#8A2BE2' }}>Offline Media Player · Android · by PeterSmart Technologies</p>
