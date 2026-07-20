@@ -1,7 +1,6 @@
 name = "otya-store"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
-main = "./src/index.js"
 routes = [
   { pattern = "petersmartlink.com", custom_domain = true },
   { pattern = "www.petersmartlink.com", custom_domain = true }
@@ -18,8 +17,6 @@ WEBSITE_URL = "https://petersmartlink.com"
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
-run_worker_first = true
-not_found_handling = "single-page-application"
 
 [[r2_buckets]]
 binding     = "R2"
