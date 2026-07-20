@@ -43,13 +43,13 @@ name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
 
 [[routes]]
-pattern = "petersmartlink.com/*"
+pattern = "petersmartlink.com"
 custom_domain = true
 
 [[routes]]
-pattern = "www.petersmartlink.com/*"
+pattern = "www.petersmartlink.com"
 custom_domain = true
 
 [[routes]]
-pattern = "getotya.petersmartlink.com/*"
+pattern = "getotya.petersmartlink.com"
 custom_domain = true
