@@ -88,7 +88,7 @@ export default function HomePage() {
           <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
             <div className="flex-1 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5 border border-purple-200 bg-purple-50 text-purple-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.0+5 - Free - Android 5.0+
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.3+6 - Free - Android 5.0+
               </div>
               <h1 className="text-5xl sm:text-6xl font-black mb-4 leading-[1.05] tracking-tight" style={{ color: 'var(--text)' }}>
                 <AnimatedGradientText>OTYA Player</AnimatedGradientText>

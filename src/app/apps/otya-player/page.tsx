@@ -38,7 +38,7 @@ export default function OtyaPlayerPage() {
           </div>
           <div className="flex-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-purple-200 bg-purple-50 text-purple-700">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.0+5 - Free - Android 5.0+
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />v1.3.3+6 - Free - Android 5.0+
             </div>
             <h1 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: 'var(--text)' }}>OTYA Player</h1>
             <p className="text-sm font-semibold mb-3" style={{ color: '#8A2BE2' }}>Offline Media Player - Android - by PeterSmart Technologies</p>
@@ -79,7 +79,7 @@ export default function OtyaPlayerPage() {
           </div>
         </div>
         <div className="mt-6 text-center">
-          <Link href="/apps" className="text-sm font-semibold" style={{ color: '#8A2BE2' }}>Back to all apps</Link>
+          <Link href="/" className="text-sm font-semibold" style={{ color: '#8A2BE2' }}>← Back to Home</Link>
         </div>
       </div>
     </div>

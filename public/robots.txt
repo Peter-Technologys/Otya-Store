@@ -1,0 +1,11 @@
+# PeterSmart Technologies — robots.txt
+# https://petersmartlink.com
+
+User-agent: *
+Allow: /
+
+# Block private routes
+Disallow: /api/
+Disallow: /_next/
+
+Sitemap: https://petersmartlink.com/sitemap.xml
