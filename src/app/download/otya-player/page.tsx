@@ -44,7 +44,7 @@ export default async function DownloadPage() {
               Older Phone<span className="font-normal text-xs" style={{ color: 'var(--text-sub)' }}>Budget / pre-2015</span>
             </a>
           </div>
-          <p className="text-xs text-center mt-3" style={{ color: 'var(--text-muted)' }}>If one says "cannot install", try the other one.</p>
+          <p className="text-xs text-center mt-3" style={{ color: 'var(--text-muted)' }}>If one says &quot;cannot install&quot;, try the other one.</p>
         </div>
         <div className="rounded-2xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
           <p className="text-sm font-bold mb-1" style={{ color: 'var(--text)' }}>Need help installing?</p>

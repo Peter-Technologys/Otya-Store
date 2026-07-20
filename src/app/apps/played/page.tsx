@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export default function PlayedPage() {
       </nav>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex flex-col sm:flex-row items-start gap-6 mb-10">
-          <img src="/played-icon.png" alt="Played" width={88} height={88} style={{ width: 88, height: 88, borderRadius: 22, objectFit: 'cover', flexShrink: 0 }} />
+          <Image src="/played-icon.png" alt="Played" width={88} height={88} style={{ borderRadius: 22, objectFit: 'cover', flexShrink: 0 }} />
           <div>
             <h1 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: 'var(--text)' }}>Played</h1>
             <p className="text-sm font-semibold mb-3" style={{ color: 'var(--purple)' }}>Offline Media Player - Android - by PeterSmart Technologies</p>
