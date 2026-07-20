@@ -116,11 +116,10 @@ async function serveApk(env, key, version) {
     )
   }
 
-  const filename = key.split('/').pop()
   const headers  = new Headers(CORS)
   obj.writeHttpMetadata(headers)
   headers.set('Content-Type',        'application/vnd.android.package-archive')
-  headers.set('Content-Disposition', `attachment; filename="${filename}"`)
+  headers.set('Content-Disposition', 'attachment; filename="OtyaPlayer.apk"')
   headers.set('Cache-Control',       `public, max-age=${APK_CACHE_TTL}, immutable`)
   headers.set('ETag',                obj.httpEtag)
   // Set Content-Length so browsers show download progress
