@@ -2,6 +2,10 @@ name = "otya-store"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 main = "./src/index.js"
+routes = [
+  { pattern = "petersmartlink.com", custom_domain = true },
+  { pattern = "www.petersmartlink.com", custom_domain = true }
+]
 
 [observability]
 enabled = true
@@ -41,12 +45,3 @@ namespace_id = "1001"
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
-
-routes = [
-  { pattern = "petersmartlink.com", custom_domain = true },
-  { pattern = "www.petersmartlink.com", custom_domain = true }
-]
-
-# Custom domains are managed manually in the Cloudflare dashboard:
-# Workers & Pages > getotya > Settings > Domains & Routes
-# Domains: petersmartlink.com, www.petersmartlink.com, getotya.petersmartlink.com
