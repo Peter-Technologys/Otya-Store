@@ -19,6 +19,7 @@ WEBSITE_URL = "https://petersmartlink.com"
 directory = ".open-next/assets"
 binding = "ASSETS"
 run_worker_first = true
+not_found_handling = "single-page-application"
 
 [[r2_buckets]]
 binding     = "R2"
