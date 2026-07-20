@@ -1,8 +1,8 @@
-# Getotya - Unified Cloudflare Worker + Next.js Website
-# GitLab CI: validate only (build check + type check)
-# Deployment is handled by GitHub Actions on push to main
+# Otya Store - Unified Cloudflare Worker + Next.js Website
+# GitLab CI: validate (next build) on MR + main
+# GitLab CI: deploy to Cloudflare on push to main
 
-image: node:20-alpine
+image: node:22-alpine
 
 workflow:
   rules:
@@ -19,11 +19,12 @@ cache:
 
 stages:
   - validate
+  - deploy
 
 before_script:
   - npm install --silent
 
-# Validate: next build catches TS errors and broken imports on every push
+# Validate: next build catches TS/ESLint errors on every MR and main push
 validate:
   stage: validate
   script:
@@ -31,3 +32,19 @@ validate:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
+
+# Deploy: build with OpenNext and deploy to Cloudflare Workers on main only
+# Required GitLab CI/CD Variables:
+#   CLOUDFLARE_ACCOUNT_ID  - your Cloudflare account ID
+#   CLOUDFLARE_API_KEY     - Cloudflare Global API Key
+deploy:
+  stage: deploy
+  script:
+    - npm run deploy
+  environment:
+    name: production
+    url: https://petersmartlink.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_KEY'
+  variables:
+    CLOUDFLARE_EMAIL: petersmartlink@gmail.com
