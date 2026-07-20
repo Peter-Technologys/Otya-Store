@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Metadata } from 'next'
 import { Spotlight } from '@/components/aceternity/spotlight'
 import { TypewriterEffect } from '@/components/aceternity/typewriter-effect'
@@ -21,8 +22,15 @@ const WA_PATH = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.
 
 function OtyaIcon({ size = 32 }: { size?: number }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: size * 0.25, background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 44 44" fill="none"><polygon points="17,12 17,32 36,22" fill="white" /></svg>
+    <div style={{ width: size, height: size, borderRadius: size * 0.25, overflow: 'hidden', flexShrink: 0, boxShadow: '0 4px 16px rgba(138,43,226,0.35)' }}>
+      <Image
+        src="/played-icon.png"
+        alt="OTYA Player"
+        width={size}
+        height={size}
+        style={{ width: size, height: size, objectFit: 'cover' }}
+        priority
+      />
     </div>
   )
 }
@@ -74,7 +82,7 @@ export default function HomePage() {
               <Link key={href} href={href} className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors hover:bg-purple-50" style={{ color: 'var(--text-sub)' }}>{label}</Link>
             ))}
           </div>
-          <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+          <a href="/download/otya-player"
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>Download APK</a>
         </div>
       </nav>
@@ -99,7 +107,7 @@ export default function HomePage() {
               <TextGenerateEffect text="Play your music and videos without internet. Share files device-to-device with Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on your Wi-Fi." className="text-base sm:text-lg max-w-xl mx-auto lg:mx-0 mb-8" style={{ color: 'var(--text-sub)' }} />
               <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
                 <MovingBorder>
-                  <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+                  <a href="/download/otya-player"
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold text-sm"
                     style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 6px 20px rgba(138,43,226,0.35)' }}>Download APK (Free)</a>
                 </MovingBorder>
@@ -110,8 +118,8 @@ export default function HomePage() {
             <div className="flex-shrink-0">
               <div className="relative">
                 <div className="absolute inset-0 rounded-[40px] blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', transform: 'scale(1.1)' }} />
-                <div className="relative w-52 h-52 sm:w-64 sm:h-64 rounded-[40px] flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 24px 64px rgba(138,43,226,0.4)' }}>
-                  <svg width="110" height="110" viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="20" fill="rgba(255,255,255,0.12)" /><polygon points="17,12 17,32 36,22" fill="white" /></svg>
+                <div className="relative w-52 h-52 sm:w-64 sm:h-64 rounded-[40px] overflow-hidden" style={{ boxShadow: '0 24px 64px rgba(138,43,226,0.4)' }}>
+                  <Image src="/played-icon.png" alt="OTYA Player" fill style={{ objectFit: 'cover' }} priority />
                 </div>
               </div>
             </div>
@@ -164,7 +172,7 @@ export default function HomePage() {
         {/* What's New */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14">
           <div className="mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black" style={{ color: 'var(--text)' }}>v1.3.0 Highlights</h2>
+            <h2 className="text-2xl sm:text-3xl font-black" style={{ color: 'var(--text)' }}>v1.3.3 Highlights</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {CHANGELOG.map(c => (
@@ -212,7 +220,7 @@ export default function HomePage() {
             <h2 className="text-2xl sm:text-3xl font-black mb-3" style={{ color: 'var(--text)' }}>Download OTYA Player - Free</h2>
             <p className="text-sm mb-8 max-w-md mx-auto" style={{ color: 'var(--text-sub)' }}>The best free offline media player for Android. Built in Uganda. No subscription, no internet required.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+              <a href="/download/otya-player"
                 className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-white font-semibold text-sm"
                 style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 6px 20px rgba(138,43,226,0.35)' }}>Download APK (Free)</a>
               <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
