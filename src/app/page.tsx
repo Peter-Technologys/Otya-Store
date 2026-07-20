@@ -1,18 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card'
-
-// Lazy-load all 'use client' animation components so SSR never touches them.
-// This prevents the blank white page on Cloudflare Workers / OpenNext.
-const Spotlight           = dynamic(() => import('@/components/aceternity/spotlight').then(m => ({ default: m.Spotlight })), { ssr: false })
-const TypewriterEffect    = dynamic(() => import('@/components/aceternity/typewriter-effect').then(m => ({ default: m.TypewriterEffect })), { ssr: false })
-const MovingBorder        = dynamic(() => import('@/components/aceternity/moving-border').then(m => ({ default: m.MovingBorder })), { ssr: false })
-const BackgroundBeams     = dynamic(() => import('@/components/aceternity/background-beams').then(m => ({ default: m.BackgroundBeams })), { ssr: false })
-const CardSpotlight       = dynamic(() => import('@/components/aceternity/card-spotlight').then(m => ({ default: m.CardSpotlight })), { ssr: false })
-const AnimatedGradientText = dynamic(() => import('@/components/magicui/animated-gradient-text').then(m => ({ default: m.AnimatedGradientText })), { ssr: false })
+import { Spotlight, TypewriterEffect, MovingBorder, BackgroundBeams, CardSpotlight, AnimatedGradientText } from '@/components/HeroAnimations'
 
 export const metadata: Metadata = {
   title: 'OTYA Player — Free Offline Media Player for Android',
