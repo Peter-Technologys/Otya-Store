@@ -1,5 +1,6 @@
 # Getotya - Unified Cloudflare Worker + Next.js Website
-# Builds with OpenNext adapter and deploys via wrangler
+# GitLab CI: validate only (build check + type check)
+# Deployment is handled by GitHub Actions on push to main
 
 image: node:20-alpine
 
@@ -10,9 +11,6 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-variables:
-  WRANGLER_VERSION: "3"
-
 cache:
   key: "npm-$CI_COMMIT_REF_SLUG"
   paths:
@@ -21,33 +19,15 @@ cache:
 
 stages:
   - validate
-  - deploy
 
-.install: &install
-  before_script:
-    - npm install --silent
+before_script:
+  - npm install --silent
 
 # Validate: next build catches TS errors and broken imports on every push
 validate:
   stage: validate
-  <<: *install
   script:
     - npm run build
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
-
-# Deploy: OpenNext build + wrangler deploy (main branch only)
-deploy:
-  stage: deploy
-  <<: *install
-  script:
-    - npm run deploy
-  environment:
-    name: production
-    url: https://petersmartlink.com
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_TOKEN'
-  variables:
-    CLOUDFLARE_ACCOUNT_ID: $CLOUDFLARE_ACCOUNT_ID
-    CLOUDFLARE_API_TOKEN: $CLOUDFLARE_API_TOKEN
