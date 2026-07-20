@@ -1,4 +1,4 @@
-name = "getotya"
+name = "otya-store"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 main = "./.open-next/worker.js"
