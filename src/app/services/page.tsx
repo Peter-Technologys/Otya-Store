@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
+import type { Metadata } from 'next'
+import { SiteNav } from '@/components/SiteNav'
+import { SiteFooter } from '@/components/SiteFooter'
 import { databases } from '@/lib/appwrite'
 import { Query } from 'appwrite'
 
@@ -29,22 +30,16 @@ export default function ServicesPage() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.92)' }}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-2 text-sm">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={24} height={24} className="rounded-md" style={{ display: 'block' }} />
-            <span className="font-semibold" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
-          </Link>
-          <span style={{ color: 'var(--border)' }}>/</span>
-          <span style={{ color: 'var(--text-sub)' }}>Services</span>
-        </div>
-      </nav>
+      <SiteNav />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-        <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>Our Services</h1>
-        <p className="text-sm mb-8" style={{ color: 'var(--text-sub)' }}>Professional tech and finance services in Mbirizi, Lwengo District</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>Our Services</h1>
+          <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Professional tech and finance services in Mbirizi, Lwengo District</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {services.map(s => (
-            <div key={s.$id} className="p-5 rounded-2xl border transition-all hover:shadow-md" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+            <div key={s.$id} className="p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-200"
+              style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
               <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--text)' }}>{s.name}</h3>
               <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-sub)' }}>{s.description}</p>
               <div className="flex items-center justify-between">
@@ -53,15 +48,14 @@ export default function ServicesPage() {
                 </span>
                 <a href={`https://wa.me/256775912582?text=Hi! I need: ${encodeURIComponent(s.name)}`}
                   target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: '#25d366' }}>Enquire</a>
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-transform hover:scale-105"
+                  style={{ background: '#25d366' }}>Enquire</a>
               </div>
             </div>
           ))}
         </div>
-        <div className="mt-8 text-center">
-          <Link href="/" className="text-sm font-semibold" style={{ color: 'var(--purple)' }}>← Back to Home</Link>
-        </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

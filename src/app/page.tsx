@@ -1,10 +1,13 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
+import { SiteNav } from '@/components/SiteNav'
+import { SiteFooter } from '@/components/SiteFooter'
+import { Marquee } from '@/components/magicui/marquee'
 
 export const metadata: Metadata = {
   title: 'PeterSmart Technologies — Mobile Money, Phone Sales & OTYA Player | Mbirizi, Uganda',
-  description: 'PeterSmart Technologies is a tech company in Mbirizi, Uganda. We run a mobile money & phone shop and build OTYA Player — a free offline media player for Android.',
+  description: 'PeterSmart Technologies is a tech company in Mbirizi, Uganda. We run a mobile money and phone shop and build OTYA Player — a free offline media player for Android.',
   alternates: { canonical: 'https://petersmartlink.com' },
 }
 
@@ -15,210 +18,191 @@ const SHOP = [
   { emoji: '📱', name: 'Phone Sales', desc: 'Latest Android smartphones and accessories at the best prices.', badge: 'In stock' },
   { emoji: '📦', name: 'Data & Airtime', desc: 'MTN and Airtel bundles at competitive rates, always available.', badge: 'Always open' },
   { emoji: '💰', name: 'Phone Loans', desc: 'Get a smartphone on loan with easy repayments.', badge: 'Flexible' },
+  { emoji: '🔧', name: 'Phone Repairs', desc: 'Screen, battery, charging port, water damage. Free diagnosis.', badge: 'Same day' },
+]
+
+const FEATURES = [
+  '🎵 Offline Music Player',
+  '🎬 Video Player',
+  '🔒 Private Vault',
+  '⚡ Flash Share',
+  '🌐 Web Mirror',
+  '📊 Storage Analyzer',
+  '🎧 5-Band Equalizer',
+  '📱 Picture-in-Picture',
+  '🌙 AMOLED Theme',
+  '🎄 Seasonal Themes',
 ]
 
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.95)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Link" width={32} height={32} className="rounded-lg flex-shrink-0" style={{ display: 'block' }} priority />
-            <div className="leading-tight">
-              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>PeterSmart Technologies</div>
-              <div className="text-[10px]" style={{ color: 'var(--text-sub)' }}>Mbirizi, Uganda</div>
-            </div>
-          </Link>
-          <div className="hidden md:flex items-center gap-1">
-            {([['OTYA Player', '/otya-player'], ['Services', '/services'], ['Blog', '/blog'], ['Contact', '/contact']] as [string, string][]).map(([l, h]) => (
-              <Link key={h} href={h} className="px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-purple-50" style={{ color: 'var(--text-sub)' }}>{l}</Link>
-            ))}
-          </div>
-          <Link href="/otya-player"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white text-xs font-semibold"
-            style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>
-            <Image src="/played-icon.png" alt="OTYA Player" width={20} height={20} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
-            <span>OTYA Player</span>
-          </Link>
-        </div>
-      </nav>
+      <SiteNav />
 
       <main className="flex-1">
 
-        {/* Hero — Company */}
-        <section className="border-b py-14 sm:py-20" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        {/* Hero */}
+        <section className="relative overflow-hidden border-b py-16 sm:py-24" style={{ borderColor: 'var(--border)' }}>
+          {/* Subtle gradient bg */}
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124,58,237,0.07), transparent)' }} />
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
             <div className="flex flex-col sm:flex-row items-center gap-10">
               <div className="flex-1 text-center sm:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4 border" style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Est. 2024 · Mbirizi, Uganda
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-5 border" style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Est. 2024 · Mbirizi, Uganda
                 </div>
-                <h1 className="text-4xl sm:text-5xl font-black mb-4 leading-tight" style={{ color: 'var(--text)' }}>PeterSmart<br />Technologies</h1>
-                <p className="text-base leading-relaxed mb-6 max-w-lg" style={{ color: 'var(--text-sub)' }}>
-                  A technology company based in Mbirizi Town Council, Lwengo District, Uganda. We run a mobile money and phone shop, and we build software — including <strong style={{ color: 'var(--text)' }}>OTYA Player</strong>, a free offline media player used across Uganda.
+                <h1 className="text-4xl sm:text-6xl font-black mb-4 leading-tight" style={{ color: 'var(--text)' }}>
+                  PeterSmart<br />
+                  <span style={{ background: 'linear-gradient(135deg, #7c3aed, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Technologies</span>
+                </h1>
+                <p className="text-base leading-relaxed mb-8 max-w-lg" style={{ color: 'var(--text-sub)' }}>
+                  A technology company in Mbirizi, Uganda. We run a mobile money & phone shop and build <strong style={{ color: 'var(--text)' }}>OTYA Player</strong> — a free offline media player used across Uganda.
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
                   <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm" style={{ background: '#25d366' }}>
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-transform hover:scale-105"
+                    style={{ background: '#25d366', boxShadow: '0 4px 16px rgba(37,211,102,0.35)' }}>
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
                     WhatsApp Us
                   </a>
                   <a href="tel:+256775912582"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm border"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm border transition-colors hover:border-purple-400"
                     style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--card)' }}>
                     📞 Call Us
                   </a>
                 </div>
               </div>
-              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={176} height={176} className="rounded-3xl flex-shrink-0" style={{ display: 'block', boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }} priority />
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-3xl blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #7c3aed, #00BFFF)', transform: 'scale(1.1)' }} />
+                <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={180} height={180}
+                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(124,58,237,0.25)' }} priority />
+              </div>
             </div>
           </div>
         </section>
 
+        {/* OTYA Player Feature Marquee */}
+        <section className="py-4 border-b overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+          <Marquee>
+            {FEATURES.map(f => (
+              <span key={f} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border flex-shrink-0"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
+                {f}
+              </span>
+            ))}
+          </Marquee>
+        </section>
+
         {/* Shop Services */}
-        <section className="py-12" style={{ background: 'var(--bg-secondary)' }}>
+        <section className="py-14" style={{ background: 'var(--bg)' }}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Shop</h2>
-              <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District · Open Mon–Sat 8am–8pm, Sun 10am–6pm</p>
+            <div className="mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Shop</h2>
+              <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council · Mon–Fri 8am–8pm · Sat 8am–9pm · Sun 10am–6pm</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {SHOP.map(s => (
-                <div key={s.name} className="flex items-start gap-3 p-4 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                  <span className="text-2xl flex-shrink-0">{s.emoji}</span>
+                <div key={s.name} className="group flex items-start gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-200"
+                  style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+                  <span className="text-3xl flex-shrink-0">{s.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>{s.name}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold flex-shrink-0" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>{s.badge}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold flex-shrink-0"
+                        style={{ borderColor: 'var(--border)', color: 'var(--purple)', background: 'var(--bg-secondary)' }}>{s.badge}</span>
                     </div>
                     <p className="text-xs leading-relaxed" style={{ color: 'var(--text-sub)' }}>{s.desc}</p>
                   </div>
                 </div>
               ))}
+              {/* Enquire card */}
+              <a href="https://wa.me/256775912582?text=Hi! I want to enquire about your services"
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 p-5 rounded-2xl border-2 border-dashed transition-all hover:border-green-400 hover:bg-green-50"
+                style={{ borderColor: 'var(--border)' }}>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#25d366' }}><path d={WA} /></svg>
+                <span className="font-semibold text-sm" style={{ color: 'var(--text-sub)' }}>Ask on WhatsApp</span>
+              </a>
             </div>
           </div>
         </section>
 
-        {/* OTYA Player — product card */}
-        <section className="py-12 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        {/* OTYA Player */}
+        <section className="py-14 border-t" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Software</h2>
+            <div className="mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Software</h2>
               <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Built in Uganda, used across Africa</p>
             </div>
-            <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-              <div className="flex flex-col sm:flex-row items-center gap-6 p-6">
-                <Image src="/played-icon.png" alt="OTYA Player" width={80} height={80} className="rounded-[20px] flex-shrink-0" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.35)' }} />
-                <div className="flex-1 text-center sm:text-left">
-                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-2 border border-purple-200 bg-purple-50 text-purple-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Free · Android · Latest Update Jan 2027
+            <div className="rounded-3xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+              {/* Dark hero strip */}
+              <div className="relative p-8 sm:p-10" style={{ background: 'linear-gradient(135deg, #0f0a1e 0%, #1a0a2e 60%, #0a1628 100%)' }}>
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 rounded-[24px] blur-2xl opacity-60" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }} />
+                    <Image src="/played-icon.png" alt="OTYA Player" width={88} height={88}
+                      className="relative rounded-[24px]" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.5)' }} />
                   </div>
-                  <h3 className="text-xl font-black mb-1" style={{ color: 'var(--text)' }}>OTYA Player</h3>
-                  <p className="text-sm mb-4" style={{ color: 'var(--text-sub)' }}>A free, offline-first media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.</p>
-                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-                    <Link href="/otya-player"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-semibold text-sm"
-                      style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>Learn More</Link>
-                    <Link href="/download/otya-player"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm border"
-                      style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--bg)' }}>Download APK</Link>
+                  <div className="flex-1 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border border-purple-500/30 bg-purple-500/10 text-purple-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                      Free · Android · v1.3.0
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">OTYA Player</h3>
+                    <p className="text-sm text-slate-300 mb-5 max-w-lg">A free, offline-first media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.</p>
+                    <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
+                      <Link href="/download/otya-player"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-transform hover:scale-105"
+                        style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 4px 20px rgba(138,43,226,0.4)' }}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Download Free
+                      </Link>
+                      <Link href="/otya-player"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-white/20 text-white hover:border-purple-400 transition-colors">
+                        Learn More
+                      </Link>
+                    </div>
                   </div>
                 </div>
+              </div>
+              {/* Feature pills */}
+              <div className="px-6 py-4 flex flex-wrap gap-2">
+                {FEATURES.slice(0, 6).map(f => (
+                  <span key={f} className="text-xs px-3 py-1 rounded-full font-medium border"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--bg)' }}>{f}</span>
+                ))}
               </div>
             </div>
           </div>
         </section>
 
         {/* Contact */}
-        <section className="py-12 border-t" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+        <section className="py-14 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl font-black mb-6" style={{ color: 'var(--text)' }}>Get in Touch</h2>
+            <h2 className="text-2xl sm:text-3xl font-black mb-8" style={{ color: 'var(--text)' }}>Get in Touch</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#25d366' }}>
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
-                </div>
-                <div>
-                  <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>WhatsApp</div>
-                  <div className="text-xs" style={{ color: 'var(--text-sub)' }}>+256 775 912 582</div>
-                </div>
-              </a>
-              <a href="tel:+256775912582"
-                className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl" style={{ background: 'var(--bg-tertiary)' }}>📞</div>
-                <div>
-                  <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>Call</div>
-                  <div className="text-xs" style={{ color: 'var(--text-sub)' }}>+256 775 912 582</div>
-                </div>
-              </a>
-              <a href="mailto:hello@petersmartlink.com"
-                className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl" style={{ background: 'var(--bg-tertiary)' }}>✉️</div>
-                <div>
-                  <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>Email</div>
-                  <div className="text-xs" style={{ color: 'var(--text-sub)' }}>hello@petersmartlink.com</div>
-                </div>
-              </a>
+              {[
+                { href: 'https://wa.me/256775912582', bg: '#25d366', icon: <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>, label: 'WhatsApp', sub: '+256 775 912 582' },
+                { href: 'tel:+256775912582', bg: 'var(--purple)', icon: <span className="text-white text-lg">📞</span>, label: 'Call', sub: '+256 775 912 582' },
+                { href: 'mailto:hello@petersmartlink.com', bg: 'var(--indigo)', icon: <span className="text-white text-lg">✉️</span>, label: 'Email', sub: 'hello@petersmartlink.com' },
+              ].map(c => (
+                <a key={c.label} href={c.href} target={c.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
+                  className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5"
+                  style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: c.bg }}>{c.icon}</div>
+                  <div>
+                    <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>{c.label}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-sub)' }}>{c.sub}</div>
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-6">
-            <div className="col-span-2 sm:col-span-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="rounded-lg" style={{ display: 'block' }} />
-                <span className="font-bold text-xs" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
-              </div>
-              <p className="text-xs mb-3" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>© {new Date().getFullYear()} PeterSmart Technologies</p>
-            </div>
-            <div>
-              <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Company</p>
-              <div className="space-y-2">
-                {([['Home', '/'], ['Services', '/services'], ['Blog', '/blog'], ['Contact', '/contact']] as [string, string][]).map(([l, h]) => (
-                  <Link key={l} href={h} className="block text-xs hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>OTYA Player</p>
-              <div className="space-y-2">
-                {([['About', '/otya-player'], ['Download', '/download/otya-player'], ['Changelog', '/apps/otya-player/changelog'], ['Support', '/apps/otya-player/support'], ['Privacy', '/apps/otya-player/privacy']] as [string, string][]).map(([l, h]) => (
-                  <Link key={l} href={h} className="block text-xs hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Legal</p>
-              <div className="space-y-2">
-                {([['Privacy Policy', '/privacy'], ['Terms of Service', '/terms']] as [string, string][]).map(([l, h]) => (
-                  <Link key={l} href={h} className="block text-xs hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="border-t pt-4 flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Built in Uganda 🇺🇬</span>
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />Open now
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* WhatsApp FAB */}
-      <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
-        className="fixed bottom-5 right-5 z-50 rounded-full flex items-center justify-center shadow-xl"
-        style={{ background: '#25d366', width: 52, height: 52 }} aria-label="WhatsApp">
-        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
-      </a>
+      <SiteFooter />
     </div>
   )
 }
