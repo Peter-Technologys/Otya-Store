@@ -7,9 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://petersmartlink.com/apps/otya-player/changelog' },
 }
 
-const WORKER_BASE = 'https://petersmartlink.com'
-
-const VERSIONS = [
+const TYPE_COLORS: Record<string, string> = { added: '#22c55e', fixed: '#3b82f6', changed: '#f59e0b', removed: '#ef4444' }
   {
     version: '1.3.0', date: 'July 2026',
     summary: 'Flash Share, Web Mirror, Vault XOR obfuscation, Storage Analyzer, Neon UI overhaul.',
@@ -35,8 +33,8 @@ const VERSIONS = [
       { type: 'added', text: '5-band equalizer with presets' },
       { type: 'added', text: 'Car mode, skip silence, WhatsApp Trimmer' },
     ],
-    arm64: `${WORKER_BASE}/releases/v1.2.0/OtyaPlayer-arm64.apk`,
-    arm32: `${WORKER_BASE}/releases/v1.2.0/OtyaPlayer-arm32.apk`,
+    arm64: `/apk/arm64?v=1.2.0`,
+    arm32: `/apk/arm32?v=1.2.0`,
   },
   {
     version: '1.0.0', date: 'August 2025',
@@ -47,8 +45,8 @@ const VERSIONS = [
       { type: 'added', text: 'Auto-scan device for all audio and video files' },
       { type: 'added', text: 'Dark / AMOLED / Light theme' },
     ],
-    arm64: `${WORKER_BASE}/releases/v1.0.0/OtyaPlayer-arm64.apk`,
-    arm32: `${WORKER_BASE}/releases/v1.0.0/OtyaPlayer-arm32.apk`,
+    arm64: `/apk/arm64?v=1.0.0`,
+    arm32: `/apk/arm32?v=1.0.0`,
   },
 ]
 

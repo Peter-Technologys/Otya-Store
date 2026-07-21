@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// R2 bucket is bound as "R2" in wrangler.toml
 declare const R2: R2Bucket
 
-const FILE_MAP: Record<string, string> = {
+// Latest APK keys in R2
+const LATEST_MAP: Record<string, string> = {
   'arm64': 'otya-player-arm64.apk',
   'arm32': 'otya-player-arm32.apk',
 }
@@ -11,14 +11,27 @@ const FILE_MAP: Record<string, string> = {
 export const runtime = 'edge'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ file: string }> }
 ) {
   const { file } = await params
-  const key = FILE_MAP[file]
 
-  if (!key) {
-    return new NextResponse('Not found', { status: 404 })
+  // Support versioned downloads: /apk/arm64?v=1.2.0
+  const version = req.nextUrl.searchParams.get('v')
+
+  let key: string
+  if (version) {
+    // e.g. releases/v1.2.0/otya-player-arm64.apk
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      return new NextResponse('Invalid version', { status: 400 })
+    }
+    if (file !== 'arm64' && file !== 'arm32') {
+      return new NextResponse('Not found', { status: 404 })
+    }
+    key = `releases/v${version}/otya-player-${file}.apk`
+  } else {
+    key = LATEST_MAP[file]
+    if (!key) return new NextResponse('Not found', { status: 404 })
   }
 
   try {
@@ -28,9 +41,13 @@ export async function GET(
       return new NextResponse('APK not found in storage', { status: 404 })
     }
 
+    const filename = version
+      ? `OtyaPlayer-v${version}-${file}.apk`
+      : 'OtyaPlayer.apk'
+
     const headers = new Headers()
     headers.set('Content-Type', 'application/vnd.android.package-archive')
-    headers.set('Content-Disposition', `attachment; filename="OtyaPlayer.apk"`)
+    headers.set('Content-Disposition', `attachment; filename="${filename}"`)
     if (object.size) headers.set('Content-Length', String(object.size))
     headers.set('Cache-Control', 'public, max-age=3600')
 
