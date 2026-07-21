@@ -31,8 +31,10 @@ export async function GET(
 
   try {
     const { env } = await getCloudflareContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r2 = (env as any).R2
+    const r2 = (env as Record<string, unknown>).R2 as {
+      get(key: string): Promise<{ body: ReadableStream; size: number } | null>
+    } | undefined
+
     if (!r2) {
       return new NextResponse('Storage not available', { status: 503 })
     }
