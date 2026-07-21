@@ -6,18 +6,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        // Block API routes, internal Next.js paths, and duplicate /apps/otya-player
-        // (canonical is /otya-player) to avoid duplicate content crawling
         disallow: [
           '/api/',
-          '/version',
-          '/latest',
-          '/stats',
           '/apk/',
-          '/download',
-          '/apps/otya-player',   // redirect to /otya-player — avoid duplicate
-          '/apps/played',        // internal, no public value
           '/_next/',
+          '/apps/played',       // redirects to /apps/otya-player
+          '/apps/otya-player/changelog', // redirects to /download/otya-player
         ],
       },
     ],
