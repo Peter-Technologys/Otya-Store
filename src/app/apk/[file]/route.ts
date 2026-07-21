@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-declare const R2: R2Bucket
+// Inline Cloudflare R2 types (avoids needing @cloudflare/workers-types)
+interface R2ObjectBody {
+  body: ReadableStream
+  size: number
+}
+interface R2BucketType {
+  get(key: string): Promise<R2ObjectBody | null>
+}
+declare const R2: R2BucketType
 
 // Must match the keys publish_r2.sh uploads to R2
 const LATEST_MAP: Record<string, string> = {
