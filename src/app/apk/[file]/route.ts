@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 declare const R2: R2Bucket
 
-// Latest APK keys in R2
+// Must match the keys publish_r2.sh uploads to R2
 const LATEST_MAP: Record<string, string> = {
-  'arm64': 'otya-player-arm64.apk',
-  'arm32': 'otya-player-arm32.apk',
+  'arm64': 'OtyaPlayer-arm64.apk',
+  'arm32': 'OtyaPlayer-arm32.apk',
 }
 
 export const runtime = 'edge'
@@ -16,22 +16,23 @@ export async function GET(
 ) {
   const { file } = await params
 
+  if (file !== 'arm64' && file !== 'arm32') {
+    return new NextResponse('Not found', { status: 404 })
+  }
+
   // Support versioned downloads: /apk/arm64?v=1.2.0
   const version = req.nextUrl.searchParams.get('v')
 
   let key: string
   if (version) {
-    // e.g. releases/v1.2.0/otya-player-arm64.apk
+    // Validate version format
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       return new NextResponse('Invalid version', { status: 400 })
     }
-    if (file !== 'arm64' && file !== 'arm32') {
-      return new NextResponse('Not found', { status: 404 })
-    }
-    key = `releases/v${version}/otya-player-${file}.apk`
+    // Matches publish_r2.sh backup path: releases/v1.2.0/OtyaPlayer-arm64.apk
+    key = `releases/v${version}/OtyaPlayer-${file}.apk`
   } else {
     key = LATEST_MAP[file]
-    if (!key) return new NextResponse('Not found', { status: 404 })
   }
 
   try {
