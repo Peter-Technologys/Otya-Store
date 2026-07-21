@@ -61,7 +61,7 @@ export default function OtyaPlayerPage() {
             <div className="flex-1 text-center sm:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-5 border border-purple-500/30 bg-purple-500/10 text-purple-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Latest · v1.3.0 · Free · Android 5.0+
+                Latest · v1.4.0 · Free · Android 5.0+
               </div>
               <h1 className="text-5xl sm:text-6xl font-black mb-4 leading-tight text-white">
                 OTYA<br />
