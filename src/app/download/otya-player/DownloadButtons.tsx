@@ -17,19 +17,31 @@ function detectAbi(): Abi {
 
 const VERSIONS = [
   {
-    version: '1.3.0', date: 'July 2026', latest: true,
+    version: '1.4.0', date: 'July 2026', latest: true,
+    changes: [
+      'New video engine: migrated to media_kit — faster startup, hardware-accelerated, supports MKV/AVI/4K',
+      'Flash Share — share files phone-to-phone over Wi-Fi, no internet needed',
+      'Vault added to bottom nav bar — one-tap access to private vault',
+      'UI refresh: readable dark theme, logo-only header, less crowded screens',
+      'In-app update checker now enabled by default',
+      'Share App: send the download link directly from Settings',
+      'Fixed: audio not playing after media_kit migration',
+      'Fixed: app showing old version number in Settings',
+    ],
+    arm64: '/apk/arm64' as string | null,
+    arm32: '/apk/arm32' as string | null,
+  },
+  {
+    version: '1.3.0', date: 'June 2026', latest: false,
     changes: [
       'Flash Share — share files phone-to-phone over Wi-Fi, no internet needed',
       'Web Mirror — stream your music to any PC browser on the same Wi-Fi',
       'Private Vault now hides files from gallery scanners',
       'Storage Analyzer — see what is using your storage, clear cache in one tap',
       'New AMOLED neon dark theme',
-      'Seasonal themes: Christmas, Halloween, New Year',
-      'Fixed: music not playing on Android 11+ (All Files Access permission)',
-      'Fixed: music stopping on Android 13+',
     ],
-    arm64: null as string | null,
-    arm32: null as string | null,
+    arm64: '/apk/arm64?v=1.3.0' as string | null,
+    arm32: '/apk/arm32?v=1.3.0' as string | null,
   },
   {
     version: '1.2.0', date: 'February 2026', latest: false,
@@ -39,8 +51,8 @@ const VERSIONS = [
       'Equalizer with presets',
       'Car mode, skip silence, WhatsApp audio trimmer',
     ],
-    arm64: '/apk/arm64?v=1.2.0',
-    arm32: '/apk/arm32?v=1.2.0',
+    arm64: '/apk/arm64?v=1.2.0' as string | null,
+    arm32: '/apk/arm32?v=1.2.0' as string | null,
   },
   {
     version: '1.0.0', date: 'August 2025', latest: false,
@@ -51,8 +63,8 @@ const VERSIONS = [
       'Auto-scan your phone for all music and videos',
       'Dark, AMOLED, and Light themes',
     ],
-    arm64: '/apk/arm64?v=1.0.0',
-    arm32: '/apk/arm32?v=1.0.0',
+    arm64: '/apk/arm64?v=1.0.0' as string | null,
+    arm32: '/apk/arm32?v=1.0.0' as string | null,
   },
 ]
 
@@ -94,7 +106,7 @@ export function DownloadPageClient() {
         <div className="rounded-2xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
           <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>LATEST — v1.3.0 · July 2026</span>
+            <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>LATEST — v1.4.0 · July 2026</span>
           </div>
           {isAndroid ? (
             <>
@@ -104,7 +116,7 @@ export function DownloadPageClient() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                {status === 'started' ? '✓ Download started — check notifications' : 'Download Free — v1.3.0'}
+                {status === 'started' ? '✓ Download started — check notifications' : 'Download Free — v1.4.0'}
               </button>
               <p className="text-center text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                 ✓ Right version for your phone selected automatically
