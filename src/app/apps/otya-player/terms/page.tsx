@@ -1,51 +1,52 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
+import { SiteNav } from '@/components/SiteNav'
+import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service - OTYA Player | PeterSmart Technologies',
-  description: 'Terms of service for OTYA Player (com.otyaplayer.app) by PeterSmart Technologies.',
+  title: 'Terms of Service — OTYA Player | PeterSmart Technologies',
+  description: 'Terms of service for OTYA Player by PeterSmart Technologies.',
   alternates: { canonical: 'https://petersmartlink.com/apps/otya-player/terms' },
 }
 
 const SECTIONS = [
-  { title: '1. Acceptance', body: 'By downloading or using OTYA Player, you agree to these Terms. If you do not agree, do not use the app.' },
-  { title: '2. License', body: 'PeterSmart Technologies grants you a limited, non-exclusive, non-transferable license to use OTYA Player for personal, non-commercial purposes.' },
-  { title: '3. Permitted Use', body: 'You may use OTYA Player to play, organise, and manage media files that you own or have the legal right to access.' },
-  { title: '4. Prohibited Use', body: 'You must not reverse engineer, decompile, sell, or use the app for any unlawful purpose or to share copyrighted content without authorisation.' },
-  { title: '5. Private Vault', body: 'The Vault encrypts your media with AES-256. PeterSmart Technologies cannot recover your Vault PIN. If you lose access, the contents cannot be recovered.' },
-  { title: '6. Disclaimer', body: 'OTYA Player is provided "as is" without warranties of any kind.' },
-  { title: '7. Governing Law', body: 'These Terms are governed by the laws of the Republic of Uganda.' },
-  { title: '8. Contact', body: 'support@petersmartlink.com - WhatsApp +256 775 912 582' },
+  { icon: '✅', title: 'Acceptance', body: 'By downloading or using OTYA Player, you agree to these Terms. If you do not agree, please do not use the app.' },
+  { icon: '📱', title: 'License', body: 'PeterSmart Technologies grants you a free, limited, non-exclusive license to use OTYA Player for personal use on your Android device.' },
+  { icon: '🎵', title: 'Permitted Use', body: 'You may use OTYA Player to play, organise, and manage media files that you own or have the legal right to access.' },
+  { icon: '🚫', title: 'Prohibited Use', body: 'Do not reverse engineer, decompile, sell, or use the app for any unlawful purpose or to share copyrighted content without permission.' },
+  { icon: '🔒', title: 'Private Vault', body: 'The Vault encrypts your media with AES-256. We cannot recover your Vault PIN. If you lose it, the contents cannot be recovered. Keep your PIN safe.' },
+  { icon: '⚠️', title: 'Disclaimer', body: 'OTYA Player is provided as-is without warranties of any kind. We are not responsible for data loss.' },
+  { icon: '🇺🇬', title: 'Governing Law', body: 'These Terms are governed by the laws of the Republic of Uganda.' },
+  { icon: '📧', title: 'Contact', body: 'support@petersmartlink.com · WhatsApp +256 775 912 582' },
 ]
 
 export default function OtyaTermsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0a1a] via-[#0d0d2b] to-[#1a0a2e]">
-      <nav className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-xl bg-black/30">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
-          <Link href="/" className="text-slate-400 hover:text-white text-sm">Home</Link>
-          <span className="text-slate-600">/</span>
-          <Link href="/apps/otya-player" className="text-slate-400 hover:text-white text-sm">OTYA Player</Link>
-          <span className="text-slate-600">/</span>
-          <span className="text-white text-sm font-medium">Terms of Service</span>
+    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+      <SiteNav />
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+        <div className="mb-10">
+          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>Terms of Service</h1>
+          <p className="text-sm" style={{ color: 'var(--text-sub)' }}>OTYA Player · com.otyaplayer.app · Last updated: July 2026</p>
         </div>
-      </nav>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
-        <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Terms of Service</h1>
-        <p className="text-slate-400 text-sm mb-10">Last updated: July 2026 - PeterSmart Technologies</p>
         <div className="space-y-4">
           {SECTIONS.map(s => (
-            <div key={s.title} className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-base font-bold text-white mb-2">{s.title}</h2>
-              <p className="text-sm leading-relaxed text-slate-300">{s.body}</p>
+            <div key={s.title} className="flex gap-4 p-5 rounded-2xl border"
+              style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+              <span className="text-2xl flex-shrink-0 mt-0.5">{s.icon}</span>
+              <div>
+                <h2 className="font-bold text-sm mb-1.5" style={{ color: 'var(--text)' }}>{s.title}</h2>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-sub)' }}>{s.body}</p>
+              </div>
             </div>
           ))}
         </div>
-        <div className="mt-10 flex flex-wrap justify-center gap-4 text-sm">
-          <Link href="/apps/otya-player" className="text-slate-500 hover:text-white">Back to OTYA Player</Link>
-          <Link href="/apps/otya-player/privacy" className="text-purple-400 hover:text-purple-300">Privacy Policy</Link>
+        <div className="mt-8 flex flex-wrap gap-4 text-sm pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
+          <a href="/apps/otya-player/privacy" className="font-semibold" style={{ color: 'var(--purple)' }}>Privacy Policy</a>
+          <a href="/apps/otya-player/support" className="font-semibold" style={{ color: 'var(--purple)' }}>Support</a>
+          <a href="/download/otya-player" className="font-semibold" style={{ color: 'var(--purple)' }}>Download</a>
         </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }
