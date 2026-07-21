@@ -25,9 +25,7 @@ export default function HomePage() {
       <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.95)' }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
-              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Link" width={32} height={32} className="w-full h-full object-cover" priority />
-            </div>
+            <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Link" width={32} height={32} className="rounded-lg flex-shrink-0" style={{ display: 'block' }} priority />
             <div className="leading-tight">
               <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>PeterSmart Technologies</div>
               <div className="text-[10px]" style={{ color: 'var(--text-sub)' }}>Mbirizi, Uganda</div>
@@ -41,9 +39,7 @@ export default function HomePage() {
           <Link href="/otya-player"
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white text-xs font-semibold"
             style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>
-            <div className="w-5 h-5 rounded-md overflow-hidden flex-shrink-0">
-              <Image src="/played-icon.png" alt="OTYA Player" width={20} height={20} className="w-full h-full object-cover" />
-            </div>
+            <Image src="/played-icon.png" alt="OTYA Player" width={20} height={20} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
             <span>OTYA Player</span>
           </Link>
         </div>
@@ -76,9 +72,7 @@ export default function HomePage() {
                   </a>
                 </div>
               </div>
-              <div className="flex-shrink-0 w-36 h-36 sm:w-44 sm:h-44 rounded-3xl overflow-hidden" style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }}>
-                <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={176} height={176} className="w-full h-full object-cover" priority />
-              </div>
+              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={176} height={176} className="rounded-3xl flex-shrink-0" style={{ display: 'block', boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }} priority />
             </div>
           </div>
         </section>
@@ -116,9 +110,7 @@ export default function HomePage() {
             </div>
             <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
               <div className="flex flex-col sm:flex-row items-center gap-6 p-6">
-                <div className="w-20 h-20 rounded-[20px] overflow-hidden flex-shrink-0" style={{ boxShadow: '0 8px 32px rgba(138,43,226,0.35)' }}>
-                  <Image src="/played-icon.png" alt="OTYA Player" width={80} height={80} className="w-full h-full object-cover" />
-                </div>
+                <Image src="/played-icon.png" alt="OTYA Player" width={80} height={80} className="rounded-[20px] flex-shrink-0" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.35)' }} />
                 <div className="flex-1 text-center sm:text-left">
                   <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-2 border border-purple-200 bg-purple-50 text-purple-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Free · Android · Latest Update Jan 2027
@@ -181,7 +173,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-6">
             <div className="col-span-2 sm:col-span-1">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-lg overflow-hidden"><Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="w-full h-full object-cover" /></div>
+                <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="rounded-lg" style={{ display: 'block' }} />
                 <span className="font-bold text-xs" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
               </div>
               <p className="text-xs mb-3" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
