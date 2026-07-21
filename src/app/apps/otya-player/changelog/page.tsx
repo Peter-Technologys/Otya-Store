@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://petersmartlink.com/apps/otya-player/changelog' },
 }
 
-const TYPE_COLORS: Record<string, string> = { added: '#22c55e', fixed: '#3b82f6', changed: '#f59e0b', removed: '#ef4444' }
+const VERSIONS = [
   {
     version: '1.3.0', date: 'July 2026',
     summary: 'Flash Share, Web Mirror, Vault XOR obfuscation, Storage Analyzer, Neon UI overhaul.',
@@ -18,7 +18,6 @@ const TYPE_COLORS: Record<string, string> = { added: '#22c55e', fixed: '#3b82f6'
       { type: 'added', text: 'Storage Analyzer - ring chart + one-tap cache purge' },
       { type: 'added', text: 'Neon UI Toolkit - AMOLED neon dark theme' },
       { type: 'added', text: 'Seasonal auto-themes: Christmas, Halloween, New Year' },
-      { type: 'added', text: 'Auto-update: checks getotya.petersmartlink.com and installs new APK' },
       { type: 'fixed', text: 'Background audio stopping unexpectedly on Android 13+' },
     ],
     arm64: null as string | null,
@@ -33,8 +32,8 @@ const TYPE_COLORS: Record<string, string> = { added: '#22c55e', fixed: '#3b82f6'
       { type: 'added', text: '5-band equalizer with presets' },
       { type: 'added', text: 'Car mode, skip silence, WhatsApp Trimmer' },
     ],
-    arm64: `/apk/arm64?v=1.2.0`,
-    arm32: `/apk/arm32?v=1.2.0`,
+    arm64: '/apk/arm64?v=1.2.0',
+    arm32: '/apk/arm32?v=1.2.0',
   },
   {
     version: '1.0.0', date: 'August 2025',
@@ -45,8 +44,8 @@ const TYPE_COLORS: Record<string, string> = { added: '#22c55e', fixed: '#3b82f6'
       { type: 'added', text: 'Auto-scan device for all audio and video files' },
       { type: 'added', text: 'Dark / AMOLED / Light theme' },
     ],
-    arm64: `/apk/arm64?v=1.0.0`,
-    arm32: `/apk/arm32?v=1.0.0`,
+    arm64: '/apk/arm64?v=1.0.0',
+    arm32: '/apk/arm32?v=1.0.0',
   },
 ]
 
@@ -101,12 +100,12 @@ export default function OtyaChangelogPage() {
                     <a href={v.arm64} download={`OtyaPlayer-v${v.version}-arm64.apk`}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-white/20 text-slate-300 hover:border-purple-400 hover:text-white transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Modern Phone (arm64)
+                      Modern Phone
                     </a>
                     <a href={v.arm32!} download={`OtyaPlayer-v${v.version}-arm32.apk`}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-white/20 text-slate-300 hover:border-purple-400 hover:text-white transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Older Phone (arm32)
+                      Older Phone
                     </a>
                   </div>
                 </div>
