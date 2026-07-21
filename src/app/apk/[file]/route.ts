@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
-// Must match the keys publish_r2.sh uploads to R2
 const LATEST_MAP: Record<string, string> = {
   arm64: 'OtyaPlayer-arm64.apk',
   arm32: 'OtyaPlayer-arm32.apk',
@@ -41,18 +40,23 @@ export async function GET(
 
     const object = await r2.get(key)
     if (!object) {
-      return new NextResponse('APK not found', { status: 404 })
+      return NextResponse.json({
+        error: 'APK not found',
+        message: 'This APK has not been uploaded yet.',
+        downloadPage: 'https://petersmartlink.com/download/otya-player',
+      }, { status: 404 })
     }
 
     const filename = version
       ? `OtyaPlayer-v${version}-${file}.apk`
-      : 'OtyaPlayer.apk'
+      : `OtyaPlayer-v1.4.0-${file}.apk`
 
     const headers = new Headers()
     headers.set('Content-Type', 'application/vnd.android.package-archive')
     headers.set('Content-Disposition', `attachment; filename="${filename}"`)
     if (object.size) headers.set('Content-Length', String(object.size))
     headers.set('Cache-Control', 'public, max-age=3600')
+    headers.set('Access-Control-Allow-Origin', '*')
 
     return new NextResponse(object.body, { headers })
   } catch {
