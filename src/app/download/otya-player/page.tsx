@@ -8,26 +8,11 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://petersmartlink.com/download/otya-player' },
 }
 
-const WORKER_BASE = 'https://petersmartlink.com'
-
-async function getReleaseDateLabel(): Promise<string> {
-  try {
-    const res = await fetch(`${WORKER_BASE}/version`, { next: { revalidate: 300 } })
-    if (!res.ok) return 'July 2026'
-    const data = await res.json()
-    if (data.date) {
-      const d = new Date(data.date)
-      return d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-    }
-    return 'July 2026'
-  } catch { return 'July 2026' }
-}
-
 export default async function DownloadPage() {
-  const releaseDate = await getReleaseDateLabel()
+  const releaseDate = 'July 2026'
   const apks = {
-    arm64: `${WORKER_BASE}/apk/arm64`,
-    arm32: `${WORKER_BASE}/apk/arm32`,
+    arm64: '/apk/arm64',
+    arm32: '/apk/arm32',
   }
 
   return (
