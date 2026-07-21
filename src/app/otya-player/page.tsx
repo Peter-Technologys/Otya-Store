@@ -11,30 +11,12 @@ export const metadata: Metadata = {
 const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z'
 
 const FEATURES = [
-  {
-    emoji: '🎵', label: 'Audio Player',
-    items: ['MP3, AAC, FLAC, OGG, M4A', 'Background playback with lock-screen controls', 'Shuffle, repeat, queue management', 'Speed control 0.5x–2.0x, sleep timer, 5-band EQ, synced lyrics'],
-  },
-  {
-    emoji: '🎬', label: 'Video Player',
-    items: ['MP4, MKV, AVI, MOV, WebM', 'Hardware-accelerated via media_kit', 'Gesture controls, Picture-in-Picture, subtitles', 'Double-tap to seek ±10 seconds'],
-  },
-  {
-    emoji: '🔒', label: 'Private Vault',
-    items: ['AES-256 encryption', 'Biometric + PIN unlock', 'Files hidden from gallery and other apps', 'XOR header obfuscation'],
-  },
-  {
-    emoji: '⚡', label: 'Flash Share',
-    items: ['Device-to-device over Wi-Fi', 'No internet required', 'QR code connect, real-time progress'],
-  },
-  {
-    emoji: '🌐', label: 'Web Mirror',
-    items: ['Stream your library to any PC browser on Wi-Fi', 'No cables needed', 'Search, stream, download from browser'],
-  },
-  {
-    emoji: '📊', label: 'Storage Analyzer',
-    items: ['Ring chart of storage usage', 'One-tap cache purge', 'Auto-refresh when files change'],
-  },
+  { emoji: '🎵', label: 'Audio Player', items: ['MP3, AAC, FLAC, OGG, M4A', 'Background playback with lock-screen controls', 'Shuffle, repeat, queue management', 'Speed control 0.5x–2.0x, sleep timer, 5-band EQ, synced lyrics'] },
+  { emoji: '🎬', label: 'Video Player', items: ['MP4, MKV, AVI, MOV, WebM', 'Hardware-accelerated, smooth playback', 'Gesture controls, Picture-in-Picture, subtitles', 'Double-tap to seek ±10 seconds'] },
+  { emoji: '🔒', label: 'Private Vault', items: ['AES-256 encryption', 'Fingerprint + PIN unlock', 'Files hidden from gallery and other apps', 'Extra security layer on file headers'] },
+  { emoji: '⚡', label: 'Flash Share', items: ['Send files phone-to-phone over Wi-Fi', 'No internet required', 'QR code connect, real-time progress'] },
+  { emoji: '🌐', label: 'Web Mirror', items: ['Stream your library to any PC browser on Wi-Fi', 'No cables needed', 'Search, stream, download from browser'] },
+  { emoji: '📊', label: 'Storage Analyzer', items: ['See what is using your storage', 'Clear cache in one tap', 'Auto-refresh when files change'] },
 ]
 
 const SPECS = [
@@ -55,16 +37,12 @@ export default function OtyaPlayerPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0">
-                <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="w-full h-full object-cover" />
-              </div>
+              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
               <span className="text-xs font-semibold hidden sm:block" style={{ color: 'var(--text-sub)' }}>PeterSmart Technologies</span>
             </Link>
             <span style={{ color: 'var(--border)' }}>/</span>
             <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0">
-                <Image src="/played-icon.png" alt="OTYA Player" width={24} height={24} className="w-full h-full object-cover" />
-              </div>
+              <Image src="/played-icon.png" alt="OTYA Player" width={24} height={24} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
               <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>OTYA Player</span>
             </div>
           </div>
@@ -83,14 +61,14 @@ export default function OtyaPlayerPage() {
             <div className="flex-1 text-center sm:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-5 border border-purple-500/30 bg-purple-500/10 text-purple-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Latest Update · January 2027 · Free · Android 5.0+
+                Latest · v1.3.0 · Free · Android 5.0+
               </div>
               <h1 className="text-5xl sm:text-6xl font-black mb-4 leading-tight text-white">
                 OTYA<br />
                 <span style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Player</span>
               </h1>
               <p className="text-base leading-relaxed mb-3 max-w-lg text-slate-300">
-                The offline media player built in Uganda. Play any music or video file without internet, share files device-to-device, lock private media in an encrypted vault, and stream your library to any PC browser on Wi-Fi.
+                The offline media player built in Uganda. Play any music or video without internet, share files phone-to-phone, lock private media in an encrypted vault, and stream your library to any PC browser on Wi-Fi.
               </p>
               <p className="text-sm mb-8 text-slate-500">by <span className="text-purple-400 font-semibold">PeterSmart Technologies</span> · Mbirizi, Uganda</p>
               <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
@@ -155,9 +133,8 @@ export default function OtyaPlayerPage() {
 
         {/* Download CTA */}
         <div className="rounded-2xl p-8 text-center" style={{ background: 'linear-gradient(135deg, #0f0a1e, #1a0a2e)' }}>
-          <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto mb-4" style={{ boxShadow: '0 8px 32px rgba(138,43,226,0.4)' }}>
-            <Image src="/played-icon.png" alt="OTYA Player" width={64} height={64} className="w-full h-full object-cover" />
-          </div>
+          <Image src="/played-icon.png" alt="OTYA Player" width={64} height={64}
+            className="rounded-2xl mx-auto mb-4" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.4)' }} />
           <h3 className="text-2xl font-black text-white mb-2">Download OTYA Player</h3>
           <p className="text-sm text-slate-400 mb-6">Free. No subscription. No internet required. Works on all Android phones.</p>
           <div className="flex flex-wrap gap-3 justify-center">
@@ -167,9 +144,9 @@ export default function OtyaPlayerPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               Download APK
             </Link>
-            <Link href="/apps/otya-player/changelog"
+            <Link href="/download/otya-player"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border border-white/20 text-slate-300 hover:border-purple-400">
-              View Changelog
+              Version History
             </Link>
           </div>
         </div>
@@ -182,7 +159,6 @@ export default function OtyaPlayerPage() {
               ['Privacy Policy', '/apps/otya-player/privacy'],
               ['Terms of Service', '/apps/otya-player/terms'],
               ['Support & FAQ', '/apps/otya-player/support'],
-              ['Changelog', '/apps/otya-player/changelog'],
             ] as [string, string][]).map(([l, h]) => (
               <Link key={l} href={h}
                 className="px-4 py-2 rounded-xl text-sm font-medium border hover:border-purple-400 transition-colors"
@@ -191,7 +167,6 @@ export default function OtyaPlayerPage() {
           </div>
         </div>
 
-        {/* Back to company */}
         <div className="text-center pb-4">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--purple)' }}>
             ← Back to PeterSmart Technologies
