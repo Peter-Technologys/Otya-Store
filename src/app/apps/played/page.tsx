@@ -3,8 +3,8 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Played - Offline Media Player | PeterSmart Technologies',
-  description: 'Played - high-performance offline media player for Android. Flash Share, AES-256 Vault, hardware-accelerated video, synced lyrics.',
+  title: 'Otya Player - Offline Media Player | PeterSmart Technologies',
+  description: 'Otya Player - high-performance offline media player for Android. Flash Share, AES-256 Vault, hardware-accelerated video, synced lyrics.',
   alternates: { canonical: 'https://petersmartlink.com/apps/played/' },
 }
 
@@ -17,14 +17,14 @@ export default function PlayedPage() {
           <span style={{ color: 'var(--border)' }}>/</span>
           <Link href="/apps" className="font-medium hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>Apps</Link>
           <span style={{ color: 'var(--border)' }}>/</span>
-          <span className="font-semibold" style={{ color: 'var(--text)' }}>Played</span>
+          <span className="font-semibold" style={{ color: 'var(--text)' }}>Otya Player</span>
         </div>
       </nav>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex flex-col sm:flex-row items-start gap-6 mb-10">
-          <Image src="/played-icon.png" alt="Played" width={88} height={88} style={{ borderRadius: 22, objectFit: 'cover', flexShrink: 0 }} />
+          <Image src="/played-icon.png" alt="Otya Player" width={88} height={88} style={{ borderRadius: 22, objectFit: 'cover', flexShrink: 0 }} />
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: 'var(--text)' }}>Played</h1>
+            <h1 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: 'var(--text)' }}>Otya Player</h1>
             <p className="text-sm font-semibold mb-3" style={{ color: 'var(--purple)' }}>Offline Media Player - Android - by PeterSmart Technologies</p>
             <p className="text-sm leading-relaxed mb-5 max-w-lg" style={{ color: 'var(--text-sub)' }}>High-performance offline media player. 100% offline-first. Built for Android 5+.</p>
             <div className="flex flex-wrap gap-2">
