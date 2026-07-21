@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Inline Cloudflare R2 types (avoids needing @cloudflare/workers-types)
-interface R2ObjectBody {
-  body: ReadableStream
-  size: number
-}
-interface R2BucketType {
-  get(key: string): Promise<R2ObjectBody | null>
-}
-declare const R2: R2BucketType
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 // Must match the keys publish_r2.sh uploads to R2
 const LATEST_MAP: Record<string, string> = {
-  'arm64': 'OtyaPlayer-arm64.apk',
-  'arm32': 'OtyaPlayer-arm32.apk',
+  arm64: 'OtyaPlayer-arm64.apk',
+  arm32: 'OtyaPlayer-arm32.apk',
 }
-
-export const runtime = 'edge'
 
 export async function GET(
   req: NextRequest,
@@ -28,26 +17,29 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 })
   }
 
-  // Support versioned downloads: /apk/arm64?v=1.2.0
   const version = req.nextUrl.searchParams.get('v')
 
   let key: string
   if (version) {
-    // Validate version format
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       return new NextResponse('Invalid version', { status: 400 })
     }
-    // Matches publish_r2.sh backup path: releases/v1.2.0/OtyaPlayer-arm64.apk
     key = `releases/v${version}/OtyaPlayer-${file}.apk`
   } else {
     key = LATEST_MAP[file]
   }
 
   try {
-    const object = await R2.get(key)
+    const { env } = await getCloudflareContext()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r2 = (env as any).R2
+    if (!r2) {
+      return new NextResponse('Storage not available', { status: 503 })
+    }
 
+    const object = await r2.get(key)
     if (!object) {
-      return new NextResponse('APK not found in storage', { status: 404 })
+      return new NextResponse('APK not found', { status: 404 })
     }
 
     const filename = version
@@ -60,7 +52,7 @@ export async function GET(
     if (object.size) headers.set('Content-Length', String(object.size))
     headers.set('Cache-Control', 'public, max-age=3600')
 
-    return new NextResponse(object.body as ReadableStream, { headers })
+    return new NextResponse(object.body, { headers })
   } catch {
     return new NextResponse('Download failed. Please try again.', { status: 500 })
   }
