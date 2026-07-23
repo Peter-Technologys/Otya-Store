@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const { results } = await db.prepare(
     'SELECT * FROM playlists WHERE user_id = ? ORDER BY updated_at DESC'
   ).bind(userId).all()
-  return NextResponse.json({ playlists: results }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging of response freshness.
+  return NextResponse.json({ playlists: results, ts: Date.now() }, { headers: CORS })
 }
 
 // POST /api/playlists — upsert
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest) {
       media_ids  = excluded.media_ids,
       updated_at = excluded.updated_at
   `).bind(id, user_id, name, media_ids ?? '[]', now, now).run()
-  return NextResponse.json({ ok: true }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging.
+  return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
 }
 
 // DELETE /api/playlists — body: { id, user_id }
@@ -43,7 +45,8 @@ export async function DELETE(req: NextRequest) {
   const { env } = await getCloudflareContext()
   const db = (env as Record<string, unknown>).DB as D1Database
   await db.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').bind(id, user_id).run()
-  return NextResponse.json({ ok: true }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging.
+  return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
 }
 
 export async function OPTIONS() {

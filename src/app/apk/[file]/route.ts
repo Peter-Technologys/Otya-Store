@@ -31,7 +31,13 @@ export async function GET(
   try {
     const { env } = await getCloudflareContext()
     const r2 = (env as Record<string, unknown>).R2 as {
-      get(key: string): Promise<{ body: ReadableStream; size: number } | null>
+      get(key: string): Promise<{
+        body: ReadableStream
+        size: number
+        // PERFORMANCE 1: httpMetadata carries the stored Content-Type from R2
+        // so we can serve the correct MIME type without hardcoding it.
+        httpMetadata?: { contentType?: string }
+      } | null>
     } | undefined
 
     if (!r2) {
@@ -67,9 +73,14 @@ export async function GET(
       : `OtyaPlayer-v1.4.0-${file}.apk`
 
     const headers = new Headers()
-    headers.set('Content-Type', 'application/vnd.android.package-archive')
+
+    // PERFORMANCE 1: Use httpMetadata content-type from R2 object if available,
+    // falling back to the known APK MIME type. R2 objects always have a size,
+    // so Content-Length is set unconditionally when size > 0.
+    const contentType = object.httpMetadata?.contentType ?? 'application/vnd.android.package-archive'
+    headers.set('Content-Type', contentType)
     headers.set('Content-Disposition', `attachment; filename="${filename}"`)
-    if (object.size) headers.set('Content-Length', String(object.size))
+    if (object.size > 0) headers.set('Content-Length', String(object.size))
     headers.set('Cache-Control', 'public, max-age=3600')
     headers.set('Access-Control-Allow-Origin', '*')
 

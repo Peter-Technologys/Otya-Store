@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const { results } = await db.prepare(
     'SELECT * FROM play_history WHERE user_id = ? ORDER BY last_played_at DESC LIMIT 200'
   ).bind(userId).all()
-  return NextResponse.json({ history: results }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging of response freshness.
+  return NextResponse.json({ history: results, ts: Date.now() }, { headers: CORS })
 }
 
 // POST /api/history — upsert a history item
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
     is_video === 'true' || is_video === '1' ? 1 : 0,
     last_played_at ?? now
   ).run()
-  return NextResponse.json({ ok: true }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging.
+  return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
 }
 
 export async function OPTIONS() {
