@@ -47,6 +47,21 @@ export async function GET(
       }, { status: 404 })
     }
 
+    // Track download in D1 (non-fatal)
+    try {
+      const db = (env as Record<string, unknown>).DB as D1Database | undefined
+      if (db) {
+        await db.prepare(
+          'INSERT INTO downloads (abi, version, ip, user_agent) VALUES (?, ?, ?, ?)'
+        ).bind(
+          file,
+          version ?? 'latest',
+          req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? '',
+          req.headers.get('user-agent') ?? ''
+        ).run()
+      }
+    } catch { /* non-fatal */ }
+
     const filename = version
       ? `OtyaPlayer-v${version}-${file}.apk`
       : `OtyaPlayer-v1.4.0-${file}.apk`
