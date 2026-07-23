@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { requireAppToken } from '@/lib/auth'
 
 // GET /check-update
 // Called by OtyaService.checkAppUpdate() in the Flutter app.
@@ -11,11 +12,14 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 //   version:       "1.4.0",
 //   force_update:  false,
 //   release_notes: "Bug fixes...",
-//   download_url:  "https://petersmartlink.com/download"
+//   download_url:  "https://petersmartlink.com/download/otya-player"
 // }
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const { env } = await getCloudflareContext()
+    const authErr = requireAppToken(req, env as Record<string, unknown>)
+    if (authErr) return authErr
+
     const db = (env as Record<string, unknown>).DB as D1Database
     const r2 = (env as Record<string, unknown>).R2 as R2Bucket
 
@@ -30,19 +34,16 @@ export async function GET(_req: NextRequest) {
       `).first<Record<string, unknown>>() ?? null
     } catch { /* D1 not seeded yet — fall through */ }
 
+    const CORS = { 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': 'https://petersmartlink.com' }
+
     if (row) {
       return NextResponse.json({
         build_number:  row.version_code,
         version:       row.version,
         force_update:  Boolean(row.force_update),
         release_notes: row.changelog ?? 'Bug fixes and improvements.',
-        download_url:  row.download_url ?? 'https://petersmartlink.com/download',
-      }, {
-        headers: {
-          'Cache-Control':               'public, max-age=300',
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
+        download_url:  row.download_url ?? 'https://petersmartlink.com/download/otya-player',
+      }, { headers: CORS })
     }
 
     // Fallback: R2 version.json
@@ -54,13 +55,8 @@ export async function GET(_req: NextRequest) {
         version:       data.version ?? '',
         force_update:  false,
         release_notes: data.changelog ?? 'Bug fixes and improvements.',
-        download_url:  'https://petersmartlink.com/download',
-      }, {
-        headers: {
-          'Cache-Control':               'public, max-age=300',
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
+        download_url:  'https://petersmartlink.com/download/otya-player',
+      }, { headers: CORS })
     }
 
     return NextResponse.json({ error: 'No release info available' }, { status: 404 })
