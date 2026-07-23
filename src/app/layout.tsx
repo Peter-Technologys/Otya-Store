@@ -113,7 +113,7 @@ const schemaOrg = {
       alternateName: 'com.otyaplayer.app',
       operatingSystem: 'Android 5.0+',
       applicationCategory: 'MultimediaApplication',
-      softwareVersion: '1.3.0',
+      softwareVersion: '1.4.0',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
       url: `${SITE_URL}/otya-player`,
       downloadUrl: `${SITE_URL}/download/otya-player`,

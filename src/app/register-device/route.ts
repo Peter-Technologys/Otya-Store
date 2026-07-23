@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { requireAppToken, API_CORS } from '@/lib/auth'
 
 // POST /register-device
 // Called by OtyaService.registerDevicePushToken() in the Flutter app.
@@ -8,6 +9,10 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 // Body: { deviceId, fcmToken, userId?, appVersion?, versionCode?, abi?, platform? }
 export async function POST(req: NextRequest) {
   try {
+    const { env } = await getCloudflareContext()
+    const authErr = requireAppToken(req, env as Record<string, unknown>)
+    if (authErr) return authErr
+
     const body        = await req.json() as Record<string, unknown>
     const deviceId    = body.deviceId    as string | undefined
     const fcmToken    = body.fcmToken    as string | undefined
@@ -21,7 +26,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    const { env } = await getCloudflareContext()
     const db  = (env as Record<string, unknown>).DB as D1Database
     const now = new Date().toISOString()
 
@@ -37,9 +41,7 @@ export async function POST(req: NextRequest) {
         last_seen_at = excluded.last_seen_at
     `).bind(deviceId, userId, fcmToken ?? null, appVersion, versionCode, abi, platform, now, now).run()
 
-    return NextResponse.json({ ok: true }, {
-      headers: { 'Access-Control-Allow-Origin': '*' },
-    })
+    return NextResponse.json({ ok: true }, { headers: API_CORS })
   } catch (err) {
     console.error('[register-device]', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -47,11 +49,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    headers: {
-      'Access-Control-Allow-Origin':  '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
+  return new NextResponse(null, { headers: API_CORS })
 }

@@ -12,7 +12,15 @@ CREATE TABLE IF NOT EXISTS downloads (
   created_at TEXT    DEFAULT (datetime('now'))
 );
 
--- Release history
+-- Release history (used by /check-update and /latest)
+-- Seed the current release after running this schema:
+--   INSERT OR REPLACE INTO releases
+--     (tag, version, version_code, date, changelog, force_update, download_url, arm64_url, arm32_url)
+--   VALUES
+--     ('v1.4.0','1.4.0',7,'2026-07-23','Bug fixes and performance improvements.',0,
+--      'https://petersmartlink.com/download/otya-player',
+--      'https://petersmartlink.com/apk/arm64',
+--      'https://petersmartlink.com/apk/arm32');
 CREATE TABLE IF NOT EXISTS releases (
   tag          TEXT    PRIMARY KEY,
   version      TEXT    NOT NULL,
