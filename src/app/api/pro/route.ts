@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const row = await db.prepare(
     'SELECT expiry_ms FROM pro_status WHERE user_id = ?'
   ).bind(userId).first<{ expiry_ms: number }>()
-  return NextResponse.json({ expiry_ms: row?.expiry_ms ?? 0 }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging of response freshness.
+  return NextResponse.json({ expiry_ms: row?.expiry_ms ?? 0, ts: Date.now() }, { headers: CORS })
 }
 
 // POST /api/pro — body: { user_id, expiry_ms }
@@ -29,7 +30,8 @@ export async function POST(req: NextRequest) {
       expiry_ms  = excluded.expiry_ms,
       updated_at = excluded.updated_at
   `).bind(user_id, Number(expiry_ms ?? 0), now).run()
-  return NextResponse.json({ ok: true }, { headers: CORS })
+  // POLISH 1: Include ts for easier debugging.
+  return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
 }
 
 export async function OPTIONS() {
