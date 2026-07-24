@@ -34,7 +34,18 @@ const FEATURES = [
   '🎄 Seasonal Themes',
 ]
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Fetch live version — runs server-side at request time, no client JS needed
+  let appVersion = ''
+  try {
+    const res = await fetch('https://petersmartlink.com/version', {
+      next: { revalidate: 300 }, // cache for 5 minutes
+    })
+    if (res.ok) {
+      const data = await res.json() as { version?: string }
+      appVersion = data.version ?? ''
+    }
+  } catch { /* non-fatal — badge just shows without version */ }
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <SiteNav />
@@ -147,7 +158,7 @@ export default function HomePage() {
                   <div className="flex-1 text-center sm:text-left">
                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border border-purple-500/30 bg-purple-500/10 text-purple-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      Free · Android · v1.4.0
+                      {`Free · Android · v${appVersion}`}
                     </div>
                     <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">OTYA Player</h3>
                     <p className="text-sm text-slate-300 mb-5 max-w-lg">A free, offline-first media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.</p>
