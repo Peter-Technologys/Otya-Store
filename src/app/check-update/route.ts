@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { requireAppToken } from '@/lib/auth'
+import { getDB, getR2 } from '@/lib/d1'
 
 // GET /check-update
 // Called by OtyaService.checkAppUpdate() in the Flutter app.
@@ -20,10 +21,8 @@ export async function GET(req: NextRequest) {
     const authErr = requireAppToken(req, env as Record<string, unknown>)
     if (authErr) return authErr
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = (env as Record<string, unknown>).DB as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r2 = (env as Record<string, unknown>).R2 as any
+    const db = getDB(env as Record<string, unknown>)
+    const r2 = getR2(env as Record<string, unknown>)
 
     // Try D1 first
     let row: Record<string, unknown> | null = null

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { requireAppToken, API_CORS } from '@/lib/auth'
+import { getDB } from '@/lib/d1'
 
 // POST /register-device
 // Called by OtyaService.registerDevicePushToken() in the Flutter app.
@@ -26,8 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db  = (env as Record<string, unknown>).DB as any
+    const db  = getDB(env as Record<string, unknown>)
     const now = new Date().toISOString()
 
     await db.prepare(`

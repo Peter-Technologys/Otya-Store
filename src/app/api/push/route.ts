@@ -120,8 +120,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'title and body required' }, { status: 400 })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = (env as Record<string, unknown>).DB as any
+  const db = (env as Record<string, unknown>).DB as import('@/lib/d1').D1
 
   // Fetch FCM tokens
   let tokens: string[] = []

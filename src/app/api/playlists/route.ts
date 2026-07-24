@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { requireAppToken, API_CORS } from '@/lib/auth'
+import { getDB } from '@/lib/d1'
 
 const CORS = API_CORS
 
@@ -11,8 +12,7 @@ export async function GET(req: NextRequest) {
   if (authErr) return authErr
   const userId = req.nextUrl.searchParams.get('user_id')
   if (!userId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = (env as Record<string, unknown>).DB as any
+  const db = getDB(env as Record<string, unknown>)
   const { results } = await db.prepare(
     'SELECT * FROM playlists WHERE user_id = ? ORDER BY updated_at DESC'
   ).bind(userId).all()
@@ -29,8 +29,7 @@ export async function POST(req: NextRequest) {
   if (!id || !user_id || !name) {
     return NextResponse.json({ error: 'id, user_id, name required' }, { status: 400 })
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db  = (env as Record<string, unknown>).DB as any
+  const db  = getDB(env as Record<string, unknown>)
   const now = new Date().toISOString()
   await db.prepare(`
     INSERT INTO playlists (id, user_id, name, media_ids, created_at, updated_at)
@@ -50,8 +49,7 @@ export async function DELETE(req: NextRequest) {
   if (authErr) return authErr
   const { id, user_id } = await req.json() as Record<string, string>
   if (!id || !user_id) return NextResponse.json({ error: 'id, user_id required' }, { status: 400 })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = (env as Record<string, unknown>).DB as any
+  const db = getDB(env as Record<string, unknown>)
   await db.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').bind(id, user_id).run()
   return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
 }
