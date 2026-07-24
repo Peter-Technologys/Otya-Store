@@ -17,15 +17,16 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 // ── JWT / OAuth2 helpers (Web Crypto API — no Node.js crypto) ────────────────
 
-function base64urlEncode(buf: ArrayBuffer | Uint8Array): string {
+function base64urlEncode(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf)
   let str = ''
   for (const b of bytes) str += String.fromCharCode(b)
   return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-function encodeUtf8(str: string): Uint8Array {
-  return new TextEncoder().encode(str)
+function encodeUtf8(str: string): ArrayBuffer {
+  const encoded = new TextEncoder().encode(str)
+  return encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength) as ArrayBuffer
 }
 
 /**
