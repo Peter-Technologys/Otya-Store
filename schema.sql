@@ -82,3 +82,28 @@ CREATE TABLE IF NOT EXISTS pro_status (
   expiry_ms  INTEGER DEFAULT 0,
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Ratings (star ratings submitted from the app)
+CREATE TABLE IF NOT EXISTS ratings (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id    TEXT,
+  app_version  TEXT,
+  version_code INTEGER,
+  stars        INTEGER NOT NULL,
+  comment      TEXT,
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- Feedback / problem reports submitted from the app
+CREATE TABLE IF NOT EXISTS feedback (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id    TEXT,
+  app_version  TEXT,
+  version_code INTEGER,
+  category     TEXT,
+  description  TEXT NOT NULL,
+  user_email   TEXT,
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ratings_created  ON ratings(created_at DESC);
