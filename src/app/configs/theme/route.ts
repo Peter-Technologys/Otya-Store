@@ -1,4 +1,3 @@
-/// <reference types="@cloudflare/workers-types" />
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
