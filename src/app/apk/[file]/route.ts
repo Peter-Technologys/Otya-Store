@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { getDB } from '@/lib/d1'
 
 const LATEST_MAP: Record<string, string> = {
   arm64: 'OtyaPlayer-arm64.apk',
@@ -55,9 +56,8 @@ export async function GET(
 
     // Track download in D1 (non-fatal)
     try {
-      const db = (env as Record<string, unknown>).DB as D1Database | undefined
-      if (db) {
-        await db.prepare(
+      const db = getDB(env as Record<string, unknown>)
+      await db.prepare(
           'INSERT INTO downloads (abi, version, ip, user_agent) VALUES (?, ?, ?, ?)'
         ).bind(
           file,
@@ -65,7 +65,6 @@ export async function GET(
           req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? '',
           req.headers.get('user-agent') ?? ''
         ).run()
-      }
     } catch { /* non-fatal */ }
 
     const filename = version
