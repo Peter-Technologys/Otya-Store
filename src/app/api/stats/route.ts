@@ -4,7 +4,8 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 // GET /api/stats — download analytics
 export async function GET(_req: NextRequest) {
   const { env } = await getCloudflareContext()
-  const db = (env as Record<string, unknown>).DB as D1Database
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = (env as Record<string, unknown>).DB as any
 
   const [totalRow, byAbi, byVersion, recent] = await Promise.all([
     db.prepare('SELECT COUNT(*) as total FROM downloads').first<{ total: number }>(),
