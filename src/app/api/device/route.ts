@@ -7,6 +7,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
+import { getDB } from '@/lib/d1'
 
 export const runtime = 'edge'
 
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 3. Upsert into D1 ────────────────────────────────────────────────────
-  const db = (env as Record<string, unknown>).DB as D1Database
+  const db = getDB(env as Record<string, unknown>)
 
   await db.prepare(`
     INSERT INTO devices (device_id, model, android_version, app_version, app_build, arch, locale, last_seen)
