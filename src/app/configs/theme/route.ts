@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { getKV, getR2 } from '@/lib/d1'
 
 // GET /configs/theme
 // Called by OtyaService.fetchOtaTheme() in the Flutter app.
@@ -196,8 +197,8 @@ function generateEtag(body: string): string {
 export async function GET(req: NextRequest) {
   try {
     const { env } = await getCloudflareContext()
-    const kv = (env as Record<string, unknown>).KV as KVNamespace
-    const r2 = (env as Record<string, unknown>).R2 as R2Bucket | undefined
+    const kv = getKV(env as Record<string, unknown>)
+    const r2 = getR2(env as Record<string, unknown>)
 
     let themeData: ThemeV2 | null = null
     let sourceEtag: string | null = null
@@ -317,7 +318,7 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    const kv   = (env as Record<string, unknown>).KV as KVNamespace
+    const kv   = getKV(env as Record<string, unknown>)
     const etag = `"${Date.now()}"`
 
     await kv.put(KV_KEY, body, {

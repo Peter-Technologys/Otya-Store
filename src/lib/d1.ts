@@ -39,7 +39,9 @@ export interface R2 {
 
 export interface KVNamespaceLocal {
   get(key: string): Promise<string | null>
-  put(key: string, value: string): Promise<void>
+  getWithMetadata<M = unknown>(key: string): Promise<{ value: string | null; metadata: M | null }>
+  put(key: string, value: string, options?: { expirationTtl?: number; metadata?: unknown }): Promise<void>
+  delete(key: string): Promise<void>
 }
 
 export function getDB(env: Record<string, unknown>): D1 {
