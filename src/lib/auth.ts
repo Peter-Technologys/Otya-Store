@@ -1,28 +1,92 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 /**
- * Shared token auth for all Flutter-facing API routes.
+ * HMAC-SHA256 request verification middleware.
  *
- * The Flutter app sends `X-App-Token: <token>` on every request.
- * The token is stored as a Cloudflare Worker secret (APP_TOKEN).
+ * The Flutter app signs each request with HMAC-SHA256 using the shared secret
+ * (OTYA_STORE_ADMIN_TOKEN). The signing string is "METHOD:PATH:TIMESTAMP".
  *
- * Setup:
- *   1. Generate: openssl rand -hex 32
- *   2. Store:    wrangler secret put APP_TOKEN
- *   3. Add the same value to lib/core/config/environment.dart:
- *        static const String appToken = 'YOUR_TOKEN_HERE';
- *   4. Flutter sends it as: headers: { 'X-App-Token': Environment.appToken }
+ * Expected headers from the Flutter app:
+ *   X-Otya-Timestamp  — Unix timestamp in seconds (request time)
+ *   X-Otya-Signature  — hex(HMAC-SHA256(secret, "METHOD:PATH:TIMESTAMP"))
  *
- * Returns null if authorised, or a 401 NextResponse.
+ * Rejects if:
+ *   - Headers are missing
+ *   - Timestamp is more than 5 minutes old (replay protection)
+ *   - Signature does not match
+ */
+export interface AuthEnv {
+  OTYA_STORE_ADMIN_TOKEN: string;
+}
+
+export async function verifyRequest(
+  request: Request,
+  env: AuthEnv,
+): Promise<{ ok: boolean; error?: string }> {
+  const timestamp = request.headers.get('X-Otya-Timestamp')
+  const signature = request.headers.get('X-Otya-Signature')
+
+  if (!timestamp || !signature) {
+    return { ok: false, error: 'Missing auth headers' }
+  }
+
+  // Replay protection: reject requests older than 5 minutes
+  const now = Math.floor(Date.now() / 1000)
+  const ts  = parseInt(timestamp, 10)
+  if (isNaN(ts) || Math.abs(now - ts) > 300) {
+    return { ok: false, error: 'Timestamp expired or invalid' }
+  }
+
+  // Build the signing string
+  const url           = new URL(request.url)
+  const signingString = `${request.method}:${url.pathname}:${timestamp}`
+
+  // Compute expected HMAC
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(env.OTYA_STORE_ADMIN_TOKEN),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const mac = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(signingString),
+  )
+  const expected = Array.from(new Uint8Array(mac))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  // Constant-time comparison
+  if (!timingSafeEqual(expected, signature.toLowerCase())) {
+    return { ok: false, error: 'Invalid signature' }
+  }
+
+  return { ok: true }
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
+}
+
+/**
+ * Legacy token auth — kept for backward compatibility during migration.
+ * @deprecated Use verifyRequest() instead.
  */
 export function requireAppToken(
   req: NextRequest,
   env: Record<string, unknown>,
-): NextResponse | null {
+): import('next/server').NextResponse | null {
+  const { NextResponse } = require('next/server')
   const expected = env.APP_TOKEN as string | undefined
   if (!expected) {
-    // Not configured yet — allow all (dev / first deploy). Log a warning.
-    console.warn('[auth] APP_TOKEN not set. Set it with: wrangler secret put APP_TOKEN')
+    console.warn('[auth] APP_TOKEN not set.')
     return null
   }
   const provided = req.headers.get('x-app-token') ?? ''
@@ -42,5 +106,5 @@ export function requireAppToken(
 export const API_CORS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-App-Token',
+  'Access-Control-Allow-Headers': 'Content-Type, X-App-Token, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 } as const

@@ -1,31 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { requireAppToken, API_CORS } from '@/lib/auth'
+import { verifyRequest } from '@/lib/auth'
+import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
-const CORS = API_CORS
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin':  'https://petersmartlink.com',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+}
 
 // GET /api/pro?user_id=xxx
 export async function GET(req: NextRequest) {
   const { env } = await getCloudflareContext()
-  const authErr = requireAppToken(req, env as Record<string, unknown>)
-  if (authErr) return authErr
+  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
+  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
   const userId = req.nextUrl.searchParams.get('user_id')
-  if (!userId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+  if (!userId) return errorJson('user_id required', 400)
   const db = getDB(env as Record<string, unknown>)
   const row = await db.prepare(
     'SELECT expiry_ms FROM pro_status WHERE user_id = ?'
   ).bind(userId).first<{ expiry_ms: number }>()
-  return NextResponse.json({ expiry_ms: row?.expiry_ms ?? 0, ts: Date.now() }, { headers: CORS })
+  return secureJson({ expiry_ms: row?.expiry_ms ?? 0, ts: Date.now() })
 }
 
 // POST /api/pro — body: { user_id, expiry_ms }
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext()
-  const authErr = requireAppToken(req, env as Record<string, unknown>)
-  if (authErr) return authErr
+  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
+  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
   const { user_id, expiry_ms } = await req.json() as Record<string, unknown>
-  if (!user_id) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+  if (!user_id) return errorJson('user_id required', 400)
   const db  = getDB(env as Record<string, unknown>)
   const now = new Date().toISOString()
   await db.prepare(`
@@ -35,9 +40,9 @@ export async function POST(req: NextRequest) {
       expiry_ms  = excluded.expiry_ms,
       updated_at = excluded.updated_at
   `).bind(user_id, Number(expiry_ms ?? 0), now).run()
-  return NextResponse.json({ ok: true, ts: Date.now() }, { headers: CORS })
+  return secureJson({ ok: true, ts: Date.now() })
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS })
+  return new NextResponse(null, { headers: CORS_HEADERS })
 }

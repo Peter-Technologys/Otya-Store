@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 // POST /api/blog/seed
@@ -115,7 +115,10 @@ export async function POST(req: NextRequest) {
   const adminToken = (env as Record<string, unknown>).ADMIN_TOKEN as string | undefined
   const auth = req.headers.get('authorization') ?? ''
   if (!adminToken || auth !== `Bearer ${adminToken}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    })
   }
 
   const db = (env as Record<string, unknown>).DB as import('@/lib/d1').D1
@@ -147,5 +150,8 @@ export async function POST(req: NextRequest) {
     inserted++
   }
 
-  return NextResponse.json({ ok: true, inserted, total: POSTS.length })
+  return new Response(JSON.stringify({ ok: true, inserted, total: POSTS.length }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  })
 }
