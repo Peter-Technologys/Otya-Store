@@ -11,8 +11,8 @@ export function SiteFooter() {
           {/* Brand */}
           <div className="col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 mb-3">
-              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="rounded-lg" style={{ display: 'block' }} />
-              <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>PeterSmart Link</span>
+              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={28} height={28} className="rounded-lg" style={{ display: 'block' }} />
+              <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
             </div>
             <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
             <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
