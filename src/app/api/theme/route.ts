@@ -7,6 +7,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
+import { getKV, getR2 } from '@/lib/d1'
 
 export const runtime = 'edge'
 
@@ -61,8 +62,8 @@ export async function GET(request: NextRequest) {
   let themeData: unknown = null
   let source = 'default'
 
-  const kv = (env as Record<string, unknown>).KV as KVNamespace
-  const r2 = (env as Record<string, unknown>).R2 as R2Bucket
+  const kv = getKV(env as Record<string, unknown>)
+  const r2 = getR2(env as Record<string, unknown>)
 
   // Try to load a specific theme by ID from R2
   if (requestedId && requestedId !== 'auto') {

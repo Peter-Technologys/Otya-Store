@@ -28,10 +28,19 @@ export interface R2 {
   get(key: string): Promise<R2Object | null>
 }
 
+export interface KVNamespaceLocal {
+  get(key: string): Promise<string | null>
+  put(key: string, value: string): Promise<void>
+}
+
 export function getDB(env: Record<string, unknown>): D1 {
   return env.DB as D1
 }
 
 export function getR2(env: Record<string, unknown>): R2 {
   return env.R2 as R2
+}
+
+export function getKV(env: Record<string, unknown>): KVNamespaceLocal {
+  return env.KV as KVNamespaceLocal
 }
