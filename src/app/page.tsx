@@ -4,6 +4,8 @@ import type { Metadata } from 'next'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
 import { Marquee } from '@/components/magicui/marquee'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
   title: 'PeterSmart Technologies — Mobile Money, Phone Sales & OTYA Player | Mbirizi, Uganda',
@@ -35,17 +37,17 @@ const FEATURES = [
 ]
 
 export default async function HomePage() {
-  // Fetch live version — runs server-side at request time, no client JS needed
-  let appVersion = ''
+  // Read live version from KV — runs server-side at request time, no client JS needed
+  let appVersion = '1.4.0'
   try {
-    const res = await fetch('https://petersmartlink.com/version', {
-      next: { revalidate: 300 }, // cache for 5 minutes
-    })
-    if (res.ok) {
-      const data = await res.json() as { version?: string }
-      appVersion = data.version ?? ''
+    const { env } = await getCloudflareContext()
+    const kv = getKV(env as Record<string, unknown>)
+    const raw = await kv.get('LATEST_BUILD_INFO')
+    if (raw) {
+      const data = JSON.parse(raw) as { version?: string }
+      if (data.version) appVersion = data.version
     }
-  } catch { /* non-fatal — badge just shows without version */ }
+  } catch { /* non-fatal — fallback to 1.4.0 */ }
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <SiteNav />

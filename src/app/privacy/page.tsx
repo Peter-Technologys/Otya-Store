@@ -12,7 +12,7 @@ const SECTIONS = [
   { icon: '🏢', title: 'Who We Are', body: 'PeterSmart Technologies operates petersmartlink.com. We are based in Mbirizi Town Council, Lwengo District, Uganda. Contact: hello@petersmartlink.com' },
   { icon: '📊', title: 'Data We Collect', body: 'We collect account data (name, email, phone when you register), business data (name, address, products, blog posts), transaction data (sales records), and basic usage data.' },
   { icon: '⚙️', title: 'How We Use Your Data', body: 'We use your data to provide and improve our services, display your business on the platform, send account notifications, and comply with Ugandan law. We do not sell your data.' },
-  { icon: '💾', title: 'Data Storage', body: 'Your data is stored on Appwrite Cloud servers. We do not sell your data to third parties.' },
+  { icon: '💾', title: 'Data Storage', body: 'Your data is stored on Cloudflare D1 (database) and R2 (file storage). We do not sell your data to third parties.' },
   { icon: '🛡️', title: 'Your Rights', body: 'You have the right to access, correct, delete and export your personal data at any time. Contact us at hello@petersmartlink.com.' },
   { icon: '📧', title: 'Contact', body: 'For privacy questions: hello@petersmartlink.com · WhatsApp +256 775 912 582 · Mbirizi Town Council, Lwengo District, Uganda.' },
 ]

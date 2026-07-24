@@ -28,9 +28,9 @@ export default function OtyaPlayerPage() {
             <p className="text-sm font-semibold mb-3" style={{ color: 'var(--purple)' }}>Offline Media Player - Android - by PeterSmart Technologies</p>
             <p className="text-sm leading-relaxed mb-5 max-w-lg" style={{ color: 'var(--text-sub)' }}>High-performance offline media player. 100% offline-first. Built for Android 5+.</p>
             <div className="flex flex-wrap gap-2">
-              <a href="https://getotya.petersmartlink.com/download" target="_blank" rel="noopener noreferrer"
+              <Link href="/download/otya-player"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-semibold text-sm"
-                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Download APK</a>
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Download APK</Link>
               <Link href="/apps/otya-player/privacy" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border hover:border-purple-400" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--card)' }}>Privacy Policy</Link>
               <Link href="/apps/otya-player/terms" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border hover:border-purple-400" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--card)' }}>Terms</Link>
               <Link href="/apps/otya-player/changelog" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border hover:border-purple-400" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--card)' }}>Changelog</Link>

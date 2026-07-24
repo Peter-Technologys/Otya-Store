@@ -69,7 +69,7 @@ export async function GET(
 
     const filename = version
       ? `OtyaPlayer-v${version}-${file}.apk`
-      : `OtyaPlayer-v1.4.0-${file}.apk`
+      : `OtyaPlayer-latest-${file}.apk`
 
     const headers = new Headers()
 
