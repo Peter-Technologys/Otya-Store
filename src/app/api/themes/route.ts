@@ -6,6 +6,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
+import { getR2 } from '@/lib/d1'
 
 export const runtime = 'edge'
 
@@ -23,16 +24,16 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. List themes from R2 ───────────────────────────────────────────────
-  const r2 = (env as Record<string, unknown>).R2 as R2Bucket
+  const r2 = getR2(env as Record<string, unknown>)
 
   try {
     const listed = await r2.list({ prefix: 'themes/' })
     const themes = listed.objects
       .filter((obj) => obj.key.endsWith('.json'))
       .map((obj) => ({
-        id:   obj.key.replace('themes/', '').replace('.json', ''),
-        key:  obj.key,
-        size: obj.size,
+        id:      obj.key.replace('themes/', '').replace('.json', ''),
+        key:     obj.key,
+        size:    obj.size,
         uploaded: obj.uploaded,
       }))
 

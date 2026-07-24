@@ -7,6 +7,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
+import { getKV } from '@/lib/d1'
 
 export const runtime = 'edge'
 
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. Read version info from KV ─────────────────────────────────────────
-  const kv  = (env as Record<string, unknown>).KV as KVNamespace
+  const kv  = getKV(env as Record<string, unknown>)
   const raw = await kv.get('LATEST_BUILD_INFO')
   if (!raw) return errorJson('Version info not found', 404)
 

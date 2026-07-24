@@ -21,7 +21,7 @@ export function secureJson(
       'Referrer-Policy': 'no-referrer',
       // CORS — locked to the app's origin only
       'Access-Control-Allow-Origin': 'https://petersmartlink.com',
-      'Access-Control-Allow-Methods': 'GET, POST',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers':
         'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
       // Diagnostics

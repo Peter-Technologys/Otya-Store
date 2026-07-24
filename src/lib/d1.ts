@@ -22,10 +22,19 @@ export interface D1 {
 
 export interface R2Object {
   text(): Promise<string>
+  key: string
+  size: number
+  uploaded: Date
+}
+
+export interface R2ListResult {
+  objects: R2Object[]
+  truncated: boolean
 }
 
 export interface R2 {
   get(key: string): Promise<R2Object | null>
+  list(options?: { prefix?: string; limit?: number }): Promise<R2ListResult>
 }
 
 export interface KVNamespaceLocal {

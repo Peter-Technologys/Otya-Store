@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
+import { getDB } from '@/lib/d1'
 
 // POST /api/push — Admin-only: send FCM push notification
 // Header: Authorization: Bearer YOUR_ADMIN_TOKEN
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
     return errorJson('title and body required', 400)
   }
 
-  const db = (env as Record<string, unknown>).DB as import('@/lib/d1').D1
+  const db = getDB(env as Record<string, unknown>)
 
   // Fetch FCM tokens
   let tokens: string[] = []
