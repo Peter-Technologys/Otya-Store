@@ -4,16 +4,14 @@ import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
   title: 'Our Services',
-  description: 'Mobile money, phone sales, repairs, data bundles and phone loans in Mbirizi, Lwengo District, Uganda.',
+  description: 'Mobile money, phone sales, data bundles and phone loans in Mbirizi, Lwengo District, Uganda.',
 }
 
 const SERVICES = [
   { id: '1', name: 'Mobile Money — MTN & Airtel', description: 'Deposits, withdrawals, transfers and bill payments. Fast and reliable every day.', price: 0 },
   { id: '2', name: 'Phone Loans', description: 'Get a smartphone on loan with easy weekly repayments. No collateral needed.', price: 0 },
-  { id: '3', name: 'Phone Screen Replacement', description: 'Cracked screen? We replace screens for most Android brands. Same-day service.', price: 35000 },
-  { id: '4', name: 'Phone Repairs', description: 'Battery, charging port, water damage, speaker and microphone repairs. Free diagnosis.', price: 15000 },
-  { id: '5', name: 'Data Bundles & Airtime', description: 'MTN and Airtel data bundles and airtime top-up at competitive rates.', price: 0 },
-  { id: '6', name: 'Phone Sales', description: 'Latest smartphones and accessories at the best prices in Mbirizi.', price: 150000 },
+  { id: '3', name: 'Data Bundles & Airtime', description: 'MTN and Airtel data bundles and airtime top-up at competitive rates.', price: 0 },
+  { id: '4', name: 'Phone Sales', description: 'Latest smartphones and accessories at the best prices in Mbirizi.', price: 150000 },
 ]
 
 export default function ServicesPage() {

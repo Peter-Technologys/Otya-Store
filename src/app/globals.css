@@ -17,9 +17,10 @@ html { scroll-behavior: smooth; }
   --border:       #e5e7eb;
   --card:         #ffffff;
   --card-border:  #e5e7eb;
-  --purple:       #7c3aed;
-  --purple-light: #8b5cf6;
+  --purple:       #8A2BE2;
+  --purple-light: #a855f7;
   --indigo:       #4f46e5;
+  --nav-bg:       rgba(255,255,255,0.95);
   --radius:       16px;
 }
 
@@ -37,6 +38,7 @@ html { scroll-behavior: smooth; }
     --purple:       #8b5cf6;
     --purple-light: #a78bfa;
     --indigo:       #6366f1;
+    --nav-bg:       rgba(7,5,15,0.95);
   }
 }
 
@@ -57,12 +59,12 @@ img { max-width: 100%; height: auto; }
 /* Prevent horizontal overflow on all elements */
 section, div, nav, footer, main { max-width: 100%; }
 
-::selection { background: rgba(124,58,237,0.2); color: inherit; }
+::selection { background: rgba(138,43,226,0.2); color: inherit; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.5); }
+::-webkit-scrollbar-thumb { background: rgba(138,43,226,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(138,43,226,0.5); }
 
 a, button { transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
 

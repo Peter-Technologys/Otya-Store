@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
+import { SiteNav } from '@/components/SiteNav'
+import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
   title: 'OTYA Player — Free Offline Media Player for Android',
@@ -30,29 +32,8 @@ const SPECS = [
 
 export default function OtyaPlayerPage() {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.95)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2">
-              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart" width={28} height={28} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
-              <span className="text-xs font-semibold hidden sm:block" style={{ color: 'var(--text-sub)' }}>PeterSmart Technologies</span>
-            </Link>
-            <span style={{ color: 'var(--border)' }}>/</span>
-            <div className="flex items-center gap-1.5">
-              <Image src="/played-icon.png" alt="OTYA Player" width={24} height={24} className="rounded-md flex-shrink-0" style={{ display: 'block' }} />
-              <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>OTYA Player</span>
-            </div>
-          </div>
-          <Link href="/download/otya-player"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-semibold text-xs"
-            style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>
-            Download Free
-          </Link>
-        </div>
-      </nav>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+      <SiteNav />
 
       {/* Hero */}
       <section className="border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, #0f0a1e 0%, #1a0a2e 50%, #0a1628 100%)' }}>
@@ -174,12 +155,7 @@ export default function OtyaPlayerPage() {
         </div>
       </div>
 
-      {/* WhatsApp FAB */}
-      <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
-        className="fixed bottom-5 right-5 z-50 rounded-full flex items-center justify-center shadow-xl"
-        style={{ background: '#25d366', width: 52, height: 52 }} aria-label="WhatsApp">
-        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
-      </a>
+      <SiteFooter />
     </div>
   )
 }

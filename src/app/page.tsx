@@ -20,7 +20,6 @@ const SHOP = [
   { emoji: '📱', name: 'Phone Sales', desc: 'Latest Android smartphones and accessories at the best prices.', badge: 'In stock' },
   { emoji: '📦', name: 'Data & Airtime', desc: 'MTN and Airtel bundles at competitive rates, always available.', badge: 'Always open' },
   { emoji: '💰', name: 'Phone Loans', desc: 'Get a smartphone on loan with easy repayments.', badge: 'Flexible' },
-  { emoji: '🔧', name: 'Phone Repairs', desc: 'Screen, battery, charging port, water damage. Free diagnosis.', badge: 'Same day' },
 ]
 
 const FEATURES = [
@@ -57,7 +56,7 @@ export default async function HomePage() {
         {/* Hero */}
         <section className="relative overflow-hidden border-b py-16 sm:py-24" style={{ borderColor: 'var(--border)' }}>
           {/* Subtle gradient bg */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124,58,237,0.07), transparent)' }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(138,43,226,0.07), transparent)' }} />
           <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
             <div className="flex flex-col sm:flex-row items-center gap-10">
               <div className="flex-1 text-center sm:text-left">
@@ -67,7 +66,7 @@ export default async function HomePage() {
                 </div>
                 <h1 className="text-4xl sm:text-6xl font-black mb-4 leading-tight" style={{ color: 'var(--text)' }}>
                   PeterSmart<br />
-                  <span style={{ background: 'linear-gradient(135deg, #7c3aed, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Technologies</span>
+                  <span style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Technologies</span>
                 </h1>
                 <p className="text-base leading-relaxed mb-8 max-w-lg" style={{ color: 'var(--text-sub)' }}>
                   A technology company in Mbirizi, Uganda. We run a mobile money & phone shop and build <strong style={{ color: 'var(--text)' }}>OTYA Player</strong> — a free offline media player used across Uganda.
@@ -88,9 +87,9 @@ export default async function HomePage() {
                 </div>
               </div>
               <div className="relative flex-shrink-0">
-                <div className="absolute inset-0 rounded-3xl blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #7c3aed, #00BFFF)', transform: 'scale(1.1)' }} />
+                <div className="absolute inset-0 rounded-3xl blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', transform: 'scale(1.1)' }} />
                 <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={180} height={180}
-                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(124,58,237,0.25)' }} priority unoptimized />
+                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(138,43,226,0.25)' }} priority unoptimized />
               </div>
             </div>
           </div>

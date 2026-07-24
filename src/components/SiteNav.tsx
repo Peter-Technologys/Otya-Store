@@ -16,14 +16,14 @@ export function SiteNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.95)' }}>
+    <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'var(--nav-bg, rgba(255,255,255,0.95))' }}>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
         {/* Logo + brand name */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0" onClick={() => setOpen(false)}>
-          <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Link" width={32} height={32}
+          <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={32} height={32}
             className="rounded-xl" style={{ display: 'block' }} priority />
-          <span className="font-bold text-sm hidden sm:block" style={{ color: 'var(--text)' }}>PeterSmart Link</span>
+          <span className="font-bold text-sm hidden sm:block" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
         </Link>
 
         {/* Desktop links */}
@@ -69,12 +69,12 @@ export function SiteNav() {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden border-t px-4 py-3 space-y-1"
-          style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.98)' }}>
+          style={{ borderColor: 'var(--border)', background: 'var(--nav-bg, rgba(255,255,255,0.98))' }}>
           {NAV_LINKS.map(({ label, href }) => (
             <Link key={href} href={href} onClick={() => setOpen(false)}
               className="flex items-center h-10 px-3 rounded-xl text-sm font-medium transition-colors"
               style={{
-                color: pathname?.startsWith(href) ? '#7c3aed' : 'var(--text)',
+                color: pathname?.startsWith(href) ? 'var(--purple)' : 'var(--text)',
                 background: pathname?.startsWith(href) ? 'var(--bg-secondary)' : 'transparent',
               }}>
               {label}
