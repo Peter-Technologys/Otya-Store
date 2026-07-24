@@ -48,3 +48,9 @@ destination_address = "petersmartlink@gmail.com"
 [[queues.producers]]
 binding = "PUSH_QUEUE"
 queue   = "otya-push-queue"
+
+[[queues.consumers]]
+queue           = "otya-push-queue"
+max_batch_size  = 10
+max_retries     = 3
+dead_letter_queue = "otya-push-queue-dlq"
