@@ -17,7 +17,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 // ── JWT / OAuth2 helpers (Web Crypto API — no Node.js crypto) ────────────────
 
-function base64urlEncode(buf: ArrayBuffer): string {
+function base64urlEncode(buf: ArrayBuffer | Uint8Array): string {
   const bytes = new Uint8Array(buf)
   let str = ''
   for (const b of bytes) str += String.fromCharCode(b)
