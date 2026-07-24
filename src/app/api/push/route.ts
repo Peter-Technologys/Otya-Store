@@ -58,8 +58,8 @@ async function getFcmAccessToken(serviceAccountJson: string): Promise<string> {
 
   // Import the RSA private key (PKCS#8 PEM → CryptoKey)
   const pemBody = sa.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
     .replace(/\s+/g, '')
   const derBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
 

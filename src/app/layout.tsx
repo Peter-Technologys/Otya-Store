@@ -63,7 +63,7 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
     shortcut: '/favicon.ico',
   },
-  manifest: '/site.webmanifest',
+  manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'OTYA Player', statusBarStyle: 'default' },
 }
 

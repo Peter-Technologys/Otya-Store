@@ -76,7 +76,7 @@ export default function HomePage() {
               <div className="relative flex-shrink-0">
                 <div className="absolute inset-0 rounded-3xl blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #7c3aed, #00BFFF)', transform: 'scale(1.1)' }} />
                 <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={180} height={180}
-                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(124,58,237,0.25)' }} priority />
+                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(124,58,237,0.25)' }} priority unoptimized />
               </div>
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function HomePage() {
                   <div className="relative flex-shrink-0">
                     <div className="absolute inset-0 rounded-[24px] blur-2xl opacity-60" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }} />
                     <Image src="/played-icon.png" alt="OTYA Player" width={88} height={88}
-                      className="relative rounded-[24px]" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.5)' }} />
+                      className="relative rounded-[24px]" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.5)' }} unoptimized />
                   </div>
                   <div className="flex-1 text-center sm:text-left">
                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border border-purple-500/30 bg-purple-500/10 text-purple-300">
