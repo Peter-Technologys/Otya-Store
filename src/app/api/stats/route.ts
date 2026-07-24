@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest) {
   }, {
     headers: {
       'Cache-Control':               'public, max-age=60',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': 'https://petersmartlink.com',
     },
   })
 }

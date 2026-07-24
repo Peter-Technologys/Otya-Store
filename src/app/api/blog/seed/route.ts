@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       post.id, post.title, post.excerpt, post.content,
       post.category, post.authorName, post.createdAt, post.isPublished,
     ).run()
-    if (result.meta?.changes > 0) inserted++
+    inserted++
   }
 
   return NextResponse.json({ ok: true, inserted, total: POSTS.length })
