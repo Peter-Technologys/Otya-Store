@@ -19,11 +19,11 @@ export function SiteNav() {
     <nav className="sticky top-0 z-50 border-b backdrop-blur-2xl" style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.95)' }}>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
-        {/* Logo only — no text */}
+        {/* Logo + brand name */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0" onClick={() => setOpen(false)}>
-          <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={32} height={32}
+          <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Link" width={32} height={32}
             className="rounded-xl" style={{ display: 'block' }} priority />
-          <span className="font-bold text-sm hidden sm:block" style={{ color: 'var(--text)' }}>PeterSmart</span>
+          <span className="font-bold text-sm hidden sm:block" style={{ color: 'var(--text)' }}>PeterSmart Link</span>
         </Link>
 
         {/* Desktop links */}

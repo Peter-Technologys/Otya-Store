@@ -4,8 +4,8 @@
 User-agent: *
 Allow: /
 
-# Block private routes
+# Block private API routes only — do NOT block /_next/ as Googlebot
+# needs /_next/static/ to render JavaScript pages correctly.
 Disallow: /api/
-Disallow: /_next/
 
 Sitemap: https://petersmartlink.com/sitemap.xml

@@ -95,7 +95,7 @@ const schemaOrg = {
       name: 'PeterSmart Link',
       url: SITE_URL,
       telephone: '+256-775-912-582',
-      email: 'hello@petersmartlink.com',
+      email: 'support@petersmartlink.com',
       image: `${SITE_URL}/og-image.jpg`,
       priceRange: 'UGX',
       areaServed: 'UG',
