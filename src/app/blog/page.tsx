@@ -1,12 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { databases } from '@/lib/appwrite'
-import { Query } from 'appwrite'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
-
-const DB_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '6a19b3d90011d619c0cd'
 
 interface BlogPost {
   $id: string; title: string; excerpt?: string; content: string
@@ -31,12 +26,9 @@ export default function BlogPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    databases.listDocuments(DB_ID, 'blog_posts', [
-      Query.equal('isPublished', true),
-      Query.orderDesc('createdAt'),
-      Query.limit(50),
-    ])
-      .then(r => setPosts(r.documents as unknown as BlogPost[]))
+    fetch('/api/blog')
+      .then(r => r.json())
+      .then((data: { posts: BlogPost[] }) => setPosts(data.posts ?? []))
       .catch(() => setPosts([]))
       .finally(() => setLoading(false))
   }, [])
