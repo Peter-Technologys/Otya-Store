@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { requireAppToken, API_CORS } from '@/lib/auth'
+import { getDB } from '@/lib/d1'
 
 const CORS = API_CORS
 
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (authErr) return authErr
   const userId = req.nextUrl.searchParams.get('user_id')
   if (!userId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
-  const db = (env as Record<string, unknown>).DB as D1Database
+  const db = getDB(env as Record<string, unknown>)
   const { results } = await db.prepare(
     'SELECT * FROM play_history WHERE user_id = ? ORDER BY last_played_at DESC LIMIT 200'
   ).bind(userId).all()
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!id || !user_id || !file_path) {
     return NextResponse.json({ error: 'id, user_id, file_path required' }, { status: 400 })
   }
-  const db  = (env as Record<string, unknown>).DB as D1Database
+  const db  = getDB(env as Record<string, unknown>)
   const now = new Date().toISOString()
   await db.prepare(`
     INSERT INTO play_history (id, user_id, title, artist, file_path, is_video, last_played_at)
