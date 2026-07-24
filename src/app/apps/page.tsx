@@ -32,7 +32,7 @@ export default function AppsPage() {
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>OTYA Player</h2>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700">v1.3.0</span>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700">v1.4.0</span>
                 </div>
                 <p className="text-xs font-semibold mb-2" style={{ color: '#7c3aed' }}>Offline Media Player - Android - Free</p>
                 <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-sub)' }}>Free offline media player for Android. Play music and videos, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on your Wi-Fi.</p>
