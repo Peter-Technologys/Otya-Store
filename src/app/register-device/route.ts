@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    const db  = (env as Record<string, unknown>).DB as D1Database
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db  = (env as Record<string, unknown>).DB as any
     const now = new Date().toISOString()
 
     await db.prepare(`

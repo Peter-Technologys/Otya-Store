@@ -20,8 +20,10 @@ export async function GET(req: NextRequest) {
     const authErr = requireAppToken(req, env as Record<string, unknown>)
     if (authErr) return authErr
 
-    const db = (env as Record<string, unknown>).DB as D1Database
-    const r2 = (env as Record<string, unknown>).R2 as R2Bucket
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (env as Record<string, unknown>).DB as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r2 = (env as Record<string, unknown>).R2 as any
 
     // Try D1 first
     let row: Record<string, unknown> | null = null
