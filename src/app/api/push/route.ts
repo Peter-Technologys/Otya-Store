@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { secureJson, errorJson } from '@/lib/response'
 
 // POST /api/push — Admin-only: send FCM push notification
 // Header: Authorization: Bearer YOUR_ADMIN_TOKEN
@@ -107,18 +108,18 @@ export async function POST(req: NextRequest) {
   const serviceAccountJson = (env as Record<string, unknown>).FCM_SERVICE_ACCOUNT_JSON as string | undefined
 
   // Auth
-  const auth = req.headers.get('authorization') ?? ''
-  if (!adminToken || auth !== `Bearer ${adminToken}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const authHeader = req.headers.get('authorization') ?? ''
+  if (!adminToken || authHeader !== `Bearer ${adminToken}`) {
+    return errorJson('Unauthorized', 401)
   }
   if (!serviceAccountJson) {
-    return NextResponse.json({ error: 'FCM_SERVICE_ACCOUNT_JSON not configured' }, { status: 503 })
+    return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
   }
 
   const body = await req.json() as Record<string, string>
   const { title, body: msgBody, url, deviceId } = body
   if (!title || !msgBody) {
-    return NextResponse.json({ error: 'title and body required' }, { status: 400 })
+    return errorJson('title and body required', 400)
   }
 
   const db = (env as Record<string, unknown>).DB as import('@/lib/d1').D1
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (tokens.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0, message: 'No registered devices', ts: Date.now() })
+    return secureJson({ ok: true, sent: 0, message: 'No registered devices', ts: Date.now() })
   }
 
   // Mint OAuth2 access token once for all sends
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
   try {
     accessToken = await getFcmAccessToken(serviceAccountJson)
   } catch (e) {
-    return NextResponse.json({ error: `Failed to obtain FCM access token: ${e}` }, { status: 503 })
+    return errorJson(`Failed to obtain FCM access token: ${e}`, 503)
   }
 
   // Extract project_id from service account JSON
@@ -179,5 +180,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, sent, failed, total: tokens.length, ts: Date.now() })
+  return secureJson({ ok: true, sent, failed, total: tokens.length, ts: Date.now() })
 }

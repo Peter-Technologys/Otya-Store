@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { verifyRequest } from '@/lib/auth'
+import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 // GET /api/stats — download analytics
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const { env } = await getCloudflareContext()
+  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
+  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+
   const db = getDB(env as Record<string, unknown>)
 
   const [totalRow, byAbi, byVersion, recent] = await Promise.all([
@@ -14,15 +19,12 @@ export async function GET(_req: NextRequest) {
     db.prepare('SELECT abi, version, created_at FROM downloads ORDER BY created_at DESC LIMIT 20').all(),
   ])
 
-  return NextResponse.json({
+  return secureJson({
     total:      totalRow?.total ?? 0,
     by_abi:     byAbi.results,
     by_version: byVersion.results,
     recent:     recent.results,
   }, {
-    headers: {
-      'Cache-Control':               'public, max-age=60',
-      'Access-Control-Allow-Origin': 'https://petersmartlink.com',
-    },
+    cache: 'public, max-age=60',
   })
 }
