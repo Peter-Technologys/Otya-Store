@@ -8,7 +8,8 @@ const CORS = API_CORS
 export async function GET() {
   try {
     const { env } = await getCloudflareContext()
-    const db = (env as Record<string, unknown>).DB as D1Database
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (env as Record<string, unknown>).DB as any
     const { results } = await db.prepare(
       'SELECT $id, title, excerpt, content, category, authorName, createdAt, isPublished FROM blog_posts WHERE isPublished = 1 ORDER BY createdAt DESC LIMIT 50'
     ).all()
