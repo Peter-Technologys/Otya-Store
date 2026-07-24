@@ -9,8 +9,6 @@ import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
 import { getKV, getR2 } from '@/lib/d1'
 
-export const runtime = 'edge'
-
 interface SeasonalEntry {
   id: string
   start: string // "MM-DD"

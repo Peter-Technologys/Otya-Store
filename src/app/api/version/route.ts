@@ -9,8 +9,6 @@ import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
 import { getKV } from '@/lib/d1'
 
-export const runtime = 'edge'
-
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
