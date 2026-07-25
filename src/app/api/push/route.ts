@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
-import { sendFcmToTokens } from '@/lib/fcm'
+import { getFcmAccessToken, sendFcmWithToken } from '@/lib/fcm'
 
 // POST /api/push — Admin-only: send FCM push notification
 // Uses the same HMAC auth as all other endpoints (X-Otya-Timestamp + X-Otya-Signature).
@@ -75,19 +75,29 @@ export async function POST(req: NextRequest) {
   const sa = JSON.parse(serviceAccountJson) as { project_id: string }
   const link = url ?? 'https://petersmartlink.com/download'
 
-  // ── 3. Send in chunks — single pass through sendFcmToTokens per chunk ────
+  // ── 3. Get OAuth2 token ONCE, then send in chunks ─────────────────────────
+  // getFcmAccessToken makes a full JWT + Google OAuth2 roundtrip. Calling it
+  // once here (not per-chunk) saves N-1 network calls for large device lists.
+  let accessToken: string
+  try {
+    accessToken = await getFcmAccessToken(serviceAccountJson)
+  } catch (e) {
+    console.error('[push] Failed to obtain FCM access token:', e)
+    return errorJson('FCM authentication failed', 503)
+  }
+
   let totalSent   = 0
   let totalFailed = 0
 
   for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
     const chunk = tokens.slice(i, i + CHUNK_SIZE)
     try {
-      const { sent, failed } = await sendFcmToTokens(
+      const { sent, failed } = await sendFcmWithToken(
         chunk,
         title,
         msgBody,
         link,
-        serviceAccountJson,
+        accessToken,
         sa.project_id,
       )
       totalSent   += sent

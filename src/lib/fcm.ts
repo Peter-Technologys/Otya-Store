@@ -93,18 +93,20 @@ export interface FcmSendResult {
 }
 
 /**
- * Send an FCM push notification to one or more device tokens.
- * Returns counts of successful and failed sends.
+ * Send FCM messages using a pre-fetched OAuth2 access token.
+ *
+ * Callers that send to many chunks MUST obtain the token once with
+ * getFcmAccessToken() and pass it here — avoids a full JWT + OAuth2
+ * roundtrip to Google for every 100-token chunk.
  */
-export async function sendFcmToTokens(
+export async function sendFcmWithToken(
   tokens: string[],
   title: string,
   body: string,
   url: string,
-  serviceAccountJson: string,
+  accessToken: string,
   projectId: string,
 ): Promise<FcmSendResult> {
-  const accessToken = await getFcmAccessToken(serviceAccountJson)
   const fcmEndpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
 
   let sent = 0, failed = 0
@@ -128,4 +130,23 @@ export async function sendFcmToTokens(
   }
 
   return { sent, failed }
+}
+
+/**
+ * Convenience wrapper: fetches an access token then sends to all tokens.
+ * Use this only when sending to a single batch — for chunked sends use
+ * getFcmAccessToken() + sendFcmWithToken() so the token is reused.
+ *
+ * @deprecated Prefer getFcmAccessToken + sendFcmWithToken for chunked sends.
+ */
+export async function sendFcmToTokens(
+  tokens: string[],
+  title: string,
+  body: string,
+  url: string,
+  serviceAccountJson: string,
+  projectId: string,
+): Promise<FcmSendResult> {
+  const accessToken = await getFcmAccessToken(serviceAccountJson)
+  return sendFcmWithToken(tokens, title, body, url, accessToken, projectId)
 }
