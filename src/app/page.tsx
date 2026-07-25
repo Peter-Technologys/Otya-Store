@@ -36,8 +36,7 @@ const FEATURES = [
 ]
 
 export default async function HomePage() {
-  // Read live version from KV — runs server-side at request time, no client JS needed
-  let appVersion = '1.4.0'
+  let appVersion = '1.5.0'
   try {
     const { env } = await getCloudflareContext()
     const kv = getKV(env as Record<string, unknown>)
@@ -46,30 +45,30 @@ export default async function HomePage() {
       const data = JSON.parse(raw) as { version?: string }
       if (data.version) appVersion = data.version
     }
-  } catch { /* non-fatal — fallback to 1.4.0 */ }
+  } catch { /* non-fatal — fallback to 1.5.0 */ }
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
       <SiteNav />
 
       <main className="flex-1">
 
         {/* Hero */}
-        <section className="relative overflow-hidden border-b py-16 sm:py-24" style={{ borderColor: 'var(--border)' }}>
+        <section className="relative overflow-hidden border-b py-16 sm:py-24" style={{ borderColor: 'var(--cosmos-divider)' }}>
+          <div className="cosmos-stars" />
           {/* Subtle gradient bg */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(138,43,226,0.07), transparent)' }} />
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 30%, rgba(123,97,255,0.15), transparent 60%)' }} />
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
             <div className="flex flex-col sm:flex-row items-center gap-10">
               <div className="flex-1 text-center sm:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-5 border" style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  Est. 2024 · Mbirizi, Uganda
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold mb-6 border" style={{ borderColor: 'var(--cosmos-primary)', color: 'var(--cosmos-text-primary)', background: 'rgba(123,97,255,0.1)' }}>
+                  Built in Uganda 🇺🇬
                 </div>
-                <h1 className="text-4xl sm:text-6xl font-black mb-4 leading-tight" style={{ color: 'var(--text)' }}>
+                <h1 className="text-4xl sm:text-6xl font-black mb-4 leading-tight" style={{ color: 'var(--cosmos-text-primary)' }}>
                   PeterSmart<br />
-                  <span style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Technologies</span>
+                  <span className="cosmos-gradient-text">Technologies</span>
                 </h1>
-                <p className="text-base leading-relaxed mb-8 max-w-lg" style={{ color: 'var(--text-sub)' }}>
-                  A technology company in Mbirizi, Uganda. We run a mobile money & phone shop and build <strong style={{ color: 'var(--text)' }}>OTYA Player</strong> — a free offline media player used across Uganda.
+                <p className="text-base leading-relaxed mb-8 max-w-lg mx-auto sm:mx-0" style={{ color: 'var(--cosmos-text-secondary)' }}>
+                  A technology company in Mbirizi, Uganda. We run a mobile money & phone shop and build <strong style={{ color: 'var(--cosmos-text-primary)' }}>OTYA Player</strong> — a free offline media player used across Uganda.
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
                   <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
@@ -80,27 +79,26 @@ export default async function HomePage() {
                   </a>
                   <a href="mailto:support@petersmartlink.com"
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm border transition-colors hover:border-purple-400"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--card)' }}>
+                    style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)', background: 'var(--cosmos-card)' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
                     Email Us
                   </a>
                 </div>
               </div>
-              <div className="relative flex-shrink-0">
-                <div className="absolute inset-0 rounded-3xl blur-3xl opacity-30" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', transform: 'scale(1.1)' }} />
+              <div className="relative flex-shrink-0" style={{ animation: 'float 6s ease-in-out infinite' }}>
+                <div className="absolute inset-0 rounded-3xl blur-3xl opacity-50" style={{ background: 'radial-gradient(circle, var(--cosmos-primary) 0%, var(--cosmos-accent) 100%)', transform: 'scale(1.2)' }} />
                 <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={180} height={180}
-                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 20px 60px rgba(138,43,226,0.25)' }} priority unoptimized />
+                  className="relative rounded-3xl" style={{ display: 'block', boxShadow: '0 0 40px rgba(123,97,255,0.4)', border: '2px solid rgba(123,97,255,0.3)' }} priority unoptimized />
               </div>
             </div>
           </div>
         </section>
 
         {/* OTYA Player Feature Marquee */}
-        <section className="py-4 border-b overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+        <section className="py-4 border-b overflow-hidden" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }}>
           <Marquee>
             {FEATURES.map(f => (
-              <span key={f} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border flex-shrink-0"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
+              <span key={f} className="cosmos-pill inline-flex items-center gap-2 px-4 py-1.5 text-xs font-semibold flex-shrink-0 mx-2">
                 {f}
               </span>
             ))}
@@ -108,71 +106,70 @@ export default async function HomePage() {
         </section>
 
         {/* Shop Services */}
-        <section className="py-14" style={{ background: 'var(--bg)' }}>
+        <section className="py-14" style={{ background: 'var(--cosmos-scaffold)' }}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <div className="mb-8">
-              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Shop</h2>
-              <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council · Mon–Fri 8am–8pm · Sat 8am–9pm · Sun 10am–6pm</p>
+              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--cosmos-text-primary)' }}>Our Shop</h2>
+              <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Mbirizi Town Council · Mon–Fri 8am–8pm · Sat 8am–9pm · Sun 10am–6pm</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {SHOP.map(s => (
-                <div key={s.name} className="group flex items-start gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-200"
-                  style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                  <span className="text-3xl flex-shrink-0">{s.emoji}</span>
+                <div key={s.name} className="cosmos-card group flex items-start gap-4 p-5">
+                  <span className="text-3xl flex-shrink-0" style={{ filter: 'drop-shadow(0 0 8px rgba(123,97,255,0.4))' }}>{s.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>{s.name}</span>
+                      <span className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>{s.name}</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold flex-shrink-0"
-                        style={{ borderColor: 'var(--border)', color: 'var(--purple)', background: 'var(--bg-secondary)' }}>{s.badge}</span>
+                        style={{ borderColor: 'var(--cosmos-primary)', color: 'var(--cosmos-text-primary)', background: 'rgba(123,97,255,0.1)' }}>{s.badge}</span>
                     </div>
-                    <p className="text-xs leading-relaxed" style={{ color: 'var(--text-sub)' }}>{s.desc}</p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--cosmos-text-secondary)' }}>{s.desc}</p>
                   </div>
                 </div>
               ))}
               {/* Enquire card */}
               <a href="https://wa.me/256775912582?text=Hi! I want to enquire about your services"
                 target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-3 p-5 rounded-2xl border-2 border-dashed transition-all hover:border-green-400 hover:bg-green-50"
-                style={{ borderColor: 'var(--border)' }}>
+                className="cosmos-card flex items-center justify-center gap-3 p-5 border-dashed"
+                style={{ borderWidth: '2px', borderColor: 'var(--cosmos-divider)' }}>
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#25d366' }}><path d={WA} /></svg>
-                <span className="font-semibold text-sm" style={{ color: 'var(--text-sub)' }}>Ask on WhatsApp</span>
+                <span className="font-semibold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>Ask on WhatsApp</span>
               </a>
             </div>
           </div>
         </section>
 
         {/* OTYA Player */}
-        <section className="py-14 border-t" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <section className="py-14 border-t relative overflow-hidden" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)' }}>
+          <div className="cosmos-stars" />
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
             <div className="mb-8">
-              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--text)' }}>Our Software</h2>
-              <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Built in Uganda, used across Africa</p>
+              <h2 className="text-2xl sm:text-3xl font-black mb-1" style={{ color: 'var(--cosmos-text-primary)' }}>Our Software</h2>
+              <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Built in Uganda, used across Africa</p>
             </div>
-            <div className="rounded-3xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+            <div className="cosmos-card overflow-hidden">
               {/* Dark hero strip */}
-              <div className="relative p-8 sm:p-10" style={{ background: 'linear-gradient(135deg, #0f0a1e 0%, #1a0a2e 60%, #0a1628 100%)' }}>
+              <div className="relative p-8 sm:p-10" style={{ background: 'linear-gradient(135deg, rgba(2,2,8,0.9) 0%, rgba(13,13,46,0.9) 100%)' }}>
                 <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <div className="relative flex-shrink-0">
-                    <div className="absolute inset-0 rounded-[24px] blur-2xl opacity-60" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }} />
+                  <div className="relative flex-shrink-0" style={{ animation: 'cosmos-glow 4s infinite' }}>
+                    <div className="absolute inset-0 rounded-[24px] blur-xl opacity-80" style={{ background: 'linear-gradient(135deg, var(--cosmos-primary), var(--cosmos-accent))' }} />
                     <Image src="/played-icon.png" alt="OTYA Player" width={88} height={88}
-                      className="relative rounded-[24px]" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.5)' }} unoptimized />
+                      className="relative rounded-[24px]" style={{ display: 'block', border: '2px solid rgba(123,97,255,0.4)' }} unoptimized />
                   </div>
                   <div className="flex-1 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border border-purple-500/30 bg-purple-500/10 text-purple-300">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border" style={{ borderColor: 'var(--cosmos-primary)', background: 'rgba(123,97,255,0.1)', color: 'var(--cosmos-text-primary)' }}>
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                       {`Free · Android · v${appVersion}`}
                     </div>
-                    <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">OTYA Player</h3>
-                    <p className="text-sm text-slate-300 mb-5 max-w-lg">A free, offline-first media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.</p>
+                    <h3 className="text-2xl sm:text-3xl font-black mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>OTYA Player</h3>
+                    <p className="text-sm mb-5 max-w-lg mx-auto sm:mx-0" style={{ color: 'var(--cosmos-text-secondary)' }}>A free, offline-first media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, and stream your library to any PC browser on Wi-Fi.</p>
                     <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-                      <Link href="/download/otya-player"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-transform hover:scale-105"
-                        style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 4px 20px rgba(138,43,226,0.4)' }}>
+                      <Link href="/download/otya-player" className="cosmos-button inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-transform">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         Download Free
                       </Link>
                       <Link href="/otya-player"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border border-white/20 text-white hover:border-purple-400 transition-colors">
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm border transition-colors"
+                        style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)', background: 'transparent' }}>
                         Learn More
                       </Link>
                     </div>
@@ -180,10 +177,9 @@ export default async function HomePage() {
                 </div>
               </div>
               {/* Feature pills */}
-              <div className="px-6 py-4 flex flex-wrap gap-2">
+              <div className="px-6 py-4 flex flex-wrap gap-2 border-t" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-scaffold)' }}>
                 {FEATURES.slice(0, 6).map(f => (
-                  <span key={f} className="text-xs px-3 py-1 rounded-full font-medium border"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--bg)' }}>{f}</span>
+                  <span key={f} className="cosmos-pill text-xs px-3 py-1 font-medium">{f}</span>
                 ))}
               </div>
             </div>
@@ -191,22 +187,21 @@ export default async function HomePage() {
         </section>
 
         {/* Contact */}
-        <section className="py-14 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <section className="py-14 border-t" style={{ background: 'var(--cosmos-scaffold)', borderColor: 'var(--cosmos-divider)' }}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-black mb-8" style={{ color: 'var(--text)' }}>Get in Touch</h2>
+            <h2 className="text-2xl sm:text-3xl font-black mb-8" style={{ color: 'var(--cosmos-text-primary)' }}>Get in Touch</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { href: 'https://wa.me/256775912582', bg: '#25d366', icon: <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>, label: 'WhatsApp', sub: '+256 775 912 582' },
-                { href: 'tel:+256775912582', bg: 'var(--purple)', icon: <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>, label: 'Call', sub: '+256 775 912 582' },
-                { href: 'mailto:support@petersmartlink.com', bg: 'var(--indigo)', icon: <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>, label: 'Email', sub: 'support@petersmartlink.com' },
+                { href: 'tel:+256775912582', bg: 'var(--cosmos-primary)', icon: <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>, label: 'Call', sub: '+256 775 912 582' },
+                { href: 'mailto:support@petersmartlink.com', bg: 'var(--cosmos-secondary)', icon: <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>, label: 'Email', sub: 'support@petersmartlink.com' },
               ].map(c => (
                 <a key={c.label} href={c.href} target={c.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
-                  className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5"
-                  style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: c.bg }}>{c.icon}</div>
+                  className="cosmos-card flex items-center gap-4 p-5">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: c.bg, boxShadow: `0 4px 15px ${c.bg}40` }}>{c.icon}</div>
                   <div>
-                    <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>{c.label}</div>
-                    <div className="text-xs" style={{ color: 'var(--text-sub)' }}>{c.sub}</div>
+                    <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>{c.label}</div>
+                    <div className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{c.sub}</div>
                   </div>
                 </a>
               ))}

@@ -5,18 +5,22 @@ const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.
 
 export function SiteFooter() {
   return (
-    <footer className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+    <footer className="border-t relative overflow-hidden" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-app-bar)' }}>
+      {/* Subtle cosmos gradient at the top of the footer */}
+      <div className="absolute top-0 left-0 right-0 h-32 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(123,97,255,0.05), transparent)' }} />
+      <div className="cosmos-stars" style={{ opacity: 0.3 }} />
+      
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 relative z-10">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div className="col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 mb-3">
-              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={28} height={28} className="rounded-lg" style={{ display: 'block' }} />
-              <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>PeterSmart Technologies</span>
+              <Image src="/web-app-manifest-192x192.png" alt="PeterSmart Technologies" width={28} height={28} className="rounded-lg border" style={{ display: 'block', borderColor: 'var(--cosmos-divider)' }} />
+              <span className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>PeterSmart Technologies</span>
             </div>
-            <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--cosmos-text-secondary)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
             <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold hover:opacity-90 transition-opacity"
               style={{ background: '#25d366' }}>
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
               WhatsApp
@@ -25,38 +29,52 @@ export function SiteFooter() {
 
           {/* Company */}
           <div>
-            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Company</p>
+            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>Company</p>
             <div className="space-y-2">
               {([['Home', '/'], ['Services', '/services'], ['Blog', '/blog'], ['Contact', '/contact']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
+                <Link key={l} href={h} className="block text-xs transition-colors" 
+                  style={{ color: 'var(--cosmos-text-secondary)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
+                >{l}</Link>
               ))}
             </div>
           </div>
 
           {/* OTYA Player */}
           <div>
-            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>OTYA Player</p>
+            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>OTYA Player</p>
             <div className="space-y-2">
               {([['About', '/otya-player'], ['Download', '/download/otya-player'], ['Support', '/apps/otya-player/support'], ['Privacy', '/apps/otya-player/privacy'], ['Terms', '/apps/otya-player/terms']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
+                <Link key={l} href={h} className="block text-xs transition-colors"
+                  style={{ color: 'var(--cosmos-text-secondary)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
+                >{l}</Link>
               ))}
             </div>
           </div>
 
           {/* Legal */}
           <div>
-            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Legal</p>
+            <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>Legal</p>
             <div className="space-y-2">
               {([['Privacy Policy', '/privacy'], ['Terms of Service', '/terms']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors hover:text-purple-600" style={{ color: 'var(--text-sub)' }}>{l}</Link>
+                <Link key={l} href={h} className="block text-xs transition-colors"
+                  style={{ color: 'var(--cosmos-text-secondary)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
+                >{l}</Link>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="border-t pt-5 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: 'var(--border)' }}>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>© {new Date().getFullYear()} PeterSmart Technologies · Built in Uganda 🇺🇬</span>
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+        <div className="border-t pt-5 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: 'var(--cosmos-divider)' }}>
+          <span className="text-xs" style={{ color: '#4A4A6A' }}>
+            © {new Date().getFullYear()} PeterSmart Technologies · <span style={{ color: 'var(--cosmos-accent)' }}>Built in Uganda 🇺🇬</span>
+          </span>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#4A4A6A' }}>
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             Open now
           </div>
@@ -66,7 +84,7 @@ export function SiteFooter() {
       {/* WhatsApp FAB */}
       <a href="https://wa.me/256775912582" target="_blank" rel="noopener noreferrer"
         className="fixed bottom-5 right-5 z-50 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-110"
-        style={{ background: '#25d366', width: 52, height: 52 }} aria-label="WhatsApp">
+        style={{ background: '#25d366', width: 52, height: 52, boxShadow: '0 8px 24px rgba(37,211,102,0.4)' }} aria-label="WhatsApp">
         <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
       </a>
     </footer>
