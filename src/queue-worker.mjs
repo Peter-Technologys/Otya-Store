@@ -60,10 +60,18 @@ async function handlePushMessage(msg, env) {
     ).bind(deviceId).first()
     if (row?.fcm_token) tokens = [row.fcm_token]
   } else {
-    const { results } = await env.DB.prepare(
-      'SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL LIMIT 500',
-    ).all()
-    tokens = results.map(r => r.fcm_token)
+    // Paginate through all devices — no hardcoded cap so every user gets
+    // notified regardless of database size.
+    let offset = 0
+    const pageSize = 1000
+    while (true) {
+      const { results } = await env.DB.prepare(
+        'SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL LIMIT ? OFFSET ?',
+      ).bind(pageSize, offset).all()
+      tokens.push(...results.map(r => r.fcm_token))
+      if (results.length < pageSize) break
+      offset += pageSize
+    }
   }
 
   if (tokens.length === 0) {

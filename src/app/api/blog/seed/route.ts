@@ -112,7 +112,7 @@ OTYA Player is available for Android. Download it at petersmartlink.com.`,
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext()
-  const adminToken = (env as Record<string, unknown>).ADMIN_TOKEN as string | undefined
+  const adminToken = (env as Record<string, unknown>).OTYA_STORE_ADMIN_TOKEN as string | undefined
   const auth = req.headers.get('authorization') ?? ''
   if (!adminToken || auth !== `Bearer ${adminToken}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
