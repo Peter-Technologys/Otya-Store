@@ -1,11 +1,12 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
-import { getFcmAccessToken, sendFcmToTokens } from '@/lib/fcm'
+import { sendFcmToTokens } from '@/lib/fcm'
 
 // POST /api/push — Admin-only: send FCM push notification
-// Header: Authorization: Bearer YOUR_ADMIN_TOKEN
+// Uses the same HMAC auth as all other endpoints (X-Otya-Timestamp + X-Otya-Signature).
 //
 // Body:
 // {
@@ -18,18 +19,22 @@ import { getFcmAccessToken, sendFcmToTokens } from '@/lib/fcm'
 // Uses FCM HTTP v1 API with OAuth2 service account credentials.
 // Set FCM_SERVICE_ACCOUNT_JSON to the Firebase service account JSON key (Worker secret).
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+const CHUNK_SIZE = 100  // FCM v1 processes tokens in batches; keep chunks small for reliability
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin':  'https://petersmartlink.com',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+}
 
 export async function POST(req: NextRequest) {
-  const { env } = await getCloudflareContext()
-  const adminToken         = (env as Record<string, unknown>).ADMIN_TOKEN as string | undefined
-  const serviceAccountJson = (env as Record<string, unknown>).FCM_SERVICE_ACCOUNT_JSON as string | undefined
+  const { env } = await getCloudflareContext({ async: true })
 
-  // Auth
-  const authHeader = req.headers.get('authorization') ?? ''
-  if (!adminToken || authHeader !== `Bearer ${adminToken}`) {
-    return errorJson('Unauthorized', 401)
-  }
+  // ── 1. Verify HMAC (consistent with all other endpoints) ─────────────────
+  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
+  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+
+  const serviceAccountJson = (env as Record<string, unknown>).FCM_SERVICE_ACCOUNT_JSON as string | undefined
   if (!serviceAccountJson) {
     return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
   }
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const db = getDB(env as Record<string, unknown>)
 
-  // Fetch FCM tokens
+  // ── 2. Fetch FCM tokens (paginated — no hardcoded LIMIT 500) ─────────────
   let tokens: string[] = []
   if (deviceId) {
     const row = await db.prepare(
@@ -50,36 +55,52 @@ export async function POST(req: NextRequest) {
     ).bind(deviceId).first<{ fcm_token: string }>()
     if (row?.fcm_token) tokens = [row.fcm_token]
   } else {
-    const { results } = await db.prepare(
-      'SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL LIMIT 500'
-    ).all<{ fcm_token: string }>()
-    tokens = results.map(r => r.fcm_token)
+    // Paginate through all devices in batches of 1000
+    let offset = 0
+    const pageSize = 1000
+    while (true) {
+      const { results } = await db.prepare(
+        'SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL LIMIT ? OFFSET ?'
+      ).bind(pageSize, offset).all<{ fcm_token: string }>()
+      tokens.push(...results.map(r => r.fcm_token))
+      if (results.length < pageSize) break
+      offset += pageSize
+    }
   }
 
   if (tokens.length === 0) {
     return secureJson({ ok: true, sent: 0, message: 'No registered devices', ts: Date.now() })
   }
 
-  // Validate FCM credentials before sending (mints a token; sendFcmToTokens will mint again)
-  try {
-    await getFcmAccessToken(serviceAccountJson)
-  } catch (e) {
-    return errorJson(`Failed to obtain FCM access token: ${e}`, 503)
-  }
-
-  // Extract project_id from service account JSON
   const sa = JSON.parse(serviceAccountJson) as { project_id: string }
   const link = url ?? 'https://petersmartlink.com/download'
 
-  // Send via shared FCM helper
-  const { sent, failed } = await sendFcmToTokens(
-    tokens,
-    title,
-    msgBody,
-    link,
-    serviceAccountJson,
-    sa.project_id,
-  )
+  // ── 3. Send in chunks — single pass through sendFcmToTokens per chunk ────
+  let totalSent   = 0
+  let totalFailed = 0
 
-  return secureJson({ ok: true, sent, failed, total: tokens.length, ts: Date.now() })
+  for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+    const chunk = tokens.slice(i, i + CHUNK_SIZE)
+    try {
+      const { sent, failed } = await sendFcmToTokens(
+        chunk,
+        title,
+        msgBody,
+        link,
+        serviceAccountJson,
+        sa.project_id,
+      )
+      totalSent   += sent
+      totalFailed += failed
+    } catch (e) {
+      console.error(`[push] chunk ${i}–${i + CHUNK_SIZE} failed:`, e)
+      totalFailed += chunk.length
+    }
+  }
+
+  return secureJson({ ok: true, sent: totalSent, failed: totalFailed, total: tokens.length, ts: Date.now() })
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { headers: CORS_HEADERS })
 }

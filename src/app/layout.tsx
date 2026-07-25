@@ -1,13 +1,16 @@
-import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
+import { Oxanium } from 'next/font/google'
 import './globals.css'
-import { Inter } from 'next/font/google'
 
-const inter = Inter({ subsets: ['latin'], display: 'swap' })
+const oxanium = Oxanium({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-oxanium',
+})
 
-const SITE_URL  = 'https://petersmartlink.com'
+const SITE_URL   = 'https://petersmartlink.com'
 const ADSENSE_ID = 'ca-pub-2517163652161686'
 
 export const metadata: Metadata = {
@@ -64,14 +67,11 @@ export const metadata: Metadata = {
     shortcut: '/favicon.ico',
   },
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, title: 'OTYA Player', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'OTYA Player', statusBarStyle: 'black-translucent' },
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#7C3AED' },
-    { media: '(prefers-color-scheme: dark)',  color: '#7C3AED' },
-  ],
+  themeColor: '#050510',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -113,13 +113,13 @@ const schemaOrg = {
       alternateName: 'com.otyaplayer.app',
       operatingSystem: 'Android 5.0+',
       applicationCategory: 'MultimediaApplication',
-      softwareVersion: '1.4.0',
+      softwareVersion: '1.5.0',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
       url: `${SITE_URL}/otya-player`,
       downloadUrl: `${SITE_URL}/download/otya-player`,
       author: { '@id': `${SITE_URL}/#organization` },
       description: 'Free offline media player for Android. Play music and videos without internet, share files via Flash Share, protect private media in an encrypted Vault, stream your library to any PC browser on Wi-Fi.',
-      featureList: 'Offline playback, Flash Share, Private Vault, Web Mirror, Storage Analyzer, Seasonal Themes, 5-band Equalizer, Picture-in-Picture',
+      featureList: 'Offline playback, Flash Share, Private Vault, Web Mirror, Storage Analyzer, Seasonal Themes, 5-band Equalizer, Picture-in-Picture, WhatsApp Trimmer, Audio Extractor',
       image: `${SITE_URL}/played-icon.png`,
       releaseNotes: `${SITE_URL}/download/otya-player`,
     },
@@ -136,11 +136,11 @@ const schemaOrg = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" dir="ltr">
+    <html lang="en" dir="ltr" className={oxanium.variable}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }} />
       </head>
-      <body className={inter.className}>
+      <body className={oxanium.className}>
         {children}
         <Script id="google-adsense" async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_ID}`}

@@ -12,17 +12,21 @@ const CORS_HEADERS = {
 
 // GET /api/blog
 export async function GET(req: NextRequest) {
+  const { env } = await getCloudflareContext()
+
+  // Auth checked before anything else — a 401 must not be masked as an empty list
+  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
+  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+
+  const db = getDB(env as Record<string, unknown>)
   try {
-    const { env } = await getCloudflareContext()
-    const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
-    if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
-    const db = getDB(env as Record<string, unknown>)
     const { results } = await db.prepare(
       'SELECT * FROM blog_posts WHERE isPublished = 1 ORDER BY createdAt DESC LIMIT 50'
     ).all()
     return secureJson({ posts: results })
-  } catch {
-    return secureJson({ posts: [] })
+  } catch (err) {
+    console.error('[blog] D1 query failed:', err)
+    return errorJson('Failed to load posts', 500)
   }
 }
 
