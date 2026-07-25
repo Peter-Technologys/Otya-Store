@@ -47,11 +47,12 @@ export async function GET(
 
     const object = await r2.get(key)
     if (!object) {
-      return NextResponse.json({
-        error: 'APK not found',
-        message: 'This APK has not been uploaded yet.',
-        downloadPage: 'https://petersmartlink.com/download/otya-player',
-      }, { status: 404 })
+      // Redirect to the download page rather than returning a JSON error body —
+      // browsers expecting a binary APK would show a broken/corrupt download.
+      return NextResponse.redirect(
+        'https://petersmartlink.com/download/otya-player',
+        { status: 302 }
+      )
     }
 
     // Track download in D1 (non-fatal)
