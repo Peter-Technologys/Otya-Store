@@ -11,8 +11,14 @@ import { getKV, getR2 } from '@/lib/d1'
 
 interface SeasonalEntry {
   id: string
-  start: string // "MM-DD"
-  end: string   // "MM-DD"
+  // Old format (plain array)
+  start?: string // "MM-DD"
+  end?: string   // "MM-DD"
+  // New KV format ({ themes: [...] })
+  active_from?: string // "MM-DD"
+  active_to?: string   // "MM-DD"
+  r2_path?: string     // explicit R2 key, e.g. "configs/seasonal/xmas.json"
+  priority?: number    // higher wins when overlapping seasons
 }
 
 function isDateInRange(now: Date, start: string, end: string): boolean {
@@ -77,16 +83,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Auto: check seasonal schedule
+  // Auto: check seasonal schedule from KV
+  // KV stores either a plain array OR { themes: [...] } with active_from/active_to
+  // and an explicit r2_path. Handle both formats so old and new KV data both work.
   if (!themeData) {
     try {
       const scheduleRaw = await kv.get('config:seasonal-schedule')
       if (scheduleRaw) {
-        const schedule = JSON.parse(scheduleRaw) as SeasonalEntry[]
+        const parsed = JSON.parse(scheduleRaw) as SeasonalEntry[] | { themes?: SeasonalEntry[] }
+        const entries: SeasonalEntry[] = Array.isArray(parsed)
+          ? parsed
+          : ((parsed as { themes?: SeasonalEntry[] }).themes ?? [])
+
+        // Sort by priority descending so higher-priority seasons win
+        const sorted = [...entries].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
         const now = new Date()
-        for (const entry of schedule) {
-          if (isDateInRange(now, entry.start, entry.end)) {
-            const obj = await r2.get(`themes/${entry.id}.json`)
+
+        for (const entry of sorted) {
+          // Support both start/end (old) and active_from/active_to (new KV format)
+          const startDate = entry.start ?? entry.active_from
+          const endDate   = entry.end   ?? entry.active_to
+          if (!startDate || !endDate) continue
+
+          if (isDateInRange(now, startDate, endDate)) {
+            // Prefer explicit r2_path; fall back to themes/{id}.json convention
+            const r2Key = entry.r2_path ?? `themes/${entry.id}.json`
+            const obj = await r2.get(r2Key)
             if (obj) {
               const text = await obj.text()
               themeData = JSON.parse(text)

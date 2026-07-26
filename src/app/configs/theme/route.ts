@@ -124,56 +124,121 @@ interface ThemeV2 {
   [key: string]: unknown
 }
 
-// ── Seasonal Override ─────────────────────────────────────────────────────────
-// Applied on top of whatever theme is loaded from KV / R2 / default.
-// Mutates a deep clone so the original cached object is never modified.
-function applySeasonalTheme(theme: ThemeV2): ThemeV2 {
+// ── Seasonal theme loader ─────────────────────────────────────────────────────
+// Reads the live schedule from KV and returns the correct seasonal theme from R2.
+// Returns null if no seasonal theme is active today.
+async function loadSeasonalTheme(
+  kv: ReturnType<typeof getKV>,
+  r2: ReturnType<typeof getR2>,
+): Promise<ThemeV2 | null> {
+  try {
+    const scheduleRaw = await kv.get('config:seasonal-schedule')
+    if (!scheduleRaw) return null
+
+    type ScheduleEntry = {
+      id: string
+      r2_path?: string
+      active_from?: string
+      active_to?: string
+      start?: string
+      end?: string
+      priority?: number
+    }
+    const parsed = JSON.parse(scheduleRaw) as ScheduleEntry[] | { themes?: ScheduleEntry[] }
+    const entries: ScheduleEntry[] = Array.isArray(parsed)
+      ? parsed
+      : (parsed as { themes?: ScheduleEntry[] }).themes ?? []
+
+    const sorted = [...entries].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+    const now    = new Date()
+    const month  = now.getUTCMonth() + 1
+    const day    = now.getUTCDate()
+
+    const inRange = (from: string, to: string): boolean => {
+      const [fm, fd] = from.split('-').map(Number)
+      const [tm, td] = to.split('-').map(Number)
+      const cur = month * 100 + day
+      const s   = fm * 100 + fd
+      const e   = tm * 100 + td
+      return s <= e ? cur >= s && cur <= e : cur >= s || cur <= e
+    }
+
+    for (const entry of sorted) {
+      const from = entry.active_from ?? entry.start
+      const to   = entry.active_to   ?? entry.end
+      if (!from || !to || !inRange(from, to)) continue
+
+      const r2Key = entry.r2_path ?? `themes/${entry.id}.json`
+      const obj   = await r2.get(r2Key)
+      if (!obj) continue
+
+      const theme = safeParseJson(await obj.text())
+      if (theme) return theme
+    }
+  } catch {
+    // non-fatal
+  }
+  return null
+}
+
+// ── Hardcoded seasonal colour overlay ────────────────────────────────────────
+// Used ONLY as a fallback when KV schedule is unavailable. Dates mirror the
+// KV schedule so the two sources are always in sync.
+function applySeasonalOverlay(theme: ThemeV2): ThemeV2 {
   // Deep clone so we never mutate the cached object
   const t: ThemeV2 = JSON.parse(JSON.stringify(theme))
   if (!t.colors) t.colors = {}
 
   const now   = new Date()
-  const month = now.getUTCMonth() + 1 // 1–12
+  const month = now.getUTCMonth() + 1
   const day   = now.getUTCDate()
 
-  // Christmas: Dec 15 – Jan 5
-  const isChristmas =
-    (month === 12 && day >= 15) ||
-    (month === 1  && day <= 5)
+  // Christmas: Dec 20 – Dec 30  (matches KV schedule)
+  const isChristmas = month === 12 && day >= 20 && day <= 30
 
-  // Halloween: Oct 25 – Nov 2
-  const isHalloween =
-    (month === 10 && day >= 25) ||
-    (month === 11 && day <= 2)
+  // New Year: Dec 31 – Jan 7  (matches KV schedule)
+  const isNewYear = (month === 12 && day === 31) || (month === 1 && day <= 7)
 
-  if (isChristmas) {
-    t.theme_identity              = 'Otya_Christmas_Special'
-    t.colors.primary              = '#C62828' // Deep Red
-    t.colors.secondary            = '#2E7D32' // Pine Green
-    t.colors.accent               = '#FFD700' // Gold
-    t.colors.scaffold_background  = '#0D1F12'
-    t.colors.surface              = '#1B3B22'
-    // Christmas announcement
+  // Uganda Independence Day: Oct 8 – Oct 10  (matches KV schedule)
+  const isIndependenceDay = month === 10 && day >= 8 && day <= 10
+
+  if (isNewYear) {
+    t.theme_identity = 'Otya_NewYear_Special'
+    t.colors.primary             = '#FFD700'
+    t.colors.accent              = '#FF6B00'
+    t.colors.scaffold_background = '#0A0A1A'
+    t.colors.surface             = '#12122A'
     t.announcement = {
-      id:          'otya_christmas',
-      show_dialog: true,
-      title:       '🎄 Merry Christmas from OTYA!',
-      message:     'Wishing you joy and great music this festive season.',
+      id: 'otya_new_year', show_dialog: true,
+      title: '🎆 Happy New Year from OTYA!',
+      message: 'Wishing you a year full of great music. 🇺🇬',
+      button_text: 'Let\'s Go! 🎉',
+    }
+  } else if (isChristmas) {
+    t.theme_identity             = 'Otya_Christmas_Special'
+    t.colors.primary             = '#C62828'
+    t.colors.secondary           = '#2E7D32'
+    t.colors.accent              = '#FFD700'
+    t.colors.scaffold_background = '#0D1F12'
+    t.colors.surface             = '#1B3B22'
+    t.announcement = {
+      id: 'otya_christmas', show_dialog: true,
+      title: '🎄 Merry Christmas from OTYA!',
+      message: 'Wishing you joy and great music this festive season.',
       button_text: 'Thanks ❤️',
     }
-  } else if (isHalloween) {
-    t.theme_identity              = 'Otya_Halloween_Special'
-    t.colors.primary              = '#FF6D00' // Pumpkin Orange
-    t.colors.accent               = '#7C4DFF' // Deep Purple
-    t.colors.scaffold_background  = '#120D1F'
-    t.colors.surface              = '#221B3B'
-    // Halloween announcement
+  } else if (isIndependenceDay) {
+    t.theme_identity             = 'Otya_Independence_Special'
+    t.colors.primary             = '#000000'
+    t.colors.secondary           = '#FCDC04'
+    t.colors.accent              = '#D90000'
+    t.colors.scaffold_background = '#0A0A0A'
+    t.colors.surface             = '#151515'
     t.announcement = {
-      id:          'otya_halloween',
-      show_dialog: true,
-      title:       '🎃 Happy Halloween from OTYA!',
-      message:     'Spooky vibes, great music. Enjoy the season!',
-      button_text: 'Boo! 👻',
+      id: 'otya_independence', show_dialog: true,
+      title: '🇺🇬 Happy Independence Day Uganda!',
+      message: 'Pearl of Africa — built right here, for you. 🎵',
+      button_text: 'Proud Ugandan! 🇺🇬',
     }
   }
 
@@ -243,8 +308,11 @@ export async function GET(req: NextRequest) {
       themeData = DEFAULT_THEME_V2
     }
 
-    // ── Apply seasonal overrides ──────────────────────────────────────────────
-    const finalTheme = applySeasonalTheme(themeData)
+    // ── Apply seasonal theme ──────────────────────────────────────────────────
+    // KV schedule takes priority (full theme replacement from R2).
+    // Hardcoded colour overlay is used only if KV schedule is unavailable.
+    const seasonal   = await loadSeasonalTheme(kv, r2)
+    const finalTheme = seasonal ?? applySeasonalOverlay(themeData)
     const body       = JSON.stringify(finalTheme)
     const etag       = sourceEtag ?? generateEtag(body)
 
@@ -280,7 +348,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[configs/theme GET]', err)
     // Always return a valid theme — never a 500 to the Flutter app
-    return new NextResponse(JSON.stringify(applySeasonalTheme(DEFAULT_THEME_V2)), {
+    return new NextResponse(JSON.stringify(applySeasonalOverlay(DEFAULT_THEME_V2)), {
       status: 200,
       headers: {
         'Content-Type':                'application/json',

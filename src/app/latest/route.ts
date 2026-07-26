@@ -13,7 +13,40 @@ export async function GET(_req: NextRequest) {
     const kv = getKV(env as Record<string, unknown>)
     const r2 = getR2(env as Record<string, unknown>)
 
-    // KV cache first — avoids R2 read on every request
+    // ── 1. KV LATEST_BUILD_INFO — always reflects the latest published release ──
+    // Prefer this over R2 version.json because it is updated atomically when a
+    // new release is published and always has the correct changelog.
+    try {
+      const latestRaw = await kv.get('LATEST_BUILD_INFO')
+      if (latestRaw) {
+        const info = JSON.parse(latestRaw) as Record<string, unknown>
+        // Normalise to version.json schema that the Flutter UpdateService reads:
+        //   versionCode (not build_number), changelog (not release_notes)
+        const data: Record<string, unknown> = {
+          version:     info.version,
+          versionCode: info.build_number ?? info.versionCode,
+          changelog:   info.release_notes ?? info.changelog ?? '',
+          date:        info.date,
+          minSdk:      info.minSdk ?? 21,
+          targetSdk:   info.targetSdk ?? 36,
+          downloads: {
+            arm64: 'https://petersmartlink.com/apk/arm64',
+            arm32: 'https://petersmartlink.com/apk/arm32',
+            auto:  'https://petersmartlink.com/apk/arm64',
+          },
+        }
+        return new NextResponse(JSON.stringify(data), {
+          headers: {
+            'Content-Type':                'application/json',
+            'Cache-Control':               `public, max-age=${KV_TTL}`,
+            'Access-Control-Allow-Origin': '*',
+            'X-Source':                    'kv-latest-build-info',
+          },
+        })
+      }
+    } catch { /* fall through to R2 */ }
+
+    // ── 2. Short-lived KV cache of R2 version.json ────────────────────────────
     const cached = await kv.get(KV_CACHE_KEY)
     if (cached) {
       return new NextResponse(cached, {
@@ -26,6 +59,7 @@ export async function GET(_req: NextRequest) {
       })
     }
 
+    // ── 3. R2 version.json fallback ───────────────────────────────────────────
     const object = await r2.get('version.json')
     if (!object) {
       return NextResponse.json(
