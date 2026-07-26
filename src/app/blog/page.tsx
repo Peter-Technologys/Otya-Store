@@ -40,24 +40,25 @@ export default function BlogPage() {
   )
 
   if (selected) return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-screen relative" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+      <div className="cosmos-stars" />
       <SiteNav />
-      <article className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+      <article className="max-w-3xl mx-auto px-4 sm:px-6 py-12 relative z-10">
         <button onClick={() => setSelected(null)}
-          className="inline-flex items-center gap-1 text-sm font-semibold mb-8 transition-colors hover:text-purple-600"
-          style={{ color: 'var(--purple)' }}>
+          className="inline-flex items-center gap-1 text-sm font-semibold mb-8 transition-colors hover:text-purple-400"
+          style={{ color: 'var(--cosmos-primary)' }}>
           ← Back to Blog
         </button>
-        <h1 className="text-3xl sm:text-4xl font-black mb-4" style={{ color: 'var(--text)' }}>{selected.title}</h1>
-        <div className="flex flex-wrap items-center gap-4 mb-8 text-sm" style={{ color: 'var(--text-sub)' }}>
+        <h1 className="text-3xl sm:text-4xl font-black mb-4" style={{ color: 'var(--cosmos-text-primary)' }}>{selected.title}</h1>
+        <div className="flex flex-wrap items-center gap-4 mb-8 text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>
           <span>{formatDate(selected.createdAt)}</span>
-          {selected.authorName && <span>by <strong style={{ color: 'var(--text)' }}>{selected.authorName}</strong></span>}
+          {selected.authorName && <span>by <strong style={{ color: 'var(--cosmos-text-primary)' }}>{selected.authorName}</strong></span>}
           <span>{readTime(selected.content)} min read</span>
           {selected.category && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: 'var(--bg-secondary)', color: 'var(--purple)' }}>{selected.category}</span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: 'var(--cosmos-surface)', color: 'var(--cosmos-primary)' }}>{selected.category}</span>
           )}
         </div>
-        <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text)' }}>
+        <div className="prose prose-sm max-w-none leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--cosmos-text-primary)' }}>
           {selected.content}
         </div>
       </article>
@@ -66,44 +67,45 @@ export default function BlogPage() {
   )
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-screen relative" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+      <div className="cosmos-stars" />
       <SiteNav />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 relative z-10">
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-black mb-2" style={{ color: 'var(--text)' }}>Blog</h1>
-          <p className="text-sm" style={{ color: 'var(--text-sub)' }}>News, updates and stories from PeterSmart Technologies</p>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>Blog</h1>
+          <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>News, updates and stories from PeterSmart Technologies</p>
         </div>
         <input type="text" placeholder="Search posts..." value={search} onChange={e => setSearch(e.target.value)}
           className="w-full h-11 px-4 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 mb-8"
-          style={{ background: 'var(--card)', borderColor: 'var(--card-border)', color: 'var(--text)' }} />
+          style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} />
         {loading ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-36 rounded-2xl animate-pulse" style={{ background: 'var(--card)' }} />
+              <div key={i} className="h-36 rounded-2xl animate-pulse" style={{ background: 'var(--cosmos-card)' }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-24">
             <p className="text-4xl mb-4">📝</p>
-            <p className="font-bold text-lg mb-2" style={{ color: 'var(--text)' }}>{search ? 'No posts found' : 'No posts yet'}</p>
-            <p className="text-sm" style={{ color: 'var(--text-sub)' }}>Check back soon</p>
+            <p className="font-bold text-lg mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>{search ? 'No posts found' : 'No posts yet'}</p>
+            <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Check back soon</p>
           </div>
         ) : (
           <div className="space-y-4">
             {filtered.map(p => (
               <button key={p.$id} onClick={() => setSelected(p)} className="w-full text-left">
-                <div className="rounded-2xl border p-6 transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-200"
-                  style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+                <div className="rounded-2xl border p-6 transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-400"
+                  style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
                   <div className="flex items-center gap-3 mb-2">
                     {p.category && (
                       <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full"
-                        style={{ background: 'var(--bg-secondary)', color: 'var(--purple)' }}>{p.category}</span>
+                        style={{ background: 'var(--cosmos-surface)', color: 'var(--cosmos-primary)' }}>{p.category}</span>
                     )}
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatDate(p.createdAt)}</span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{readTime(p.content)} min read</span>
+                    <span className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{formatDate(p.createdAt)}</span>
+                    <span className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{readTime(p.content)} min read</span>
                   </div>
-                  <h2 className="font-bold text-base sm:text-lg mb-2" style={{ color: 'var(--text)' }}>{p.title}</h2>
-                  {p.excerpt && <p className="text-sm line-clamp-2" style={{ color: 'var(--text-sub)' }}>{p.excerpt}</p>}
+                  <h2 className="font-bold text-base sm:text-lg mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>{p.title}</h2>
+                  {p.excerpt && <p className="text-sm line-clamp-2" style={{ color: 'var(--cosmos-text-secondary)' }}>{p.excerpt}</p>}
                 </div>
               </button>
             ))}

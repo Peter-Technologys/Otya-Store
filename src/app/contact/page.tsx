@@ -14,71 +14,59 @@ const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.
 
 export default function ContactPage() {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-screen relative" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+      <div className="cosmos-stars" />
       <SiteNav />
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>Contact Us</h1>
-        <p className="text-sm mb-8" style={{ color: 'var(--text-sub)' }}>PeterSmart Technologies · Mbirizi Town Council, Lwengo District, Uganda</p>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 relative z-10">
+        <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>Contact Us</h1>
+        <p className="text-sm mb-8" style={{ color: 'var(--cosmos-text-secondary)' }}>PeterSmart Technologies · Mbirizi Town Council, Lwengo District, Uganda</p>
         <div className="space-y-3 mb-8">
           <a href="https://wa.me/256775912582?text=Hi PeterSmart!"
             target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-green-300"
-            style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
+            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
             <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#25d366' }}>
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>WhatsApp — Fastest response</div>
-              <div className="text-sm" style={{ color: 'var(--text-sub)' }}>+256 775 912 582</div>
-            </div>
-          </a>
-          <a href="tel:+256775912582"
-            className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-300"
-            style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-tertiary)' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--purple)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-              </svg>
-            </div>
-            <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>Phone Call</div>
-              <div className="text-sm" style={{ color: 'var(--text-sub)' }}>+256 775 912 582</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>WhatsApp — Fastest response</div>
+              <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>+256 775 912 582</div>
             </div>
           </a>
           <a href="mailto:support@petersmartlink.com"
             className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-300"
-            style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-tertiary)' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--purple)' }}>
+            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--cosmos-surface)' }}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--cosmos-primary)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
               </svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>Email</div>
-              <div className="text-sm" style={{ color: 'var(--text-sub)' }}>support@petersmartlink.com</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>Email</div>
+              <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>support@petersmartlink.com</div>
             </div>
           </a>
           <div className="flex items-center gap-4 p-5 rounded-2xl border"
-            style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-tertiary)' }}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--purple)' }}>
+            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--cosmos-surface)' }}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--cosmos-primary)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
               </svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>Location</div>
-              <div className="text-sm" style={{ color: 'var(--text-sub)' }}>Mbirizi Town Council, Lwengo District, Uganda</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>Location</div>
+              <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Mbirizi Town Council, Lwengo District, Uganda</div>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-          <h2 className="font-bold text-sm mb-4" style={{ color: 'var(--text)' }}>Business Hours</h2>
+        <div className="rounded-2xl border p-5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+          <h2 className="font-bold text-sm mb-4" style={{ color: 'var(--cosmos-text-primary)' }}>Business Hours</h2>
           <div className="space-y-2 text-sm">
             {[['Monday – Friday', '8:00 AM – 8:00 PM'], ['Saturday', '8:00 AM – 9:00 PM'], ['Sunday', '10:00 AM – 6:00 PM']].map(([d, h]) => (
               <div key={d} className="flex justify-between">
-                <span style={{ color: 'var(--text-sub)' }}>{d}</span>
-                <span className="font-semibold" style={{ color: 'var(--text)' }}>{h}</span>
+                <span style={{ color: 'var(--cosmos-text-secondary)' }}>{d}</span>
+                <span className="font-semibold" style={{ color: 'var(--cosmos-text-primary)' }}>{h}</span>
               </div>
             ))}
           </div>
