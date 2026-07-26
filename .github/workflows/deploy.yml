@@ -7,10 +7,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-auth:
+    name: Deploy Auth Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install auth-worker dependencies
+        run: npm install
+        working-directory: auth-worker
+
+      - name: Deploy otya-auth worker
+        run: npx wrangler deploy
+        working-directory: auth-worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-store:
     name: Deploy Worker
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: deploy-auth
 
     steps:
       - name: Checkout code
