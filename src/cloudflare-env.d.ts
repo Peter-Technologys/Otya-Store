@@ -51,6 +51,10 @@ declare interface CloudflareEnvExtensions {
   AUTH:            AuthService   // Service Binding to otya-auth worker
   RESEND_API_KEY?: string
   INTERNAL_SECRET?: string       // Shared secret for /internal/delete-user
+  // Payment providers
+  GOOGLE_PLAY_PACKAGE_NAME?:   string
+  GOOGLE_PLAY_SERVICE_ACCOUNT?: string  // service account JSON for Play Developer API
+  FLUTTERWAVE_SECRET_HASH?:    string
 }
 
 declare interface KVNamespace {
