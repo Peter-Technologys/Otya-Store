@@ -373,7 +373,7 @@ async function handleAnalyzeAnomaly(msg, env) {
  * Handle cron triggers.
  *
  * Cron schedule:
- *   "*/5 * * * *"  — every 5 minutes: health check all endpoints
+ *   "*\/5 * * * *"  — every 5 minutes: health check all endpoints
  *   "0 * * * *"    — every hour: detect rate-limit abuse; at midnight send daily report
  *   "0 6 * * 1"    — Monday 6am: send weekly digest email
  *
