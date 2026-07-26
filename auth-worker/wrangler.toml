@@ -17,9 +17,9 @@ id      = "REPLACE_WITH_ACTUAL_ID"
 
 # EMAIL binding — add via Cloudflare Dashboard:
 #   Workers & Pages → otya-auth → Settings → Bindings → Add binding → Send Email
-# [[send_email]]
-# name                = "EMAIL"
-# destination_address = "petersmartlink@gmail.com"
+[[send_email]]
+name                = "EMAIL"
+destination_address = "petersmartlink@gmail.com"
 
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
@@ -27,3 +27,5 @@ CORS_ORIGIN = "https://petersmartlink.com"
 # Secrets — set via:
 #   wrangler secret put AUTH_JWT_SECRET
 #   wrangler secret put GOOGLE_CLIENT_ID
+#   wrangler secret put OTYA_STORE_INTERNAL_URL   (e.g. https://petersmartlink.com)
+#   wrangler secret put INTERNAL_SECRET           (shared secret for /internal/delete-user)

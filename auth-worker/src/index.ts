@@ -5,24 +5,33 @@
  * Called by the main otya-store worker via Service Binding (env.AUTH).
  *
  * Routes:
- *   POST /auth/register        — email + password signup
- *   POST /auth/login           — email + password login
- *   POST /auth/refresh         — refresh access token
- *   POST /auth/logout          — revoke refresh token
- *   POST /auth/google          — Google ID token login/signup
- *   POST /auth/forgot-password — send OTP via email
- *   POST /auth/reset-password  — verify OTP, update password
- *   POST /auth/delete-account  — delete user account
- *   GET  /auth/verify          — validate JWT (called by otya-store via Service Binding)
+ *   POST /auth/register           — email + password signup
+ *   POST /auth/login              — email + password login (brute-force protected)
+ *   POST /auth/refresh            — refresh access token
+ *   POST /auth/logout             — revoke refresh token
+ *   POST /auth/google             — Google ID token login/signup
+ *   POST /auth/forgot-password    — send OTP via email
+ *   POST /auth/reset-password     — verify OTP, update password
+ *   POST /auth/delete-account     — delete user account + notify Otya-Store
+ *   GET  /auth/verify             — validate JWT (called by otya-store via Service Binding)
+ *   POST /auth/send-verification  — send email verification link
+ *   GET  /auth/verify-email       — verify email via token
+ *   GET  /auth/me                 — return user profile (JWT required)
+ *   PATCH /auth/me                — update user profile (JWT required)
+ *   POST /auth/backup             — write backup to Google Drive App Folder
+ *   GET  /auth/backup             — read backup from Google Drive App Folder
+ *   DELETE /auth/backup           — delete backup from Google Drive App Folder
  *
  * Bindings (wrangler.toml):
  *   AUTH_DB  — D1 database
- *   AUTH_KV  — KV namespace (refresh tokens, OTPs)
+ *   AUTH_KV  — KV namespace (refresh tokens, OTPs, login attempts, drive file IDs)
  *   EMAIL    — Email binding (Cloudflare Email Workers)
  *
  * Secrets (wrangler secret put):
- *   AUTH_JWT_SECRET  — HS256 signing secret for JWTs
- *   GOOGLE_CLIENT_ID — Google OAuth client ID for ID token verification
+ *   AUTH_JWT_SECRET          — HS256 signing secret for JWTs
+ *   GOOGLE_CLIENT_ID         — Google OAuth client ID for ID token verification
+ *   OTYA_STORE_INTERNAL_URL  — URL of the Otya-Store internal endpoint
+ *   INTERNAL_SECRET          — Shared secret for Otya-Store internal calls
  */
 
 import {
@@ -40,7 +49,6 @@ import {
   ensureSchema,
   getUserByEmail,
   getUserById,
-  getUserByGoogleId,
   insertUser,
   upsertGoogleUser,
   updatePasswordHash,
@@ -48,22 +56,36 @@ import {
   type D1Database,
 } from './db'
 
+import {
+  findBackupFile,
+  createBackupFile,
+  updateBackupFile,
+  downloadBackupFile,
+  deleteBackupFile,
+} from './drive'
+
 // ── Env interface ─────────────────────────────────────────────────────────────
 
 interface Env {
-  AUTH_DB:         D1Database
-  AUTH_KV:         KVNamespace
-  EMAIL?:          { send(msg: EmailMessage): Promise<void> }
-  AUTH_JWT_SECRET: string
-  GOOGLE_CLIENT_ID: string
-  CORS_ORIGIN?:    string
+  AUTH_DB:                  D1Database
+  AUTH_KV:                  KVNamespace
+  EMAIL?:                   { send(msg: EmailMessage): Promise<void> }
+  AUTH_JWT_SECRET:          string
+  GOOGLE_CLIENT_ID?:        string
+  CORS_ORIGIN?:             string
+  OTYA_STORE_INTERNAL_URL?: string
+  INTERNAL_SECRET?:         string
 }
 
 interface KVNamespace {
   get(key: string): Promise<string | null>
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
   delete(key: string): Promise<void>
-  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>
+  list(options?: { prefix?: string; limit?: number }): Promise<{
+    keys: { name: string }[]
+    list_complete: boolean
+    cursor?: string
+  }>
 }
 
 interface EmailMessage {
@@ -73,18 +95,27 @@ interface EmailMessage {
   text:    string
 }
 
+// ── Module-level init flag (Bug 9 fix) ────────────────────────────────────────
+// ensureSchema runs CREATE TABLE IF NOT EXISTS — idempotent but adds latency.
+// We only run it once per Worker instance (cold start), not on every request.
+let dbInitialised = false
+
 // ── Token TTLs ────────────────────────────────────────────────────────────────
 
-const ACCESS_TOKEN_TTL_SECS  = 15 * 60          // 15 minutes
-const REFRESH_TOKEN_TTL_SECS = 30 * 24 * 60 * 60 // 30 days
-const OTP_TTL_SECS           = 10 * 60           // 10 minutes
+const ACCESS_TOKEN_TTL_SECS   = 15 * 60           // 15 minutes
+const REFRESH_TOKEN_TTL_SECS  = 30 * 24 * 60 * 60 // 30 days
+const OTP_TTL_SECS            = 10 * 60            // 10 minutes
+const VERIFY_TOKEN_TTL_SECS   = 24 * 60 * 60       // 24 hours
+const LOGIN_ATTEMPT_TTL_SECS  = 15 * 60            // 15 minutes
+const MAX_LOGIN_ATTEMPTS      = 5
+const LAST_LOGIN_IP_TTL_SECS  = 90 * 24 * 60 * 60 // 90 days
 
 // ── CORS headers ──────────────────────────────────────────────────────────────
 
 function corsHeaders(env: Env): Record<string, string> {
   return {
     'Access-Control-Allow-Origin':  env.CORS_ORIGIN ?? 'https://petersmartlink.com',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   }
 }
@@ -113,29 +144,116 @@ async function issueAccessToken(userId: string, email: string, secret: string): 
   return signJwt({ sub: userId, email, iat: now, exp: now + ACCESS_TOKEN_TTL_SECS }, secret)
 }
 
+// ── Refresh token helpers (Bug 10 fix: dual-key pattern) ─────────────────────
+//
+// We store TWO KV entries per refresh token:
+//   rt:{token}             -> user_id   (for fast token validation)
+//   rt_user:{uid}:{token}  -> "1"       (for fast per-user revocation)
+//
+// This makes revokeAllRefreshTokens O(user_tokens) instead of O(all_tokens).
+
 async function issueRefreshToken(kv: KVNamespace, userId: string): Promise<string> {
   const token = generateRefreshToken()
   await kv.put(`rt:${token}`, userId, { expirationTtl: REFRESH_TOKEN_TTL_SECS })
+  await kv.put(`rt_user:${userId}:${token}`, '1', { expirationTtl: REFRESH_TOKEN_TTL_SECS })
   return token
 }
 
+async function revokeRefreshToken(kv: KVNamespace, token: string): Promise<void> {
+  const userId = await kv.get(`rt:${token}`)
+  await kv.delete(`rt:${token}`)
+  if (userId) {
+    await kv.delete(`rt_user:${userId}:${token}`)
+  }
+}
+
 async function revokeAllRefreshTokens(kv: KVNamespace, userId: string): Promise<void> {
-  // List all refresh tokens and delete those belonging to this user
+  // List all tokens for this user using the rt_user: prefix — O(user_tokens)
   let cursor: string | undefined
   do {
-    const result = await kv.list({ prefix: 'rt:', limit: 1000 }) as {
-      keys: { name: string }[]
-      list_complete: boolean
-      cursor?: string
-    }
+    const result = await kv.list({ prefix: `rt_user:${userId}:`, limit: 1000 })
     for (const key of result.keys) {
-      const val = await kv.get(key.name)
-      if (val === userId) {
-        await kv.delete(key.name)
-      }
+      // key.name = "rt_user:{userId}:{token}"
+      const token = key.name.slice(`rt_user:${userId}:`.length)
+      await kv.delete(key.name)
+      await kv.delete(`rt:${token}`)
     }
     cursor = result.list_complete ? undefined : result.cursor
   } while (cursor)
+}
+
+// ── Brute force protection helpers (Task 3) ───────────────────────────────────
+
+async function getLoginAttempts(kv: KVNamespace, email: string): Promise<number> {
+  const val = await kv.get(`login_attempts:${email}`)
+  return val ? parseInt(val, 10) : 0
+}
+
+async function incrementLoginAttempts(kv: KVNamespace, email: string): Promise<number> {
+  const current = await getLoginAttempts(kv, email)
+  const next = current + 1
+  await kv.put(`login_attempts:${email}`, String(next), { expirationTtl: LOGIN_ATTEMPT_TTL_SECS })
+  return next
+}
+
+async function resetLoginAttempts(kv: KVNamespace, email: string): Promise<void> {
+  await kv.delete(`login_attempts:${email}`)
+}
+
+// ── New device login alert helper (Task 4) ────────────────────────────────────
+
+function getClientIp(req: Request): string {
+  return (
+    req.headers.get('CF-Connecting-IP') ??
+    req.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ??
+    'unknown'
+  )
+}
+
+async function checkAndAlertNewDeviceLogin(
+  kv: KVNamespace,
+  env: Env,
+  userId: string,
+  email: string,
+  req: Request,
+): Promise<void> {
+  const currentIp = getClientIp(req)
+  const kvKey     = `last_login_ip:${userId}`
+
+  try {
+    const storedIp = await kv.get(kvKey)
+
+    // Update stored IP (fire-and-forget — don't block login)
+    kv.put(kvKey, currentIp, { expirationTtl: LAST_LOGIN_IP_TTL_SECS }).catch(() => {})
+
+    // Send alert only if IP changed and we had a stored IP
+    if (storedIp && storedIp !== currentIp && env.EMAIL) {
+      const now = new Date().toUTCString()
+      env.EMAIL.send({
+        from:    { email: 'noreply@petersmartlink.com', name: 'OTYA Player Security' },
+        to:      [{ email }],
+        subject: 'New login to your OTYA Player account',
+        text: [
+          'Hi there,',
+          '',
+          'We detected a new login to your OTYA Player account from a different location.',
+          '',
+          `IP address : ${currentIp}`,
+          `Time       : ${now}`,
+          '',
+          'If this was you, no action is needed.',
+          '',
+          'If you did NOT log in, please change your password immediately at:',
+          'https://petersmartlink.com',
+          '',
+          '— The OTYA Player Security Team',
+        ].join('\n'),
+      }).catch(e => console.error('[auth] New device alert email failed:', (e as Error)?.message))
+    }
+  } catch (e) {
+    // Non-fatal — don't block login on KV errors
+    console.error('[auth] checkAndAlertNewDeviceLogin failed:', (e as Error)?.message)
+  }
 }
 
 // ── Google ID token verification ──────────────────────────────────────────────
@@ -153,16 +271,14 @@ interface GoogleTokenPayload {
 }
 
 /**
- * Verify a Google ID token by fetching Google's public keys and validating
- * the RS256 signature. Uses the tokeninfo endpoint as a simpler alternative
- * that doesn't require fetching JWKS.
+ * Verify a Google ID token using Google's tokeninfo endpoint.
+ * Validates signature server-side — no JWKS fetching needed.
  */
 async function verifyGoogleIdToken(
   idToken: string,
   clientId: string,
 ): Promise<GoogleTokenPayload | null> {
   try {
-    // Use Google's tokeninfo endpoint — validates signature server-side
     const res = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
     )
@@ -170,21 +286,54 @@ async function verifyGoogleIdToken(
 
     const payload = await res.json() as GoogleTokenPayload
 
-    // Validate audience matches our client ID
     if (payload.aud !== clientId) return null
-
-    // Validate issuer
     if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') {
       return null
     }
 
-    // Validate expiry
     const now = Math.floor(Date.now() / 1000)
     if (payload.exp < now) return null
 
     return payload
   } catch {
     return null
+  }
+}
+
+// ── JWT extraction helper ─────────────────────────────────────────────────────
+
+async function requireJwt(req: Request, env: Env): Promise<JwtPayload | null> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) return null
+  const token = authHeader.slice(7)
+  return verifyJwt(token, env.AUTH_JWT_SECRET)
+}
+
+// ── Email verification helper ─────────────────────────────────────────────────
+
+async function sendVerificationEmail(env: Env, userId: string, email: string): Promise<void> {
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+
+  await env.AUTH_KV.put(`verify:${token}`, userId, { expirationTtl: VERIFY_TOKEN_TTL_SECS })
+
+  if (env.EMAIL) {
+    await env.EMAIL.send({
+      from:    { email: 'noreply@petersmartlink.com', name: 'OTYA Player' },
+      to:      [{ email }],
+      subject: 'Verify your OTYA Player email address',
+      text: [
+        'Please verify your email address to complete your OTYA Player account setup.',
+        '',
+        'Click the link below to verify your email:',
+        `https://petersmartlink.com/verify-email?token=${token}`,
+        '',
+        'This link expires in 24 hours.',
+        '',
+        'If you did not create an account, please ignore this email.',
+        '— The OTYA Team',
+      ].join('\n'),
+    })
   }
 }
 
@@ -207,7 +356,6 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
 
   const normalizedEmail = email.toLowerCase().trim()
 
-  // Check if user already exists
   const existing = await getUserByEmail(env.AUTH_DB, normalizedEmail)
   if (existing) return jsonErr('Email already registered', env, 409)
 
@@ -223,7 +371,6 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
     avatar_url:    null,
   })
 
-  // Issue tokens
   const accessToken  = await issueAccessToken(userId, normalizedEmail, env.AUTH_JWT_SECRET)
   const refreshToken = await issueRefreshToken(env.AUTH_KV, userId)
 
@@ -248,14 +395,22 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
     }
   }
 
+  // Send verification email (non-fatal)
+  try {
+    await sendVerificationEmail(env, userId, normalizedEmail)
+  } catch (e) {
+    console.error('[auth/register] Failed to send verification email:', (e as Error)?.message)
+  }
+
   return jsonOk({
     ok:            true,
     access_token:  accessToken,
     refresh_token: refreshToken,
     user: {
-      id:    userId,
-      email: normalizedEmail,
-      name:  typeof name === 'string' ? name.trim() : null,
+      id:          userId,
+      email:       normalizedEmail,
+      name:        typeof name === 'string' ? name.trim() : null,
+      is_verified: 0,
     },
   }, env, 201)
 }
@@ -271,27 +426,45 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
   if (!email || !password) return jsonErr('email and password are required', env)
 
   const normalizedEmail = (email as string).toLowerCase().trim()
+
+  // ── Brute force check (Task 3) ────────────────────────────────────────────
+  const attempts = await getLoginAttempts(env.AUTH_KV, normalizedEmail)
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    return jsonErr('Too many failed attempts. Try again in 15 minutes.', env, 429)
+  }
+
   const user = await getUserByEmail(env.AUTH_DB, normalizedEmail)
 
   if (!user || !user.password_hash) {
+    await incrementLoginAttempts(env.AUTH_KV, normalizedEmail)
     return jsonErr('Invalid email or password', env, 401)
   }
 
   const valid = await verifyPassword(password as string, user.password_hash)
-  if (!valid) return jsonErr('Invalid email or password', env, 401)
+  if (!valid) {
+    await incrementLoginAttempts(env.AUTH_KV, normalizedEmail)
+    return jsonErr('Invalid email or password', env, 401)
+  }
+
+  // Successful login — reset attempt counter
+  await resetLoginAttempts(env.AUTH_KV, normalizedEmail)
 
   const accessToken  = await issueAccessToken(user.id, user.email, env.AUTH_JWT_SECRET)
   const refreshToken = await issueRefreshToken(env.AUTH_KV, user.id)
+
+  // New device login alert (Task 4) — fire-and-forget
+  checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
 
   return jsonOk({
     ok:            true,
     access_token:  accessToken,
     refresh_token: refreshToken,
     user: {
-      id:         user.id,
-      email:      user.email,
-      name:       user.name,
-      avatar_url: user.avatar_url,
+      id:          user.id,
+      email:       user.email,
+      name:        user.name,
+      avatar_url:  user.avatar_url,
+      is_verified: user.is_verified,
     },
   }, env)
 }
@@ -310,7 +483,7 @@ async function handleRefresh(req: Request, env: Env): Promise<Response> {
 
   const user = await getUserById(env.AUTH_DB, userId)
   if (!user) {
-    await env.AUTH_KV.delete(`rt:${refresh_token}`)
+    await revokeRefreshToken(env.AUTH_KV, refresh_token)
     return jsonErr('User not found', env, 401)
   }
 
@@ -320,10 +493,11 @@ async function handleRefresh(req: Request, env: Env): Promise<Response> {
     ok:           true,
     access_token: accessToken,
     user: {
-      id:         user.id,
-      email:      user.email,
-      name:       user.name,
-      avatar_url: user.avatar_url,
+      id:          user.id,
+      email:       user.email,
+      name:        user.name,
+      avatar_url:  user.avatar_url,
+      is_verified: user.is_verified,
     },
   }, env)
 }
@@ -337,7 +511,7 @@ async function handleLogout(req: Request, env: Env): Promise<Response> {
   const { refresh_token } = body as { refresh_token?: string }
   if (!refresh_token) return jsonErr('refresh_token is required', env)
 
-  await env.AUTH_KV.delete(`rt:${refresh_token}`)
+  await revokeRefreshToken(env.AUTH_KV, refresh_token)
   return jsonOk({ ok: true }, env)
 }
 
@@ -360,7 +534,6 @@ async function handleGoogle(req: Request, env: Env): Promise<Response> {
   const { sub: googleId, email, name, picture } = googlePayload
   const normalizedEmail = email.toLowerCase().trim()
 
-  // Upsert user
   const user = await upsertGoogleUser(env.AUTH_DB, {
     id:         generateUuid(),
     email:      normalizedEmail,
@@ -374,15 +547,19 @@ async function handleGoogle(req: Request, env: Env): Promise<Response> {
   const accessToken  = await issueAccessToken(user.id, user.email, env.AUTH_JWT_SECRET)
   const refreshToken = await issueRefreshToken(env.AUTH_KV, user.id)
 
+  // New device login alert (Task 4) — fire-and-forget
+  checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
+
   return jsonOk({
     ok:            true,
     access_token:  accessToken,
     refresh_token: refreshToken,
     user: {
-      id:         user.id,
-      email:      user.email,
-      name:       user.name,
-      avatar_url: user.avatar_url,
+      id:          user.id,
+      email:       user.email,
+      name:        user.name,
+      avatar_url:  user.avatar_url,
+      is_verified: user.is_verified,
     },
   }, env)
 }
@@ -470,17 +647,29 @@ async function handleResetPassword(req: Request, env: Env): Promise<Response> {
 
 /** POST /auth/delete-account */
 async function handleDeleteAccount(req: Request, env: Env): Promise<Response> {
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return jsonErr('Authorization header required', env, 401)
-  }
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
 
-  const token   = authHeader.slice(7)
-  const payload = await verifyJwt(token, env.AUTH_JWT_SECRET)
-  if (!payload) return jsonErr('Invalid or expired token', env, 401)
+  const user = await getUserById(env.AUTH_DB, payload.sub)
+  if (!user) return jsonErr('User not found', env, 404)
 
   await deleteUser(env.AUTH_DB, payload.sub)
   await revokeAllRefreshTokens(env.AUTH_KV, payload.sub)
+
+  // Clean up Drive file ID from KV
+  await env.AUTH_KV.delete(`drive_file:${payload.sub}`)
+
+  // Notify Otya-Store to delete all user data (Gap 5) — fire-and-forget
+  if (env.OTYA_STORE_INTERNAL_URL && env.INTERNAL_SECRET) {
+    fetch(`${env.OTYA_STORE_INTERNAL_URL}/api/internal/delete-user`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'X-Internal-Secret': env.INTERNAL_SECRET,
+      },
+      body: JSON.stringify({ user_id: payload.sub }),
+    }).catch(e => console.error('[auth/delete-account] Failed to notify Otya-Store:', (e as Error)?.message))
+  }
 
   return jsonOk({ ok: true, message: 'Account deleted.' }, env)
 }
@@ -506,15 +695,243 @@ async function handleVerify(req: Request, env: Env): Promise<Response> {
   }, env)
 }
 
+/** POST /auth/send-verification (Task 6) */
+async function handleSendVerification(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  const user = await getUserById(env.AUTH_DB, payload.sub)
+  if (!user) return jsonErr('User not found', env, 404)
+
+  if (user.is_verified) {
+    return jsonOk({ ok: true, message: 'Email already verified.' }, env)
+  }
+
+  try {
+    await sendVerificationEmail(env, user.id, user.email)
+  } catch (e) {
+    console.error('[auth/send-verification] Failed:', (e as Error)?.message)
+    return jsonErr('Failed to send verification email', env, 500)
+  }
+
+  return jsonOk({ ok: true, message: 'Verification email sent.' }, env)
+}
+
+/** GET /auth/verify-email?token=xxx (Task 6) */
+async function handleVerifyEmail(req: Request, env: Env): Promise<Response> {
+  const url   = new URL(req.url)
+  const token = url.searchParams.get('token')
+
+  if (!token) return jsonErr('token query parameter is required', env, 400)
+
+  const userId = await env.AUTH_KV.get(`verify:${token}`)
+  if (!userId) return jsonErr('Invalid or expired verification token', env, 400)
+
+  try {
+    await env.AUTH_DB.prepare(
+      "UPDATE users SET is_verified = 1, updated_at = datetime('now') WHERE id = ?"
+    ).bind(userId).run()
+  } catch (e) {
+    console.error('[auth/verify-email] D1 update failed:', (e as Error)?.message)
+    return jsonErr('Failed to verify email', env, 500)
+  }
+
+  await env.AUTH_KV.delete(`verify:${token}`)
+
+  return jsonOk({ ok: true, message: 'Email verified successfully.' }, env)
+}
+
+/** GET /auth/me (Task 6) */
+async function handleGetMe(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  const user = await getUserById(env.AUTH_DB, payload.sub)
+  if (!user) return jsonErr('User not found', env, 404)
+
+  return jsonOk({
+    ok: true,
+    user: {
+      id:          user.id,
+      email:       user.email,
+      name:        user.name,
+      avatar_url:  user.avatar_url,
+      is_verified: user.is_verified,
+      created_at:  user.created_at,
+    },
+  }, env)
+}
+
+/** PATCH /auth/me (Task 6) */
+async function handlePatchMe(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  let body: Record<string, unknown>
+  try { body = await req.json() as Record<string, unknown> }
+  catch { return jsonErr('Invalid JSON body', env) }
+
+  const { name, avatar_url } = body as { name?: string; avatar_url?: string }
+
+  if (name === undefined && avatar_url === undefined) {
+    return jsonErr('At least one of name or avatar_url is required', env, 400)
+  }
+
+  // Build update query dynamically based on provided fields
+  const setClauses: string[] = ["updated_at = datetime('now')"]
+  const binds: unknown[]     = []
+
+  if (name !== undefined) {
+    setClauses.push('name = ?')
+    binds.push(typeof name === 'string' ? name.trim() : null)
+  }
+  if (avatar_url !== undefined) {
+    setClauses.push('avatar_url = ?')
+    binds.push(typeof avatar_url === 'string' ? avatar_url.trim() : null)
+  }
+
+  binds.push(payload.sub)
+
+  try {
+    await env.AUTH_DB.prepare(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`
+    ).bind(...binds).run()
+  } catch (e) {
+    console.error('[auth/me PATCH] D1 update failed:', (e as Error)?.message)
+    return jsonErr('Failed to update profile', env, 500)
+  }
+
+  const user = await getUserById(env.AUTH_DB, payload.sub)
+  if (!user) return jsonErr('User not found', env, 404)
+
+  return jsonOk({
+    ok: true,
+    user: {
+      id:          user.id,
+      email:       user.email,
+      name:        user.name,
+      avatar_url:  user.avatar_url,
+      is_verified: user.is_verified,
+      created_at:  user.created_at,
+    },
+  }, env)
+}
+
+// ── Drive backup handlers (Task 2) ────────────────────────────────────────────
+
+/** POST /auth/backup */
+async function handleBackupPost(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  let body: Record<string, unknown>
+  try { body = await req.json() as Record<string, unknown> }
+  catch { return jsonErr('Invalid JSON body', env) }
+
+  const { drive_token, data } = body as { drive_token?: string; data?: unknown }
+  if (!drive_token || typeof drive_token !== 'string') {
+    return jsonErr('drive_token is required', env, 400)
+  }
+  if (data === undefined) {
+    return jsonErr('data is required', env, 400)
+  }
+
+  try {
+    // Check if we already have a file ID cached in KV
+    let fileId = await env.AUTH_KV.get(`drive_file:${payload.sub}`)
+
+    if (!fileId) {
+      // Search Drive for existing file
+      fileId = await findBackupFile(drive_token)
+    }
+
+    if (fileId) {
+      // Update existing file
+      await updateBackupFile(drive_token, fileId, data)
+    } else {
+      // Create new file
+      fileId = await createBackupFile(drive_token, data)
+    }
+
+    // Cache the file ID in KV (90 days TTL)
+    await env.AUTH_KV.put(`drive_file:${payload.sub}`, fileId, { expirationTtl: 90 * 24 * 60 * 60 })
+
+    return jsonOk({ ok: true, file_id: fileId }, env)
+  } catch (e) {
+    console.error('[auth/backup POST] Drive operation failed:', (e as Error)?.message)
+    return jsonErr(`Drive backup failed: ${(e as Error)?.message ?? 'unknown error'}`, env, 502)
+  }
+}
+
+/** GET /auth/backup */
+async function handleBackupGet(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  const url         = new URL(req.url)
+  const drive_token = url.searchParams.get('drive_token')
+  if (!drive_token) return jsonErr('drive_token query parameter is required', env, 400)
+
+  try {
+    let fileId = await env.AUTH_KV.get(`drive_file:${payload.sub}`)
+
+    if (!fileId) {
+      fileId = await findBackupFile(drive_token)
+      if (!fileId) {
+        return jsonOk({ ok: true, data: null }, env)
+      }
+      await env.AUTH_KV.put(`drive_file:${payload.sub}`, fileId, { expirationTtl: 90 * 24 * 60 * 60 })
+    }
+
+    const data = await downloadBackupFile(drive_token, fileId)
+    return jsonOk({ ok: true, data }, env)
+  } catch (e) {
+    console.error('[auth/backup GET] Drive operation failed:', (e as Error)?.message)
+    return jsonErr(`Drive restore failed: ${(e as Error)?.message ?? 'unknown error'}`, env, 502)
+  }
+}
+
+/** DELETE /auth/backup */
+async function handleBackupDelete(req: Request, env: Env): Promise<Response> {
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
+
+  let body: Record<string, unknown>
+  try { body = await req.json() as Record<string, unknown> }
+  catch { return jsonErr('Invalid JSON body', env) }
+
+  const { drive_token } = body as { drive_token?: string }
+  if (!drive_token || typeof drive_token !== 'string') {
+    return jsonErr('drive_token is required', env, 400)
+  }
+
+  try {
+    const fileId = await env.AUTH_KV.get(`drive_file:${payload.sub}`)
+
+    if (fileId) {
+      await deleteBackupFile(drive_token, fileId)
+      await env.AUTH_KV.delete(`drive_file:${payload.sub}`)
+    }
+
+    return jsonOk({ ok: true }, env)
+  } catch (e) {
+    console.error('[auth/backup DELETE] Drive operation failed:', (e as Error)?.message)
+    return jsonErr(`Drive delete failed: ${(e as Error)?.message ?? 'unknown error'}`, env, 502)
+  }
+}
+
 // ── Main fetch handler ────────────────────────────────────────────────────────
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Ensure schema on every cold start (idempotent)
-    try {
-      await ensureSchema(env.AUTH_DB)
-    } catch (e) {
-      console.error('[auth] ensureSchema failed:', (e as Error)?.message)
+    // Ensure schema once per Worker instance (Bug 9 fix — not on every request)
+    if (!dbInitialised) {
+      try {
+        await ensureSchema(env.AUTH_DB)
+        dbInitialised = true
+      } catch (e) {
+        console.error('[auth] ensureSchema failed:', (e as Error)?.message)
+      }
     }
 
     const url    = new URL(request.url)
@@ -556,6 +973,27 @@ export default {
       }
       if (method === 'GET' && path === '/auth/verify') {
         return handleVerify(request, env)
+      }
+      if (method === 'POST' && path === '/auth/send-verification') {
+        return handleSendVerification(request, env)
+      }
+      if (method === 'GET' && path === '/auth/verify-email') {
+        return handleVerifyEmail(request, env)
+      }
+      if (method === 'GET' && path === '/auth/me') {
+        return handleGetMe(request, env)
+      }
+      if (method === 'PATCH' && path === '/auth/me') {
+        return handlePatchMe(request, env)
+      }
+      if (method === 'POST' && path === '/auth/backup') {
+        return handleBackupPost(request, env)
+      }
+      if (method === 'GET' && path === '/auth/backup') {
+        return handleBackupGet(request, env)
+      }
+      if (method === 'DELETE' && path === '/auth/backup') {
+        return handleBackupDelete(request, env)
       }
 
       return jsonErr('Not found', env, 404)

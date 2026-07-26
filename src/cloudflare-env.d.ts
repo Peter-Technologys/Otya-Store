@@ -50,6 +50,7 @@ declare interface CloudflareEnvExtensions {
   VECTORIZE:       VectorizeIndex
   AUTH:            AuthService   // Service Binding to otya-auth worker
   RESEND_API_KEY?: string
+  INTERNAL_SECRET?: string       // Shared secret for /internal/delete-user
 }
 
 declare interface KVNamespace {

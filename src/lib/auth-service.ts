@@ -84,6 +84,7 @@ export type DualAuthResult =
   | { mode: 'none'; error: string }
 
 export async function dualAuth(
+  // Accept NextRequest (subtype of Request) or plain Request
   req: Request,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -104,7 +105,9 @@ export async function dualAuth(
   }
 
   // ── Fall back to HMAC (legacy Flutter app) ────────────────────────────────
-  const hmacResult = await hmacVerify(req, env)
+  // Cast to plain Request so hmacVerify (which expects Request, not NextRequest)
+  // receives the correct type regardless of what the caller passes in.
+  const hmacResult = await hmacVerify(req as Request, env)
   if (hmacResult.ok) {
     return { mode: 'hmac' }
   }

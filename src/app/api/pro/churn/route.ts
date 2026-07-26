@@ -92,11 +92,22 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Send FCM pushes ───────────────────────────────────────────────────────
-  const serviceAccountJson = (env as Record<string, unknown>).FIREBASE_SERVICE_ACCOUNT as string | undefined
-  const projectId          = (env as Record<string, unknown>).FIREBASE_PROJECT_ID as string | undefined
+  // Use FCM_SERVICE_ACCOUNT_JSON (standardized secret name).
+  // project_id is extracted from the service account JSON itself — no separate secret needed.
+  const serviceAccountJson = (env as Record<string, unknown>).FCM_SERVICE_ACCOUNT_JSON as string | undefined
 
-  if (!serviceAccountJson || !projectId) {
-    return errorJson('FIREBASE_SERVICE_ACCOUNT or FIREBASE_PROJECT_ID not configured', 500)
+  if (!serviceAccountJson) {
+    return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 500)
+  }
+
+  let projectId: string
+  try {
+    const sa = JSON.parse(serviceAccountJson) as { project_id?: string }
+    if (!sa.project_id) throw new Error('project_id missing from service account JSON')
+    projectId = sa.project_id
+  } catch (e) {
+    console.error('[pro/churn] Failed to parse FCM_SERVICE_ACCOUNT_JSON:', (e as Error)?.message)
+    return errorJson('Invalid FCM_SERVICE_ACCOUNT_JSON', 500)
   }
 
   let accessToken: string

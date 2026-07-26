@@ -125,6 +125,7 @@ export async function ensureAiTables(db: D1): Promise<void> {
     CREATE TABLE IF NOT EXISTS crash_reports (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       device_id    TEXT,
+      user_id      TEXT,
       app_version  TEXT,
       version_code INTEGER,
       error_type   TEXT,
@@ -137,7 +138,11 @@ export async function ensureAiTables(db: D1): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_crash_created ON crash_reports(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_crash_group   ON crash_reports(group_id);
     CREATE INDEX IF NOT EXISTS idx_crash_device  ON crash_reports(device_id);
+    CREATE INDEX IF NOT EXISTS idx_crash_user    ON crash_reports(user_id);
   `)
+
+  // Add user_id to crash_reports if missing (existing DBs)
+  try { await db.exec('ALTER TABLE crash_reports ADD COLUMN user_id TEXT') } catch { /* already exists */ }
 
   // feedback_replies — AI-generated replies to user feedback
   await db.exec(`
@@ -202,9 +207,13 @@ export async function ensureAiTables(db: D1): Promise<void> {
     'ALTER TABLE devices ADD COLUMN model TEXT',
     'ALTER TABLE devices ADD COLUMN android_version TEXT',
     'ALTER TABLE devices ADD COLUMN locale TEXT',
+    'ALTER TABLE devices ADD COLUMN user_id TEXT',
   ]) {
     try { await db.exec(sql) } catch { /* column already exists */ }
   }
+
+  // Add user_id to ratings table (links ratings to authenticated users)
+  try { await db.exec('ALTER TABLE ratings ADD COLUMN user_id TEXT') } catch { /* already exists */ }
 }
 
 // ── Binding accessors ─────────────────────────────────────────────────────────
