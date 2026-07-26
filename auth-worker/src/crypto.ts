@@ -33,7 +33,7 @@ const PBKDF2_KEY_LEN   = 32   // bytes → 256-bit key
  * Returns a string in the format: `pbkdf2:iterations:base64(salt):base64(hash)`
  */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const salt = crypto.getRandomValues(new Uint8Array(16)) as unknown as ArrayBuffer
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
