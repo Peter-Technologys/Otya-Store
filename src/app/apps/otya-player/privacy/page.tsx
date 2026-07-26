@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { SiteNav } from '@/components/SiteNav'
+
+export const dynamic = 'force-dynamic'
 import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
