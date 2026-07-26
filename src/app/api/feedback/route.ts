@@ -45,11 +45,23 @@ export async function POST(req: NextRequest) {
     user_email  ?? null,
   ).run()
 
-  // ── Queue AI categorization ───────────────────────────────────────────────
+  // ── Queue AI categorization + moderation ─────────────────────────────────
   const feedbackId = (result.meta as Record<string, unknown>)?.last_row_id as number | undefined
   const aiQueue = (env as Record<string, unknown>).AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
 
   if (feedbackId && aiQueue) {
+    // Queue moderation check (runs first — will delete row if spam/abuse)
+    try {
+      await aiQueue.send({
+        type:        'moderate_feedback',
+        feedbackId,
+        description: description.trim(),
+      })
+    } catch (e) {
+      console.error('[feedback] Failed to queue AI moderation:', (e as Error)?.message)
+    }
+
+    // Queue categorization (runs after moderation; if row was deleted, UPDATE is a no-op)
     try {
       await aiQueue.send({
         type:        'categorize_feedback',

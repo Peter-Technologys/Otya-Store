@@ -139,6 +139,56 @@ export async function ensureAiTables(db: D1): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_crash_device  ON crash_reports(device_id);
   `)
 
+  // feedback_replies — AI-generated replies to user feedback
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback_replies (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      feedback_id  INTEGER NOT NULL,
+      reply_text   TEXT NOT NULL,
+      generated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_replies_fid ON feedback_replies(feedback_id);
+  `)
+
+  // user_preferences — theme and accent color per user
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id      TEXT PRIMARY KEY,
+      theme        TEXT,
+      accent_color TEXT,
+      updated_at   TEXT DEFAULT (datetime('now'))
+    );
+  `)
+
+  // bookmarks — cloud sync of media playback positions
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      media_id     TEXT NOT NULL,
+      file_path    TEXT,
+      position_ms  INTEGER DEFAULT 0,
+      duration_ms  INTEGER DEFAULT 0,
+      title        TEXT,
+      updated_at   TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_user    ON bookmarks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_media   ON bookmarks(user_id, media_id);
+  `)
+
+  // eq_presets — cloud sync of equalizer presets
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS eq_presets (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      preset_name  TEXT NOT NULL,
+      bands        TEXT NOT NULL DEFAULT '[]',
+      is_default   INTEGER DEFAULT 0,
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_eq_presets_user ON eq_presets(user_id);
+  `)
+
   // Add AI columns to feedback table (one try/catch per column)
   for (const sql of [
     'ALTER TABLE feedback ADD COLUMN sentiment TEXT',

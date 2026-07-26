@@ -1,0 +1,29 @@
+name = "otya-auth"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding       = "AUTH_DB"
+database_name = "otya-auth-db"
+database_id   = "REPLACE_WITH_ACTUAL_ID"
+
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id      = "REPLACE_WITH_ACTUAL_ID"
+
+# EMAIL binding — add via Cloudflare Dashboard:
+#   Workers & Pages → otya-auth → Settings → Bindings → Add binding → Send Email
+# [[send_email]]
+# name                = "EMAIL"
+# destination_address = "petersmartlink@gmail.com"
+
+[vars]
+CORS_ORIGIN = "https://petersmartlink.com"
+
+# Secrets — set via:
+#   wrangler secret put AUTH_JWT_SECRET
+#   wrangler secret put GOOGLE_CLIENT_ID

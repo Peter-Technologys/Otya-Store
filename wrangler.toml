@@ -76,10 +76,16 @@ dead_letter_queue = "otya-ai-queue-dlq"
 binding    = "VECTORIZE"
 index_name = "otya-feedback-index"
 
+# Service Binding — otya-auth worker (JWT verification via Service Binding)
+[[services]]
+binding = "AUTH"
+service = "otya-auth"
+
 # Cron triggers
 [triggers]
 crons = [
   "*/5 * * * *",
   "0 * * * *",
-  "0 6 * * 1"
+  "0 6 * * 1",
+  "0 9 * * *"
 ]

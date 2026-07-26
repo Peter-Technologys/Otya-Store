@@ -35,12 +35,20 @@ declare interface VectorizeIndex {
   query(vector: number[], options: { topK: number }): Promise<VectorizeQueryResult>
 }
 
+// ── Auth Service Binding ──────────────────────────────────────────────────────
+// Service Binding to the otya-auth worker (configured in wrangler.toml).
+// Called via env.AUTH.fetch() to verify JWTs without network round-trips.
+declare interface AuthService {
+  fetch(request: Request): Promise<Response>
+}
+
 // ── Cloudflare env augmentation ───────────────────────────────────────────────
 // These are added to the env object available via getCloudflareContext().
 declare interface CloudflareEnvExtensions {
-  AI:             AiBinding
-  AI_QUEUE:       AiQueueProducer
-  VECTORIZE:      VectorizeIndex
+  AI:              AiBinding
+  AI_QUEUE:        AiQueueProducer
+  VECTORIZE:       VectorizeIndex
+  AUTH:            AuthService   // Service Binding to otya-auth worker
   RESEND_API_KEY?: string
 }
 
