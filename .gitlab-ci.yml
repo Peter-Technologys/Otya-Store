@@ -1,6 +1,6 @@
-# Otya Store - Unified Cloudflare Worker + Next.js Website
+# Otya Store — Unified Cloudflare Worker + Next.js Website
 # GitLab CI: validate (next build) on MR + main
-# GitLab CI: deploy to Cloudflare on push to main
+# GitLab CI: deploy auth-worker first, then otya-store on push to main
 
 image: node:22-alpine
 
@@ -12,19 +12,24 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
 cache:
-  key: "npm-$CI_COMMIT_REF_SLUG"
-  paths:
-    - node_modules/
-    - .next/cache/
+  - key: "npm-root-$CI_COMMIT_REF_SLUG"
+    paths:
+      - node_modules/
+      - .next/cache/
+  - key: "npm-auth-$CI_COMMIT_REF_SLUG"
+    paths:
+      - auth-worker/node_modules/
 
 stages:
   - validate
-  - deploy
+  - deploy-auth
+  - deploy-store
 
 before_script:
   - npm install --silent
 
-# Validate: next build catches TS/ESLint errors on every MR and main push
+# ── Validate ──────────────────────────────────────────────────────────────────
+# Runs next build on every MR and main push to catch TS/ESLint errors early.
 validate:
   stage: validate
   script:
@@ -33,12 +38,39 @@ validate:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-# Deploy: build with OpenNext and deploy to Cloudflare Workers on main only
+# ── Deploy otya-auth worker ───────────────────────────────────────────────────
+# Must run BEFORE deploy-store so the Service Binding resolves correctly.
 # Required GitLab CI/CD Variables:
-#   CLOUDFLARE_ACCOUNT_ID  - your Cloudflare account ID
-#   CLOUDFLARE_API_KEY     - Cloudflare Global API Key
-deploy:
-  stage: deploy
+#   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account ID
+#   CLOUDFLARE_API_KEY     — Cloudflare Global API Key
+#
+# Required Cloudflare secrets (set once via wrangler or dashboard):
+#   AUTH_JWT_SECRET          — wrangler secret put AUTH_JWT_SECRET --name otya-auth
+#   GOOGLE_CLIENT_ID         — wrangler secret put GOOGLE_CLIENT_ID --name otya-auth
+#   OTYA_STORE_INTERNAL_URL  — wrangler secret put OTYA_STORE_INTERNAL_URL --name otya-auth
+#   INTERNAL_SECRET          — wrangler secret put INTERNAL_SECRET --name otya-auth
+#
+# Required Cloudflare resources (create once in dashboard or via wrangler):
+#   D1 database : otya-auth-db  → copy ID into auth-worker/wrangler.toml
+#   KV namespace: otya-auth-kv  → copy ID into auth-worker/wrangler.toml
+deploy-auth:
+  stage: deploy-auth
+  before_script:
+    - cd auth-worker && npm install --silent
+  script:
+    - npx wrangler deploy
+  environment:
+    name: production-auth
+    url: https://otya-auth.workers.dev
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_KEY'
+  variables:
+    CLOUDFLARE_EMAIL: petersmartlink@gmail.com
+
+# ── Deploy otya-store (Next.js + main worker) ─────────────────────────────────
+# Runs after deploy-auth so the AUTH Service Binding is always resolvable.
+deploy-store:
+  stage: deploy-store
   script:
     - npm run deploy
   environment:
