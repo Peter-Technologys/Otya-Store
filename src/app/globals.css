@@ -37,6 +37,52 @@ html { scroll-behavior: smooth; }
   --nav-bg: rgba(2, 2, 8, 0.95);
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --cosmos-primary: #6B4FE8;
+    --cosmos-secondary: #4A35C0;
+    --cosmos-scaffold: #F4F4FF;
+    --cosmos-surface: #EAEAF8;
+    --cosmos-accent: #0099CC;
+    --cosmos-error: #D93025;
+    --cosmos-text-primary: #0A0A1A;
+    --cosmos-text-secondary: #4A4A7A;
+
+    --cosmos-app-bar: #FFFFFF;
+    --cosmos-card: #FFFFFF;
+    --cosmos-nav-selected: #6B4FE8;
+    --cosmos-divider: #D0D0E8;
+    --cosmos-icon-tint: #0099CC;
+
+    /* Legacy aliases */
+    --bg: var(--cosmos-scaffold);
+    --bg-secondary: var(--cosmos-surface);
+    --text: var(--cosmos-text-primary);
+    --text-sub: var(--cosmos-text-secondary);
+    --text-muted: #8888AA;
+    --border: var(--cosmos-divider);
+    --card: var(--cosmos-card);
+    --card-border: var(--cosmos-divider);
+    --purple: var(--cosmos-primary);
+    --indigo: var(--cosmos-secondary);
+    --nav-bg: rgba(255, 255, 255, 0.95);
+  }
+
+  ::-webkit-scrollbar-track { background: var(--cosmos-scaffold); }
+  ::-webkit-scrollbar-thumb { background: rgba(107,79,232,0.3); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--cosmos-primary); }
+
+  .cosmos-stars::before, .cosmos-stars::after { opacity: 0.08; }
+
+  .cosmos-card {
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  .cosmos-card:hover {
+    box-shadow: 0 4px 20px rgba(107,79,232,0.15);
+  }
+}
+
 body {
   background: var(--bg);
   color: var(--text);
