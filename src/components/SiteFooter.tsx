@@ -32,10 +32,8 @@ export function SiteFooter() {
             <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>Company</p>
             <div className="space-y-2">
               {([['Home', '/'], ['Services', '/services'], ['Blog', '/blog'], ['Contact', '/contact']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors" 
+                <Link key={l} href={h} className="block text-xs transition-colors hover:text-[var(--cosmos-primary)]" 
                   style={{ color: 'var(--cosmos-text-secondary)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
                 >{l}</Link>
               ))}
             </div>
@@ -46,10 +44,8 @@ export function SiteFooter() {
             <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>OTYA Player</p>
             <div className="space-y-2">
               {([['About', '/otya-player'], ['Download', '/download/otya-player'], ['Support', '/apps/otya-player/support'], ['Privacy', '/apps/otya-player/privacy'], ['Terms', '/apps/otya-player/terms']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors"
+                <Link key={l} href={h} className="block text-xs transition-colors hover:text-[var(--cosmos-primary)]"
                   style={{ color: 'var(--cosmos-text-secondary)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
                 >{l}</Link>
               ))}
             </div>
@@ -60,10 +56,8 @@ export function SiteFooter() {
             <p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: '#4A4A6A' }}>Legal</p>
             <div className="space-y-2">
               {([['Privacy Policy', '/privacy'], ['Terms of Service', '/terms']] as [string, string][]).map(([l, h]) => (
-                <Link key={l} href={h} className="block text-xs transition-colors"
+                <Link key={l} href={h} className="block text-xs transition-colors hover:text-[var(--cosmos-primary)]"
                   style={{ color: 'var(--cosmos-text-secondary)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cosmos-primary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--cosmos-text-secondary)'}
                 >{l}</Link>
               ))}
             </div>
