@@ -32,16 +32,10 @@ export function SiteNav() {
             const isActive = pathname?.startsWith(href)
             return (
               <Link key={href} href={href}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors hover:bg-[rgba(123,97,255,0.08)]`}
                 style={{
                   color: isActive ? 'var(--cosmos-primary)' : 'var(--cosmos-text-secondary)',
                   background: isActive ? 'rgba(123,97,255,0.1)' : 'transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.background = 'rgba(123,97,255,0.08)'
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.background = 'transparent'
                 }}>
                 {label}
               </Link>
