@@ -54,3 +54,32 @@ queue           = "otya-push-queue"
 max_batch_size  = 10
 max_retries     = 3
 dead_letter_queue = "otya-push-queue-dlq"
+
+# Workers AI
+[ai]
+binding = "AI"
+
+# AI processing queue
+[[queues.producers]]
+binding = "AI_QUEUE"
+queue   = "otya-ai-queue"
+
+[[queues.consumers]]
+queue             = "otya-ai-queue"
+max_batch_size    = 5
+max_batch_timeout = 30
+max_retries       = 3
+dead_letter_queue = "otya-ai-queue-dlq"
+
+# Vectorize for semantic search/grouping
+[[vectorize]]
+binding    = "VECTORIZE"
+index_name = "otya-feedback-index"
+
+# Cron triggers
+[triggers]
+crons = [
+  "*/5 * * * *",
+  "0 * * * *",
+  "0 6 * * 1"
+]

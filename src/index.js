@@ -131,6 +131,26 @@ export default {
     const url  = new URL(request.url)
     const path = url.pathname.replace(/\/+$/, '') || '/'
 
+    // ── IP block check — inline KV lookup, no imports ─────────────────────
+    // Blocked IPs are stored in KV with key `blocked:<ip>` and a 24h TTL.
+    // We fail open (allow) on KV errors so legitimate traffic is never
+    // accidentally blocked due to a KV outage.
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+    if (ip !== 'unknown') {
+      try {
+        const blocked = await env.KV.get(`blocked:${ip}`)
+        if (blocked !== null) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden' }),
+            { status: 403, headers: { 'Content-Type': 'application/json', ...CORS } },
+          )
+        }
+      } catch (e) {
+        console.error('[KV] IP block check failed:', e?.message)
+        // fail open — do not block on KV errors
+      }
+    }
+
     // Not an API route — pass through to Next.js / OpenNext
     if (!API_ROUTES.has(path)) return env.ASSETS.fetch(request)
 

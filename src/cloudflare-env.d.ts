@@ -2,6 +2,48 @@
 // These mirror the real types from @cloudflare/workers-types without
 // requiring the package to be installed as a direct dependency.
 
+// ── Workers AI ────────────────────────────────────────────────────────────────
+declare interface AiBinding {
+  run(model: string, input: unknown): Promise<unknown>
+}
+
+// ── AI processing queue ───────────────────────────────────────────────────────
+declare interface AiQueueProducer {
+  send(body: unknown): Promise<void>
+}
+
+// ── Vectorize ─────────────────────────────────────────────────────────────────
+declare interface VectorizeMatch {
+  id:       string
+  score:    number
+  metadata: Record<string, unknown> | null
+}
+
+declare interface VectorizeQueryResult {
+  matches: VectorizeMatch[]
+}
+
+declare interface VectorizeVector {
+  id:       string
+  values:   number[]
+  metadata?: Record<string, unknown>
+}
+
+declare interface VectorizeIndex {
+  insert(vectors: VectorizeVector[]): Promise<void>
+  upsert(vectors: VectorizeVector[]): Promise<void>
+  query(vector: number[], options: { topK: number }): Promise<VectorizeQueryResult>
+}
+
+// ── Cloudflare env augmentation ───────────────────────────────────────────────
+// These are added to the env object available via getCloudflareContext().
+declare interface CloudflareEnvExtensions {
+  AI:             AiBinding
+  AI_QUEUE:       AiQueueProducer
+  VECTORIZE:      VectorizeIndex
+  RESEND_API_KEY?: string
+}
+
 declare interface KVNamespace {
   get(key: string, options?: { type?: 'text' }): Promise<string | null>
   get(key: string, options: { type: 'json' }): Promise<unknown>
