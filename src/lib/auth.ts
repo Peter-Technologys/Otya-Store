@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * HMAC-SHA256 request verification middleware.
@@ -82,8 +82,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 export function requireAppToken(
   req: NextRequest,
   env: Record<string, unknown>,
-): import('next/server').NextResponse | null {
-  const { NextResponse } = await import('next/server')
+): NextResponse | null {
   const expected = env.APP_TOKEN as string | undefined
   if (!expected) {
     console.warn('[auth] APP_TOKEN not set.')
