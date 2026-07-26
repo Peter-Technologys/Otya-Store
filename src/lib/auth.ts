@@ -83,7 +83,7 @@ export function requireAppToken(
   req: NextRequest,
   env: Record<string, unknown>,
 ): import('next/server').NextResponse | null {
-  const { NextResponse } = require('next/server')
+  const { NextResponse } = await import('next/server')
   const expected = env.APP_TOKEN as string | undefined
   if (!expected) {
     console.warn('[auth] APP_TOKEN not set.')
