@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { SiteNav } from '@/components/SiteNav'
+import { SiteFooter } from '@/components/SiteFooter'
 
 export const dynamic = 'force-dynamic'
-import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy — OTYA Player | PeterSmart Technologies',
@@ -20,33 +20,34 @@ const SECTIONS = [
 
 export default function OtyaPrivacyPage() {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-screen relative" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+      <div className="cosmos-stars" />
       <SiteNav />
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 relative z-10">
         <div className="mb-10">
-          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--text)' }}>Privacy Policy</h1>
-          <p className="text-sm" style={{ color: 'var(--text-sub)' }}>OTYA Player · com.otyaplayer.app · Last updated: July 2026</p>
+          <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>Privacy Policy</h1>
+          <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>OTYA Player · com.otyaplayer.app · Last updated: July 2026</p>
         </div>
         <div className="space-y-4">
           {SECTIONS.map(s => (
             <div key={s.title}
               className="flex gap-4 p-5 rounded-2xl border"
               style={{
-                background: s.highlight ? 'rgba(34,197,94,0.06)' : 'var(--card)',
-                borderColor: s.highlight ? 'rgba(34,197,94,0.25)' : 'var(--card-border)',
+                background: s.highlight ? 'rgba(34,197,94,0.06)' : 'var(--cosmos-card)',
+                borderColor: s.highlight ? 'rgba(34,197,94,0.25)' : 'var(--cosmos-divider)',
               }}>
               <span className="text-2xl flex-shrink-0 mt-0.5">{s.icon}</span>
               <div>
-                <h2 className="font-bold text-sm mb-1.5" style={{ color: 'var(--text)' }}>{s.title}</h2>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-sub)' }}>{s.body}</p>
+                <h2 className="font-bold text-sm mb-1.5" style={{ color: 'var(--cosmos-text-primary)' }}>{s.title}</h2>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--cosmos-text-secondary)' }}>{s.body}</p>
               </div>
             </div>
           ))}
         </div>
-        <div className="mt-8 flex flex-wrap gap-4 text-sm pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
-          <a href="/apps/otya-player/terms" className="font-semibold" style={{ color: 'var(--purple)' }}>Terms of Service</a>
-          <a href="/apps/otya-player/support" className="font-semibold" style={{ color: 'var(--purple)' }}>Support</a>
-          <a href="/download/otya-player" className="font-semibold" style={{ color: 'var(--purple)' }}>Download</a>
+        <div className="mt-8 flex flex-wrap gap-4 text-sm pt-6 border-t" style={{ borderColor: 'var(--cosmos-divider)' }}>
+          <a href="/apps/otya-player/terms" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>Terms of Service</a>
+          <a href="/apps/otya-player/support" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>Support</a>
+          <a href="/download/otya-player" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>Download</a>
         </div>
       </div>
       <SiteFooter />
