@@ -2,26 +2,28 @@
 // POST /api/rate
 // Accepts star ratings from the Flutter app.
 // If stars <= 2, queues AI feedback analysis via AI_QUEUE.
+// user_id is extracted from JWT if present, otherwise null.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
+import { dualAuth } from '@/lib/auth-service'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 // POST /api/rate — body: { device_id, app_version, version_code, stars, comment? }
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  const auth = await dualAuth(req, env, verifyRequest)
+  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: Record<string, unknown>
@@ -38,14 +40,18 @@ export async function POST(req: NextRequest) {
     return errorJson('stars must be 1–5', 400)
   }
 
+  // Extract user_id from JWT if authenticated
+  const userId = auth.mode === 'jwt' ? auth.user_id : null
+
   const db = getDB(env as Record<string, unknown>)
 
   // ── 3. Insert rating ──────────────────────────────────────────────────────
   const result = await db.prepare(`
-    INSERT INTO ratings (device_id, app_version, version_code, stars, comment)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO ratings (device_id, user_id, app_version, version_code, stars, comment)
+    VALUES (?, ?, ?, ?, ?, ?)
   `).bind(
     device_id    ?? null,
+    userId,
     app_version  ?? null,
     version_code != null ? Number(version_code) : null,
     starsNum,

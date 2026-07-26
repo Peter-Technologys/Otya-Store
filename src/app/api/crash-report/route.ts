@@ -2,25 +2,28 @@
 // POST /api/crash-report
 // Accepts crash reports from the Flutter app, inserts into D1, and queues
 // AI processing (grouping via Vectorize) via AI_QUEUE.
+//
+// user_id is extracted from JWT if present, otherwise null (anonymous report).
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
+import { dualAuth } from '@/lib/auth-service'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  const auth = await dualAuth(req, env, verifyRequest)
+  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: Record<string, unknown>
@@ -37,6 +40,9 @@ export async function POST(req: NextRequest) {
     return errorJson('description or error_type is required', 400)
   }
 
+  // Extract user_id from JWT if authenticated, otherwise null
+  const userId = auth.mode === 'jwt' ? auth.user_id : null
+
   const db = getDB(env as Record<string, unknown>)
 
   // ── 3. Ensure crash_reports table exists (idempotent) ────────────────────
@@ -45,6 +51,7 @@ export async function POST(req: NextRequest) {
       CREATE TABLE IF NOT EXISTS crash_reports (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         device_id    TEXT,
+        user_id      TEXT,
         app_version  TEXT,
         version_code INTEGER,
         error_type   TEXT,
@@ -65,10 +72,11 @@ export async function POST(req: NextRequest) {
   try {
     const result = await db.prepare(`
       INSERT INTO crash_reports
-        (device_id, app_version, version_code, error_type, stack_trace, description)
-      VALUES (?, ?, ?, ?, ?, ?)
+        (device_id, user_id, app_version, version_code, error_type, stack_trace, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
       device_id    ?? null,
+      userId,
       app_version  ?? null,
       version_code != null ? Number(version_code) : null,
       error_type   ?? null,

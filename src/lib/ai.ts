@@ -304,6 +304,265 @@ export async function generateReleaseEmail(
 }
 
 /**
+ * Generate a polite, helpful reply to user feedback.
+ * Used in the admin dashboard to draft responses to users.
+ * Returns a plain-text fallback if AI fails.
+ */
+export async function generateSmartReply(
+  ai: AiBinding,
+  feedbackText: string,
+  category: string,
+): Promise<string> {
+  const fallback = `Thank you for your feedback! We appreciate you taking the time to share your experience with OTYA Player. Our team will review your ${category} and work to improve the app.`
+
+  try {
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a friendly and professional customer support agent for OTYA Player, a media player app. ' +
+          'Write a concise, empathetic, and helpful reply to the user\'s feedback. ' +
+          'Acknowledge their concern, thank them, and if applicable mention that the team will look into it. ' +
+          'Keep the reply under 100 words. Do not use placeholders like [Name]. Be warm and genuine.',
+      },
+      {
+        role: 'user',
+        content: `Category: ${category}\nFeedback: "${feedbackText.substring(0, 800)}"`,
+      },
+    ]
+    const res  = await ai.run('@cf/meta/llama-3.1-8b-instruct', { messages })
+    const text = extractText(res).trim()
+    return text || fallback
+  } catch (e) {
+    console.error('[AI] generateSmartReply failed:', (e as Error)?.message)
+    return fallback
+  }
+}
+
+// ── Churn prediction ──────────────────────────────────────────────────────────
+
+export interface ChurnPredictionResult {
+  risk:   'high' | 'medium' | 'low'
+  reason: string
+}
+
+export interface UserChurnStats {
+  user_id:      string
+  last_seen_at: string   // ISO datetime
+  pro_expiry?:  number   // ms timestamp, optional
+  play_count?:  number
+}
+
+/**
+ * Predict churn risk for a user based on their activity stats.
+ * Returns { risk: 'low', reason: '...' } as a safe fallback if AI fails.
+ */
+export async function predictChurn(
+  ai: AiBinding,
+  userStats: UserChurnStats,
+): Promise<ChurnPredictionResult> {
+  const fallback: ChurnPredictionResult = { risk: 'low', reason: 'Unable to analyze — AI unavailable.' }
+
+  try {
+    const daysSinceLastSeen = Math.floor(
+      (Date.now() - new Date(userStats.last_seen_at).getTime()) / (1000 * 60 * 60 * 24),
+    )
+    const proExpired = userStats.pro_expiry != null && userStats.pro_expiry < Date.now()
+    const playCount  = userStats.play_count ?? 0
+
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a user retention analyst for a mobile media player app. ' +
+          'Predict the churn risk for a user based on their activity. ' +
+          'Respond with ONLY a JSON object: {"risk": "high"|"medium"|"low", "reason": "<brief explanation>"}. ' +
+          'No other text.',
+      },
+      {
+        role: 'user',
+        content:
+          `Days since last seen: ${daysSinceLastSeen}\n` +
+          `Pro subscription expired: ${proExpired}\n` +
+          `Total play count: ${playCount}`,
+      },
+    ]
+    const res    = await ai.run('@cf/meta/llama-3.1-8b-instruct', { messages })
+    const text   = extractText(res)
+    const parsed = extractJson<{ risk: string; reason: string }>(text)
+    const valid  = ['high', 'medium', 'low']
+    if (parsed && valid.includes(parsed.risk)) {
+      return {
+        risk:   parsed.risk as ChurnPredictionResult['risk'],
+        reason: parsed.reason ?? 'No reason provided.',
+      }
+    }
+    return fallback
+  } catch (e) {
+    console.error('[AI] predictChurn failed:', (e as Error)?.message)
+    return fallback
+  }
+}
+
+// ── Personalized re-engagement notification ───────────────────────────────────
+
+export interface PersonalizedNotificationContext {
+  genres?:  string[]
+  artists?: string[]
+  user_id:  string
+}
+
+export interface PersonalizedNotificationResult {
+  title:   string
+  body:    string
+}
+
+/**
+ * Generate a personalized re-engagement push notification message.
+ * Falls back to a generic message if AI fails.
+ */
+export async function generatePersonalizedNotification(
+  ai: AiBinding,
+  context: PersonalizedNotificationContext,
+): Promise<PersonalizedNotificationResult> {
+  const fallback: PersonalizedNotificationResult = {
+    title: '🎵 We miss you!',
+    body:  'Come back and enjoy your music with OTYA Player.',
+  }
+
+  try {
+    const genreStr  = context.genres?.slice(0, 5).join(', ')  || 'various genres'
+    const artistStr = context.artists?.slice(0, 3).join(', ') || 'your favorite artists'
+
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a copywriter for a mobile music player app called OTYA Player. ' +
+          'Write a short, personalized push notification to re-engage a user who hasn\'t opened the app in a while. ' +
+          'Use their listening history to make it feel personal. ' +
+          'Respond with ONLY a JSON object: {"title": "<short title, max 50 chars>", "body": "<message, max 100 chars>"}. ' +
+          'No other text. Use emojis sparingly.',
+      },
+      {
+        role: 'user',
+        content: `User listens to: ${genreStr}. Favorite artists: ${artistStr}.`,
+      },
+    ]
+    const res    = await ai.run('@cf/meta/llama-3.1-8b-instruct', { messages })
+    const text   = extractText(res)
+    const parsed = extractJson<{ title: string; body: string }>(text)
+    if (parsed?.title && parsed?.body) {
+      return {
+        title: parsed.title.substring(0, 50),
+        body:  parsed.body.substring(0, 100),
+      }
+    }
+    return fallback
+  } catch (e) {
+    console.error('[AI] generatePersonalizedNotification failed:', (e as Error)?.message)
+    return fallback
+  }
+}
+
+// ── Feedback moderation ───────────────────────────────────────────────────────
+
+export interface ModerationResult {
+  ok:      boolean
+  reason?: string
+}
+
+/**
+ * Check if feedback text contains spam or abusive content.
+ * Returns { ok: true } as a safe fallback if AI fails (fail open — don't block legitimate feedback).
+ */
+export async function moderateFeedback(
+  ai: AiBinding,
+  text: string,
+): Promise<ModerationResult> {
+  try {
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a content moderator for a mobile app feedback system. ' +
+          'Determine if the following text is spam, abusive, or inappropriate. ' +
+          'Spam includes: repeated characters, gibberish, promotional content, links. ' +
+          'Abusive includes: hate speech, threats, profanity. ' +
+          'Respond with ONLY a JSON object: {"ok": true|false, "reason": "<brief reason if not ok>"}. ' +
+          'If the content is legitimate feedback (even negative), return {"ok": true}. ' +
+          'No other text.',
+      },
+      {
+        role: 'user',
+        content: `Feedback text: "${text.substring(0, 500)}"`,
+      },
+    ]
+    const res    = await ai.run('@cf/meta/llama-3.1-8b-instruct', { messages })
+    const raw    = extractText(res)
+    const parsed = extractJson<{ ok: boolean; reason?: string }>(raw)
+    if (parsed && typeof parsed.ok === 'boolean') {
+      return { ok: parsed.ok, reason: parsed.reason }
+    }
+    // Fail open — if we can't parse the response, allow the feedback
+    return { ok: true }
+  } catch (e) {
+    console.error('[AI] moderateFeedback failed:', (e as Error)?.message)
+    return { ok: true }   // fail open
+  }
+}
+
+// ── Feature suggestion ────────────────────────────────────────────────────────
+
+export interface FeatureSuggestionResult {
+  features: string[]
+}
+
+/**
+ * Analyze feedback rows to suggest the top 3 most-requested features.
+ * Returns an empty list if AI fails.
+ */
+export async function suggestFeatures(
+  ai: AiBinding,
+  feedbackRows: { description: string; category: string }[],
+): Promise<FeatureSuggestionResult> {
+  if (feedbackRows.length === 0) return { features: [] }
+
+  try {
+    const sample    = feedbackRows.slice(0, 50)
+    const formatted = sample
+      .map((r, i) => `${i + 1}. [${r.category}] ${r.description}`)
+      .join('\n')
+
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a product manager analyzing user feedback for a mobile media player app. ' +
+          'Identify the top 3 most-requested features or improvements from the feedback. ' +
+          'Be specific and actionable. ' +
+          'Respond with ONLY a JSON object: {"features": ["feature 1", "feature 2", "feature 3"]}. ' +
+          'No other text.',
+      },
+      {
+        role: 'user',
+        content: `Feedback (${feedbackRows.length} total, showing ${sample.length}):\n${formatted}`,
+      },
+    ]
+    const res    = await ai.run('@cf/meta/llama-3.1-8b-instruct', { messages })
+    const text   = extractText(res)
+    const parsed = extractJson<{ features: string[] }>(text)
+    if (parsed?.features && Array.isArray(parsed.features)) {
+      return { features: parsed.features.slice(0, 3) }
+    }
+    return { features: [] }
+  } catch (e) {
+    console.error('[AI] suggestFeatures failed:', (e as Error)?.message)
+    return { features: [] }
+  }
+}
+
+/**
  * Decide if force_update should be set to 1 based on device version distribution.
  * Returns { force: false } as a safe fallback if AI fails.
  */

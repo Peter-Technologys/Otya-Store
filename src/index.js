@@ -76,8 +76,23 @@ async function initDb(env) {
     CREATE TABLE IF NOT EXISTS version_history (
       tag TEXT PRIMARY KEY, version TEXT, released_at TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS devices (
+      device_id       TEXT PRIMARY KEY,
+      user_id         TEXT,
+      fcm_token       TEXT,
+      app_version     TEXT,
+      version_code    INTEGER,
+      abi             TEXT,
+      platform        TEXT DEFAULT 'android',
+      model           TEXT,
+      android_version TEXT,
+      locale          TEXT,
+      registered_at   TEXT DEFAULT (datetime('now')),
+      last_seen_at    TEXT DEFAULT (datetime('now'))
+    );
     CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at);
     CREATE INDEX IF NOT EXISTS idx_downloads_abi ON downloads(abi);
+    CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
   `)
   dbInitialised = true
 }
@@ -124,7 +139,7 @@ function simpleHash(str) {
   return (h >>> 0).toString(16)
 }
 
-const API_ROUTES = new Set(['/version', '/latest', '/stats', '/download', '/apk/arm64', '/apk/arm32'])
+const API_ROUTES = new Set(['/version', '/latest', '/stats', '/download', '/apk/arm64', '/apk/arm32', '/check-update'])
 
 export default {
   async fetch(request, env, ctx) {
@@ -160,7 +175,8 @@ export default {
 
     try { await initDb(env) } catch (e) { console.error('[D1] initDb failed:', e?.message) }
 
-    if (path === '/version') {
+    if (path === '/version' || path === '/check-update') {
+      // /check-update is an alias for /version — backward compat for older app versions
       const info = await getVersionInfo(env)
       if (!info) return new Response(JSON.stringify({ error: 'Version info not available.' }), { status: 503, headers: { 'Content-Type': 'application/json', ...CORS } })
       const res = jsonResponse(info)

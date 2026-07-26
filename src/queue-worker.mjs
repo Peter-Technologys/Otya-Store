@@ -85,6 +85,18 @@ async function handleAiMessage(msg, env, ctx) {
       await handleAnalyzeAnomaly(msg, env)
       break
 
+    case 'moderate_feedback':
+      await handleModerateFeedback(msg, env)
+      break
+
+    case 'predict_churn':
+      await handlePredictChurn(msg, env)
+      break
+
+    case 'generate_smart_reply':
+      await handleGenerateSmartReply(msg, env)
+      break
+
     default:
       console.warn('[AI_QUEUE] Unknown message type:', type)
   }
@@ -406,6 +418,50 @@ async function handleScheduled(cron, env) {
     ]) {
       try { await env.DB.exec(col) } catch { /* column already exists */ }
     }
+
+    // New tables: feedback_replies, user_preferences, bookmarks, eq_presets
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS feedback_replies (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        feedback_id  INTEGER NOT NULL,
+        reply_text   TEXT NOT NULL,
+        generated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_feedback_replies_fid ON feedback_replies(feedback_id);
+    `)
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id      TEXT PRIMARY KEY,
+        theme        TEXT,
+        accent_color TEXT,
+        updated_at   TEXT DEFAULT (datetime('now'))
+      );
+    `)
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL,
+        media_id     TEXT NOT NULL,
+        file_path    TEXT,
+        position_ms  INTEGER DEFAULT 0,
+        duration_ms  INTEGER DEFAULT 0,
+        title        TEXT,
+        updated_at   TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_user  ON bookmarks(user_id);
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_media ON bookmarks(user_id, media_id);
+    `)
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS eq_presets (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL,
+        preset_name  TEXT NOT NULL,
+        bands        TEXT NOT NULL DEFAULT '[]',
+        is_default   INTEGER DEFAULT 0,
+        created_at   TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_eq_presets_user ON eq_presets(user_id);
+    `)
   } catch (e) {
     console.error('[CRON] ensureAiTables failed:', e?.message)
   }
@@ -428,8 +484,49 @@ async function handleScheduled(cron, env) {
     // ── Monday 6am: weekly digest ─────────────────────────────────────────
     await sendWeeklyDigest(env)
 
+  } else if (cron === '0 9 * * *') {
+    // ── Daily 9am: churn prediction for at-risk users ─────────────────────
+    await runChurnPrediction(env)
+
   } else {
     console.warn('[CRON] Unknown cron expression:', cron)
+  }
+}
+
+/**
+ * Query users who were last seen 7–14 days ago and queue churn prediction for each.
+ * Runs daily at 9am UTC.
+ */
+async function runChurnPrediction(env) {
+  try {
+    // Find distinct user_ids from devices last seen 7–14 days ago
+    const { results } = await env.DB.prepare(`
+      SELECT DISTINCT user_id
+      FROM devices
+      WHERE user_id IS NOT NULL
+        AND last_seen_at >= datetime('now', '-14 days')
+        AND last_seen_at <  datetime('now', '-7 days')
+      LIMIT 500
+    `).all()
+
+    if (!results || results.length === 0) {
+      console.log('[CRON] Churn prediction: no at-risk users found.')
+      return
+    }
+
+    let queued = 0
+    for (const row of results) {
+      try {
+        await env.AI_QUEUE.send({ type: 'predict_churn', user_id: row.user_id })
+        queued++
+      } catch (e) {
+        console.error('[CRON] Failed to queue churn prediction for', row.user_id, e?.message)
+      }
+    }
+
+    console.log(`[CRON] Churn prediction: queued ${queued} of ${results.length} users.`)
+  } catch (e) {
+    console.error('[CRON] runChurnPrediction failed:', e?.message)
   }
 }
 
@@ -624,6 +721,246 @@ async function sendWeeklyDigest(env) {
     console.log('[CRON] Weekly digest sent.')
   } catch (e) {
     console.error('[CRON] sendWeeklyDigest failed:', e?.message)
+  }
+}
+
+/** Run AI moderation on a feedback item; delete it from D1 if it fails. */
+async function handleModerateFeedback(msg, env) {
+  const { feedbackId, description } = msg
+  if (!feedbackId || !description) {
+    console.error('[AI_QUEUE] moderate_feedback: missing feedbackId or description')
+    return
+  }
+
+  try {
+    let ok     = true
+    let reason = ''
+
+    try {
+      const llmRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a content moderator for a mobile app feedback system. ' +
+              'Determine if the following text is spam, abusive, or inappropriate. ' +
+              'Spam includes: repeated characters, gibberish, promotional content, links. ' +
+              'Abusive includes: hate speech, threats, profanity. ' +
+              'Respond with ONLY a JSON object: {"ok": true|false, "reason": "<brief reason if not ok>"}. ' +
+              'If the content is legitimate feedback (even negative), return {"ok": true}. ' +
+              'No other text.',
+          },
+          {
+            role: 'user',
+            content: `Feedback text: "${String(description).substring(0, 500)}"`,
+          },
+        ],
+      })
+      const text   = extractAiText(llmRes)
+      const parsed = safeParseJson(text)
+      if (parsed && typeof parsed.ok === 'boolean') {
+        ok     = parsed.ok
+        reason = parsed.reason ?? ''
+      }
+    } catch (e) {
+      console.error('[AI_QUEUE] moderate_feedback AI call failed:', e?.message)
+      // Fail open — don't delete feedback if AI is unavailable
+      return
+    }
+
+    if (!ok) {
+      console.warn(`[AI_QUEUE] Feedback ${feedbackId} flagged as spam/abuse: ${reason}`)
+      await env.DB.prepare('DELETE FROM feedback WHERE id = ?').bind(feedbackId).run()
+      console.log(`[AI_QUEUE] Deleted feedback ${feedbackId} (reason: ${reason})`)
+    } else {
+      console.log(`[AI_QUEUE] Feedback ${feedbackId} passed moderation.`)
+    }
+  } catch (e) {
+    console.error('[AI_QUEUE] handleModerateFeedback failed:', e?.message)
+    throw e
+  }
+}
+
+/** Predict churn risk for a user; if high risk, queue a personalized re-engagement push. */
+async function handlePredictChurn(msg, env) {
+  const { user_id } = msg
+  if (!user_id) {
+    console.error('[AI_QUEUE] predict_churn: missing user_id')
+    return
+  }
+
+  try {
+    // Fetch user stats from D1
+    const device = await env.DB.prepare(`
+      SELECT last_seen_at FROM devices WHERE user_id = ? ORDER BY last_seen_at DESC LIMIT 1
+    `).bind(user_id).first()
+
+    const proRow = await env.DB.prepare(
+      'SELECT expiry_ms FROM pro_status WHERE user_id = ?'
+    ).bind(user_id).first()
+
+    const playRow = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM play_history WHERE user_id = ?'
+    ).bind(user_id).first()
+
+    const lastSeenAt = device?.last_seen_at ?? new Date(0).toISOString()
+    const proExpiry  = proRow?.expiry_ms ?? null
+    const playCount  = playRow?.count ?? 0
+
+    const daysSinceLastSeen = Math.floor(
+      (Date.now() - new Date(lastSeenAt).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    const proExpired = proExpiry != null && proExpiry < Date.now()
+
+    let risk   = 'low'
+    let reason = 'User appears active.'
+
+    try {
+      const llmRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a user retention analyst for a mobile media player app. ' +
+              'Predict the churn risk for a user based on their activity. ' +
+              'Respond with ONLY a JSON object: {"risk": "high"|"medium"|"low", "reason": "<brief explanation>"}. ' +
+              'No other text.',
+          },
+          {
+            role: 'user',
+            content:
+              `Days since last seen: ${daysSinceLastSeen}\n` +
+              `Pro subscription expired: ${proExpired}\n` +
+              `Total play count: ${playCount}`,
+          },
+        ],
+      })
+      const text   = extractAiText(llmRes)
+      const parsed = safeParseJson(text)
+      if (parsed && ['high', 'medium', 'low'].includes(parsed.risk)) {
+        risk   = parsed.risk
+        reason = parsed.reason ?? reason
+      }
+    } catch (e) {
+      console.error('[AI_QUEUE] predict_churn AI call failed:', e?.message)
+    }
+
+    console.log(`[AI_QUEUE] Churn prediction for ${user_id}: ${risk} — ${reason}`)
+
+    // If high risk, queue a personalized re-engagement push notification
+    if (risk === 'high') {
+      try {
+        // Fetch listening history for personalization
+        const historyRows = await env.DB.prepare(`
+          SELECT title, artist FROM play_history WHERE user_id = ? ORDER BY last_played_at DESC LIMIT 20
+        `).bind(user_id).all()
+
+        const artists = [...new Set(
+          (historyRows?.results ?? [])
+            .map(r => r.artist)
+            .filter(Boolean)
+        )].slice(0, 3)
+
+        // Generate personalized notification text
+        let title = '🎵 We miss you!'
+        let body  = 'Come back and enjoy your music with OTYA Player.'
+
+        try {
+          const artistStr = artists.length > 0 ? artists.join(', ') : 'your favorite artists'
+          const notifRes  = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a copywriter for a mobile music player app called OTYA Player. ' +
+                  'Write a short, personalized push notification to re-engage a user. ' +
+                  'Respond with ONLY a JSON object: {"title": "<max 50 chars>", "body": "<max 100 chars>"}. ' +
+                  'No other text.',
+              },
+              {
+                role: 'user',
+                content: `Favorite artists: ${artistStr}.`,
+              },
+            ],
+          })
+          const notifText   = extractAiText(notifRes)
+          const notifParsed = safeParseJson(notifText)
+          if (notifParsed?.title && notifParsed?.body) {
+            title = String(notifParsed.title).substring(0, 50)
+            body  = String(notifParsed.body).substring(0, 100)
+          }
+        } catch (e) {
+          console.error('[AI_QUEUE] personalized notification generation failed:', e?.message)
+        }
+
+        await env.PUSH_QUEUE.send({ title, body, user_id })
+        console.log(`[AI_QUEUE] Queued re-engagement push for high-churn user ${user_id}`)
+      } catch (e) {
+        console.error('[AI_QUEUE] Failed to queue re-engagement push:', e?.message)
+      }
+    }
+  } catch (e) {
+    console.error('[AI_QUEUE] handlePredictChurn failed:', e?.message)
+    throw e
+  }
+}
+
+/** Generate an AI smart reply for a feedback item and store it in D1. */
+async function handleGenerateSmartReply(msg, env) {
+  const { feedbackId, description, category } = msg
+  if (!feedbackId || !description) {
+    console.error('[AI_QUEUE] generate_smart_reply: missing feedbackId or description')
+    return
+  }
+
+  try {
+    const feedbackCategory = category ?? 'complaint'
+    let replyText = `Thank you for your feedback! We appreciate you taking the time to share your experience with OTYA Player. Our team will review your ${feedbackCategory} and work to improve the app.`
+
+    try {
+      const llmRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a friendly and professional customer support agent for OTYA Player, a media player app. ' +
+              'Write a concise, empathetic, and helpful reply to the user\'s feedback. ' +
+              'Acknowledge their concern, thank them, and if applicable mention that the team will look into it. ' +
+              'Keep the reply under 100 words. Do not use placeholders like [Name]. Be warm and genuine.',
+          },
+          {
+            role: 'user',
+            content: `Category: ${feedbackCategory}\nFeedback: "${String(description).substring(0, 800)}"`,
+          },
+        ],
+      })
+      const text = extractAiText(llmRes).trim()
+      if (text) replyText = text
+    } catch (e) {
+      console.error('[AI_QUEUE] generate_smart_reply AI call failed:', e?.message)
+    }
+
+    // Ensure feedback_replies table exists
+    try {
+      await env.DB.exec(`
+        CREATE TABLE IF NOT EXISTS feedback_replies (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          feedback_id  INTEGER NOT NULL,
+          reply_text   TEXT NOT NULL,
+          generated_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_replies_fid ON feedback_replies(feedback_id);
+      `)
+    } catch { /* table already exists */ }
+
+    await env.DB.prepare(`
+      INSERT INTO feedback_replies (feedback_id, reply_text) VALUES (?, ?)
+    `).bind(feedbackId, replyText).run()
+
+    console.log(`[AI_QUEUE] Smart reply generated for feedback ${feedbackId}`)
+  } catch (e) {
+    console.error('[AI_QUEUE] handleGenerateSmartReply failed:', e?.message)
+    throw e
   }
 }
 

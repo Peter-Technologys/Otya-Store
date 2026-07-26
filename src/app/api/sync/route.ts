@@ -3,25 +3,29 @@
 // Called by the app when the user comes online.
 // Updates last_seen_at, optionally updates fcm_token, checks for outdated version,
 // and queues targeted push/welcome-back notifications via AI_QUEUE.
+//
+// Auth: JWT (Bearer token) takes priority — user_id is linked from the token.
+//       Falls back to HMAC for backward compatibility.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
+import { dualAuth } from '@/lib/auth-service'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  const auth = await dualAuth(req, env, verifyRequest)
+  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: Record<string, unknown>
@@ -38,6 +42,8 @@ export async function POST(req: NextRequest) {
   }
 
   const versionCodeNum = version_code != null ? Number(version_code) : 0
+  // JWT auth: link device to authenticated user_id (cannot be spoofed)
+  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : null
   const db = getDB(env as Record<string, unknown>)
 
   // ── 3. Fetch current device record ───────────────────────────────────────
@@ -45,24 +51,26 @@ export async function POST(req: NextRequest) {
     'SELECT last_seen_at, version_code FROM devices WHERE device_id = ?'
   ).bind(device_id).first<{ last_seen_at: string; version_code: number }>()
 
-  // ── 4. Upsert device — update last_seen_at and optionally fcm_token ──────
+  // ── 4. Upsert device — update last_seen_at and optionally fcm_token/user_id
   await db.prepare(`
     INSERT INTO devices
-      (device_id, app_version, version_code, abi, fcm_token, last_seen_at, registered_at)
+      (device_id, user_id, app_version, version_code, abi, fcm_token, last_seen_at, registered_at)
     VALUES
-      (?1, ?2, ?3, ?4, ?5, datetime('now'), datetime('now'))
+      (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'), datetime('now'))
     ON CONFLICT(device_id) DO UPDATE SET
-      app_version  = COALESCE(?2, devices.app_version),
-      version_code = COALESCE(?3, devices.version_code),
-      abi          = COALESCE(?4, devices.abi),
-      fcm_token    = COALESCE(?5, devices.fcm_token),
+      user_id      = COALESCE(?2,  devices.user_id),
+      app_version  = COALESCE(?3,  devices.app_version),
+      version_code = COALESCE(?4,  devices.version_code),
+      abi          = COALESCE(?5,  devices.abi),
+      fcm_token    = COALESCE(?6,  devices.fcm_token),
       last_seen_at = datetime('now')
   `).bind(
     device_id,
-    app_version  ?? null,
-    versionCodeNum || null,
-    abi          ?? null,
-    fcm_token    ?? null,
+    resolvedUserId   ?? null,
+    app_version      ?? null,
+    versionCodeNum   || null,
+    abi              ?? null,
+    fcm_token        ?? null,
   ).run()
 
   // ── 5. Fetch latest release from D1 ──────────────────────────────────────

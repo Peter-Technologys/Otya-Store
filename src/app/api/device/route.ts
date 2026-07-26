@@ -2,10 +2,14 @@
 // POST /api/device
 // Upserts device info into D1 `devices` table.
 // Called once on first launch / version change by the Flutter app.
+//
+// Auth: JWT (Bearer token) takes priority — user_id is extracted from the token.
+//       Falls back to HMAC + body user_id for backward compatibility.
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
+import { dualAuth } from '@/lib/auth-service'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
@@ -17,7 +21,7 @@ export interface DevicePayload {
   abi?:             string   // "arm64" | "arm32"
   arch?:            string   // back-compat alias for abi
   fcm_token?:       string   // FCM token — optional
-  user_id?:         string   // optional user identifier
+  user_id?:         string   // optional user identifier (ignored when JWT present)
   platform?:        string   // "android" (default)
   model?:           string   // e.g. "Samsung SM-G991B"
   android_version?: string   // e.g. "14"
@@ -27,15 +31,15 @@ export interface DevicePayload {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 export async function POST(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-  const auth = await verifyRequest(request, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  const auth = await dualAuth(request, env, verifyRequest)
+  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
   // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: DevicePayload
@@ -53,6 +57,10 @@ export async function POST(request: NextRequest) {
   const versionCode = body.version_code ?? body.app_build ?? 0
   const abi         = body.abi          ?? body.arch      ?? 'arm64'
   const platform    = body.platform     ?? 'android'
+
+  // JWT auth: user_id comes from the verified token (cannot be spoofed).
+  // HMAC auth: user_id comes from the request body (legacy behavior).
+  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : (body.user_id ?? null)
 
   // ── 3. Upsert — columns match the actual D1 schema ───────────────────────
   const db = getDB(env as Record<string, unknown>)
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest) {
       last_seen_at    = datetime('now')
   `).bind(
     body.device_id,
-    body.user_id         ?? null,
+    resolvedUserId,
     body.fcm_token       ?? null,
     body.app_version     ?? '0.0.0',
     versionCode,
