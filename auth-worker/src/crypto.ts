@@ -160,11 +160,19 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtPaylo
 
 // ── OTP ───────────────────────────────────────────────────────────────────────
 
-/** Generate a 6-digit numeric OTP. */
+/**
+ * Generate an OTP in the format A123 — 1 uppercase letter + 3 digits.
+ * Excludes I and O (visually confusing with 1 and 0).
+ */
 export function generateOtp(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(4))
-  const num   = new DataView(bytes.buffer).getUint32(0, false)
-  return String(num % 1_000_000).padStart(6, '0')
+  // Exclude I and O — visually confusing with 1 and 0
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const bytes   = crypto.getRandomValues(new Uint8Array(4))
+  const letter  = letters[bytes[0] % letters.length]
+  const digits  = String(
+    ((bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) % 1000
+  ).padStart(3, '0')
+  return `${letter}${digits}`
 }
 
 // ── Refresh token ─────────────────────────────────────────────────────────────

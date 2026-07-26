@@ -14,8 +14,8 @@
  *   POST /auth/reset-password     — verify OTP, update password
  *   POST /auth/delete-account     — delete user account + notify Otya-Store
  *   GET  /auth/verify             — validate JWT (called by otya-store via Service Binding)
- *   POST /auth/send-verification  — send email verification link
- *   GET  /auth/verify-email       — verify email via token
+ *   POST /auth/send-verification  — send email verification OTP
+ *   POST /auth/verify-email       — verify email via OTP (Bearer JWT + body { otp })
  *   GET  /auth/me                 — return user profile (JWT required)
  *   PATCH /auth/me                — update user profile (JWT required)
  *   POST /auth/backup             — write backup to Google Drive App Folder
@@ -105,7 +105,7 @@ let dbInitialised = false
 const ACCESS_TOKEN_TTL_SECS   = 15 * 60           // 15 minutes
 const REFRESH_TOKEN_TTL_SECS  = 30 * 24 * 60 * 60 // 30 days
 const OTP_TTL_SECS            = 10 * 60            // 10 minutes
-const VERIFY_TOKEN_TTL_SECS   = 24 * 60 * 60       // 24 hours
+const VERIFY_OTP_TTL_SECS     = 10 * 60            // 10 minutes
 const LOGIN_ATTEMPT_TTL_SECS  = 15 * 60            // 15 minutes
 const MAX_LOGIN_ATTEMPTS      = 5
 const LAST_LOGIN_IP_TTL_SECS  = 90 * 24 * 60 * 60 // 90 days
@@ -180,6 +180,32 @@ async function revokeAllRefreshTokens(kv: KVNamespace, userId: string): Promise<
     }
     cursor = result.list_complete ? undefined : result.cursor
   } while (cursor)
+}
+
+// ── Registration / OTP rate limiting helpers (Task 2) ────────────────────────
+
+const REG_RATE_TTL_SECS  = 60 * 60  // 1 hour
+const OTP_RATE_TTL_SECS  = 60 * 60  // 1 hour
+const MAX_REG_PER_IP     = 5
+const MAX_OTP_PER_EMAIL  = 3
+
+interface RateLimitResult {
+  allowed: boolean
+  count:   number
+}
+
+async function checkRateLimit(
+  kv:  KVNamespace,
+  key: string,
+  max: number,
+  ttl: number,
+): Promise<RateLimitResult> {
+  const raw   = await kv.get(key)
+  const count = raw ? parseInt(raw, 10) : 0
+  if (count >= max) return { allowed: false, count }
+  const next = count + 1
+  await kv.put(key, String(next), { expirationTtl: ttl })
+  return { allowed: true, count: next }
 }
 
 // ── Brute force protection helpers (Task 3) ───────────────────────────────────
@@ -311,24 +337,23 @@ async function requireJwt(req: Request, env: Env): Promise<JwtPayload | null> {
 
 // ── Email verification helper ─────────────────────────────────────────────────
 
-async function sendVerificationEmail(env: Env, userId: string, email: string): Promise<void> {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
-
-  await env.AUTH_KV.put(`verify:${token}`, userId, { expirationTtl: VERIFY_TOKEN_TTL_SECS })
+async function sendVerificationOtp(env: Env, userId: string, email: string): Promise<void> {
+  const otp = generateOtp()
+  await env.AUTH_KV.put(`verify_otp:${userId}`, otp, { expirationTtl: VERIFY_OTP_TTL_SECS })
 
   if (env.EMAIL) {
     await env.EMAIL.send({
       from:    { email: 'noreply@petersmartlink.com', name: 'OTYA Player' },
       to:      [{ email }],
-      subject: 'Verify your OTYA Player email address',
+      subject: 'Your OTYA Player verification code',
       text: [
         'Please verify your email address to complete your OTYA Player account setup.',
         '',
-        'Click the link below to verify your email:',
-        `https://petersmartlink.com/verify-email?token=${token}`,
+        'Your verification code is:',
         '',
-        'This link expires in 24 hours.',
+        `    ${otp}`,
+        '',
+        'This code expires in 10 minutes.',
         '',
         'If you did not create an account, please ignore this email.',
         '— The OTYA Team',
@@ -341,6 +366,13 @@ async function sendVerificationEmail(env: Env, userId: string, email: string): P
 
 /** POST /auth/register */
 async function handleRegister(req: Request, env: Env): Promise<Response> {
+  // ── IP-based registration rate limit ──────────────────────────────────────
+  const ip = getClientIp(req)
+  const regRate = await checkRateLimit(env.AUTH_KV, `reg_rate:${ip}`, MAX_REG_PER_IP, REG_RATE_TTL_SECS)
+  if (!regRate.allowed) {
+    return jsonErr('Too many registrations from this IP. Try again in 1 hour.', env, 429)
+  }
+
   let body: Record<string, unknown>
   try { body = await req.json() as Record<string, unknown> }
   catch { return jsonErr('Invalid JSON body', env) }
@@ -395,11 +427,11 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
     }
   }
 
-  // Send verification email (non-fatal)
+  // Send verification OTP (non-fatal)
   try {
-    await sendVerificationEmail(env, userId, normalizedEmail)
+    await sendVerificationOtp(env, userId, normalizedEmail)
   } catch (e) {
-    console.error('[auth/register] Failed to send verification email:', (e as Error)?.message)
+    console.error('[auth/register] Failed to send verification OTP:', (e as Error)?.message)
   }
 
   return jsonOk({
@@ -575,6 +607,16 @@ async function handleForgotPassword(req: Request, env: Env): Promise<Response> {
 
   const normalizedEmail = (email as string).toLowerCase().trim()
 
+  // ── Per-email OTP rate limit ───────────────────────────────────────────────
+  // Apply before the user lookup to prevent timing-based enumeration.
+  const otpRate = await checkRateLimit(
+    env.AUTH_KV, `otp_rate:${normalizedEmail}`, MAX_OTP_PER_EMAIL, OTP_RATE_TTL_SECS,
+  )
+  if (!otpRate.allowed) {
+    // Return generic success to prevent email enumeration
+    return jsonOk({ ok: true, message: 'If that email exists, an OTP has been sent.' }, env)
+  }
+
   // Always return success to prevent email enumeration
   const user = await getUserByEmail(env.AUTH_DB, normalizedEmail)
   if (!user) {
@@ -593,7 +635,11 @@ async function handleForgotPassword(req: Request, env: Env): Promise<Response> {
         text: [
           'You requested a password reset for your OTYA Player account.',
           '',
-          `Your one-time code is: ${otp}`,
+          'Your reset code is:',
+          '',
+          `    ${otp}`,
+          '',
+          '(1 letter + 3 digits — enter it exactly as shown)',
           '',
           'This code expires in 10 minutes.',
           '',
@@ -695,7 +741,7 @@ async function handleVerify(req: Request, env: Env): Promise<Response> {
   }, env)
 }
 
-/** POST /auth/send-verification (Task 6) */
+/** POST /auth/send-verification */
 async function handleSendVerification(req: Request, env: Env): Promise<Response> {
   const payload = await requireJwt(req, env)
   if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
@@ -708,35 +754,49 @@ async function handleSendVerification(req: Request, env: Env): Promise<Response>
   }
 
   try {
-    await sendVerificationEmail(env, user.id, user.email)
+    await sendVerificationOtp(env, user.id, user.email)
   } catch (e) {
     console.error('[auth/send-verification] Failed:', (e as Error)?.message)
-    return jsonErr('Failed to send verification email', env, 500)
+    return jsonErr('Failed to send verification OTP', env, 500)
   }
 
-  return jsonOk({ ok: true, message: 'Verification email sent.' }, env)
+  return jsonOk({ ok: true, message: 'Verification OTP sent.' }, env)
 }
 
-/** GET /auth/verify-email?token=xxx (Task 6) */
+/** POST /auth/verify-email — verify email via OTP (Bearer JWT + body { otp }) */
 async function handleVerifyEmail(req: Request, env: Env): Promise<Response> {
-  const url   = new URL(req.url)
-  const token = url.searchParams.get('token')
+  const payload = await requireJwt(req, env)
+  if (!payload) return jsonErr('Authorization header required or token invalid', env, 401)
 
-  if (!token) return jsonErr('token query parameter is required', env, 400)
+  let body: Record<string, unknown>
+  try { body = await req.json() as Record<string, unknown> }
+  catch { return jsonErr('Invalid JSON body', env) }
 
-  const userId = await env.AUTH_KV.get(`verify:${token}`)
-  if (!userId) return jsonErr('Invalid or expired verification token', env, 400)
+  const { otp } = body as { otp?: string }
+  if (!otp || typeof otp !== 'string') {
+    return jsonErr('otp is required', env, 400)
+  }
+
+  const storedOtp = await env.AUTH_KV.get(`verify_otp:${payload.sub}`)
+  if (!storedOtp) {
+    return jsonErr('No pending verification OTP — request a new one', env, 400)
+  }
+
+  // Case-insensitive comparison, trim whitespace
+  if (storedOtp.toUpperCase() !== otp.trim().toUpperCase()) {
+    return jsonErr('Invalid or expired OTP', env, 401)
+  }
 
   try {
     await env.AUTH_DB.prepare(
       "UPDATE users SET is_verified = 1, updated_at = datetime('now') WHERE id = ?"
-    ).bind(userId).run()
+    ).bind(payload.sub).run()
   } catch (e) {
     console.error('[auth/verify-email] D1 update failed:', (e as Error)?.message)
     return jsonErr('Failed to verify email', env, 500)
   }
 
-  await env.AUTH_KV.delete(`verify:${token}`)
+  await env.AUTH_KV.delete(`verify_otp:${payload.sub}`)
 
   return jsonOk({ ok: true, message: 'Email verified successfully.' }, env)
 }
@@ -977,7 +1037,7 @@ export default {
       if (method === 'POST' && path === '/auth/send-verification') {
         return handleSendVerification(request, env)
       }
-      if (method === 'GET' && path === '/auth/verify-email') {
+      if (method === 'POST' && path === '/auth/verify-email') {
         return handleVerifyEmail(request, env)
       }
       if (method === 'GET' && path === '/auth/me') {
