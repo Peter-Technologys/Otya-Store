@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     media_id,
     file_path   ?? null,
     Number(position_ms),
-    duration_ms != null ? Number(duration_ms) : 0,
+    duration_ms != null ? Number(duration_ms) : null,
     title       ?? null,
     now,
   ).run()
