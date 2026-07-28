@@ -13,7 +13,7 @@ const CORS_HEADERS = {
 
 // GET /api/history?user_id=xxx
 export async function GET(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
@@ -32,11 +32,13 @@ export async function GET(req: NextRequest) {
 
 // POST /api/history — upsert a history item
 export async function POST(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  const body = await req.json() as Record<string, string>
+  let body: Record<string, string>
+  try { body = await req.json() as Record<string, string> }
+  catch { return errorJson('Invalid JSON body', 400) }
   const { id, user_id, title, artist, file_path, is_video, last_played_at } = body
 
   // JWT auth: use user_id from token (body user_id is ignored for security)

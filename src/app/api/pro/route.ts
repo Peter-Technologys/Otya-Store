@@ -13,7 +13,7 @@ const CORS_HEADERS = {
 
 // GET /api/pro?user_id=xxx
 export async function GET(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
@@ -31,14 +31,15 @@ export async function GET(req: NextRequest) {
 
 // POST /api/pro — body: { user_id, expiry_ms }
 // Note: setting pro status is an admin/payment-processor action.
-// JWT users can only read their own status (GET). POST still requires HMAC for admin use.
+// JWT users can only read their own status (GET). POST requires HMAC for admin use.
 export async function POST(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
+  if (auth.mode === 'jwt') return errorJson('Forbidden', 403)
 
   const body = await req.json() as Record<string, unknown>
-  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : body.user_id as string | undefined
+  const resolvedUserId = body.user_id as string | undefined
   if (!resolvedUserId) return errorJson('user_id required', 400)
 
   const { expiry_ms } = body
