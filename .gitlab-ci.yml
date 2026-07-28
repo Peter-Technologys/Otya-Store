@@ -42,7 +42,8 @@ validate:
 # Must run BEFORE deploy-store so the Service Binding resolves correctly.
 # Required GitLab CI/CD Variables:
 #   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account ID
-#   CLOUDFLARE_API_KEY     — Cloudflare Global API Key
+#   CLOUDFLARE_API_TOKEN   — Cloudflare API Token (wrangler reads CLOUDFLARE_API_TOKEN,
+#                            NOT CLOUDFLARE_API_KEY — using the wrong name causes 401 errors)
 #
 # Required Cloudflare secrets (set once via wrangler or dashboard):
 #   AUTH_JWT_SECRET          — wrangler secret put AUTH_JWT_SECRET --name otya-auth
@@ -63,7 +64,7 @@ deploy-auth:
     name: production-auth
     url: https://otya-auth.workers.dev
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_KEY'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_TOKEN'
   variables:
     CLOUDFLARE_EMAIL: petersmartlink@gmail.com
 
@@ -77,6 +78,6 @@ deploy-store:
     name: production
     url: https://petersmartlink.com
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_KEY'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CLOUDFLARE_ACCOUNT_ID && $CLOUDFLARE_API_TOKEN'
   variables:
     CLOUDFLARE_EMAIL: petersmartlink@gmail.com
