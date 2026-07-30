@@ -73,49 +73,42 @@ export async function POST(req: NextRequest) {
     fcm_token        ?? null,
   ).run()
 
-  // ── 5. Fetch latest release from D1 ──────────────────────────────────────
+  // ── 5. Fetch latest release from D1 (graceful fallback if table empty) ───
   const latestRelease = await db.prepare(
     'SELECT version, version_code, changelog FROM releases ORDER BY version_code DESC LIMIT 1'
   ).first<{ version: string; version_code: number; changelog: string | null }>()
+    .catch(() => null)   // table may not exist yet in dev / fresh deploy
 
   const latestVersionCode = latestRelease?.version_code ?? 0
   const latestVersion     = latestRelease?.version      ?? '0.0.0'
   const upToDate          = versionCodeNum >= latestVersionCode
 
-  // ── 6. Queue notifications if needed ─────────────────────────────────────
-  const aiQueue = (env as Record<string, unknown>).AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
+  // ── 6. Queue notifications if needed (fire-and-forget, never throws) ─────
+  const aiQueue = (env as Record<string, unknown>).AI_QUEUE as
+    | { send(body: unknown): Promise<void> }
+    | undefined
 
   if (aiQueue) {
-    // Outdated version → queue targeted update notification
     if (!upToDate && latestRelease) {
-      try {
-        await aiQueue.send({
-          type:      'send_update_notification',
-          version:   latestRelease.version,
-          changelog: latestRelease.changelog ?? '',
-          deviceId:  device_id,
-        })
-      } catch (e) {
-        console.error('[sync] Failed to queue update notification:', (e as Error)?.message)
-      }
+      void aiQueue.send({
+        type:      'send_update_notification',
+        version:   latestRelease.version,
+        changelog: latestRelease.changelog ?? '',
+        deviceId:  device_id,
+      }).catch(() => { /* non-fatal */ })
     }
 
-    // Device was offline >7 days → queue welcome-back push
     if (existing?.last_seen_at) {
       const daysSince = Math.floor(
         (Date.now() - new Date(existing.last_seen_at).getTime()) / 86_400_000,
       )
       if (daysSince >= 7) {
-        try {
-          await aiQueue.send({
-            type:              'send_update_notification',
-            version:           latestVersion,
-            changelog:         `Welcome back! It's been ${daysSince} days. Check out what's new.`,
-            deviceId:          device_id,
-          })
-        } catch (e) {
-          console.error('[sync] Failed to queue welcome-back notification:', (e as Error)?.message)
-        }
+        void aiQueue.send({
+          type:      'send_update_notification',
+          version:   latestVersion,
+          changelog: `Welcome back! It's been ${daysSince} days. Check out what's new.`,
+          deviceId:  device_id,
+        }).catch(() => { /* non-fatal */ })
       }
     }
   }
