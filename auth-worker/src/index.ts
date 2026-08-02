@@ -108,33 +108,64 @@ const OTP_TTL_SECS            = 10 * 60            // 10 minutes
 const VERIFY_OTP_TTL_SECS     = 10 * 60            // 10 minutes
 const LOGIN_ATTEMPT_TTL_SECS  = 15 * 60            // 15 minutes
 const MAX_LOGIN_ATTEMPTS      = 5
+const MAX_LOGIN_ATTEMPTS_IP   = 20                 // per IP per 15 minutes
+const LOGIN_IP_RATE_TTL_SECS  = 15 * 60            // 15 minutes
 const LAST_LOGIN_IP_TTL_SECS  = 90 * 24 * 60 * 60 // 90 days
 
-// ── CORS headers ──────────────────────────────────────────────────────────────
+// ── CORS helpers ──────────────────────────────────────────────────────────────
 
-function corsHeaders(env: Env): Record<string, string> {
+/**
+ * Allowed origins for CORS.
+ * Mobile apps (OTYA Player, SmartPOS, GR App) send no Origin header when
+ * making native HTTP requests — those are allowed by returning the primary
+ * origin so the browser-side fetch polyfill (if any) still works.
+ */
+const ALLOWED_ORIGINS = new Set([
+  'https://petersmartlink.com',
+  'https://www.petersmartlink.com',
+  'https://getotya.petersmartlink.com',
+])
+
+const PRIMARY_ORIGIN = 'https://petersmartlink.com'
+
+/**
+ * Return CORS headers for the given request.
+ *
+ * - If the request Origin is in the allowlist → reflect it back.
+ * - If Origin is absent (native mobile HTTP) → return the primary origin.
+ * - If Origin is present but NOT in the allowlist → still return the primary
+ *   origin (the browser will block the response; we don't expose a wildcard).
+ */
+function corsHeaders(env: Env, req?: Request): Record<string, string> {
+  const requestOrigin = req?.headers.get('Origin') ?? null
+  const allowedOrigin =
+    requestOrigin && ALLOWED_ORIGINS.has(requestOrigin)
+      ? requestOrigin
+      : (env.CORS_ORIGIN ?? PRIMARY_ORIGIN)
+
   return {
-    'Access-Control-Allow-Origin':  env.CORS_ORIGIN ?? 'https://petersmartlink.com',
+    'Access-Control-Allow-Origin':  allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Vary': 'Origin',
   }
 }
 
 // ── Response helpers ──────────────────────────────────────────────────────────
 
-function jsonOk(data: unknown, env: Env, status = 200): Response {
+function jsonOk(data: unknown, env: Env, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      ...corsHeaders(env),
+      ...corsHeaders(env, req),
     },
   })
 }
 
-function jsonErr(message: string, env: Env, status = 400): Response {
-  return jsonOk({ error: message }, env, status)
+function jsonErr(message: string, env: Env, status = 400, req?: Request): Response {
+  return jsonOk({ error: message }, env, status, req)
 }
 
 // ── JWT helpers ───────────────────────────────────────────────────────────────
@@ -449,6 +480,16 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
 
 /** POST /auth/login */
 async function handleLogin(req: Request, env: Env): Promise<Response> {
+  // ── IP-based rate limit (Bug 6 fix) ──────────────────────────────────────
+  // Max 20 login attempts per IP per 15 minutes (across all accounts).
+  const ip = getClientIp(req)
+  const ipRate = await checkRateLimit(
+    env.AUTH_KV, `login_ip_rate:${ip}`, MAX_LOGIN_ATTEMPTS_IP, LOGIN_IP_RATE_TTL_SECS,
+  )
+  if (!ipRate.allowed) {
+    return jsonErr('Too many login attempts from this IP. Try again in 15 minutes.', env, 429)
+  }
+
   let body: Record<string, unknown>
   try { body = await req.json() as Record<string, unknown> }
   catch { return jsonErr('Invalid JSON body', env) }
@@ -459,7 +500,7 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
 
   const normalizedEmail = (email as string).toLowerCase().trim()
 
-  // ── Brute force check (Task 3) ────────────────────────────────────────────
+  // ── Per-email brute force check ───────────────────────────────────────────
   const attempts = await getLoginAttempts(env.AUTH_KV, normalizedEmail)
   if (attempts >= MAX_LOGIN_ATTEMPTS) {
     return jsonErr('Too many failed attempts. Try again in 15 minutes.', env, 429)
@@ -1002,7 +1043,7 @@ export default {
     if (method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
-        headers: corsHeaders(env),
+        headers: corsHeaders(env, request),
       })
     }
 
