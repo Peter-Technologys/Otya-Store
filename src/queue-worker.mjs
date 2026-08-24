@@ -1,11 +1,11 @@
 /**
- * Wrangler entrypoint for otya-store.
+ * Wrangler entrypoint for otya-backend.
  *
  * Wraps the OpenNext worker (which handles all HTTP/fetch traffic) and adds a
  * queue() handler so the [[queues.consumers]] binding in wrangler.toml can be
  * satisfied.  Without this handler Cloudflare refuses to register the consumer
  * and the deploy fails with:
- *   ✘ [ERROR] Some triggers failed to deploy for otya-store:
+ *   ✘ [ERROR] Some triggers failed to deploy for otya-backend:
  *       - A request to the Cloudflare API (/accounts/.../queues/.../consumers) failed.
  *
  * Build order (package.json "deploy" script):
@@ -350,9 +350,9 @@ async function handleAnalyzeAnomaly(msg, env) {
       console.warn('[AI_QUEUE] Anomaly detected:', reason)
       try {
         await env.EMAIL.send({
-          from:    { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+          from:    { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
           to:      [{ email: 'petersmartlink@gmail.com' }],
-          subject: '[Otya Store] ⚠️ Download Anomaly Detected',
+          subject: '[OTYA Backend] ⚠️ Download Anomaly Detected',
           text:    `Anomaly detected in download patterns.\n\nReason: ${reason}\n\nTime: ${new Date().toISOString()}`,
         })
       } catch (e) {
@@ -568,9 +568,9 @@ async function runHealthCheck(env) {
       ].join('\n')
 
       await env.EMAIL.send({
-        from:    { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+        from:    { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
         to:      [{ email: 'petersmartlink@gmail.com' }],
-        subject: `[Otya Store] ⚠️ ${down.length} endpoint(s) down`,
+        subject: `[OTYA Backend] ⚠️ ${down.length} endpoint(s) down`,
         text:    body,
       })
     } catch (e) {
@@ -639,9 +639,9 @@ async function sendDailyAbuseReport(env) {
     ].join('\n')
 
     await env.EMAIL.send({
-      from:    { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+      from:    { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
       to:      [{ email: 'petersmartlink@gmail.com' }],
-      subject: `[Otya Store] Daily Abuse Report — ${new Date().toDateString()}`,
+      subject: `[OTYA Backend] Daily Abuse Report — ${new Date().toDateString()}`,
       text:    body,
     })
     console.log('[CRON] Daily abuse report sent.')
@@ -696,7 +696,7 @@ async function sendWeeklyDigest(env) {
     }
 
     const body = [
-      '=== OTYA Store Weekly Digest ===',
+      '=== OTYA Backend Weekly Digest ===',
       '',
       '📊 Download Stats',
       `  Total downloads : ${totalRow?.count ?? 0}`,
@@ -713,9 +713,9 @@ async function sendWeeklyDigest(env) {
     ].join('\n')
 
     await env.EMAIL.send({
-      from:    { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+      from:    { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
       to:      [{ email: 'petersmartlink@gmail.com' }],
-      subject: `[Otya Store] Weekly Digest — ${new Date().toDateString()}`,
+      subject: `[OTYA Backend] Weekly Digest — ${new Date().toDateString()}`,
       text:    body,
     })
     console.log('[CRON] Weekly digest sent.')

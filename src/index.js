@@ -120,7 +120,7 @@ async function checkRateLimit(env, request) {
 async function sendErrorAlert(env, subject, body) {
   try {
     await env.EMAIL.send({
-      from: { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+      from: { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
       to:   [{ email: 'petersmartlink@gmail.com' }],
       subject, text: body,
     })
@@ -225,7 +225,7 @@ export default {
       const abi  = path === '/apk/arm64' ? 'arm64' : 'arm32'
       const info = await getVersionInfo(env)
       if (!info) {
-        ctx.waitUntil(sendErrorAlert(env, 'Otya Store: version.json missing', `${abi} download attempted but version.json missing. Time: ${new Date().toISOString()}`))
+        ctx.waitUntil(sendErrorAlert(env, 'OTYA Backend: version.json missing', `${abi} download attempted but version.json missing. Time: ${new Date().toISOString()}`))
         return new Response(JSON.stringify({ error: 'APK not available yet.' }), { status: 503, headers: { 'Content-Type': 'application/json', ...CORS } })
       }
       const key = resolveApkKey(info, abi)

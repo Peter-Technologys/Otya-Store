@@ -1,6 +1,6 @@
-# Otya Store — Unified Cloudflare Worker + Next.js Website
+# OTYA Backend — Unified Cloudflare Worker + Next.js Website
 # GitLab CI: validate (next build) on MR + main
-# GitLab CI: deploy auth-worker first, then otya-store on push to main
+# GitLab CI: deploy auth-worker first, then otya-backend on push to main
 
 image: node:22-alpine
 
@@ -23,7 +23,7 @@ cache:
 stages:
   - validate
   - deploy-auth
-  - deploy-store
+  - deploy-backend
 
 before_script:
   - npm install --silent
@@ -39,7 +39,7 @@ validate:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
 # ── Deploy otya-auth worker ───────────────────────────────────────────────────
-# Must run BEFORE deploy-store so the Service Binding resolves correctly.
+# Must run BEFORE deploy-backend so the Service Binding resolves correctly.
 # Required GitLab CI/CD Variables:
 #   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account ID
 #   CLOUDFLARE_API_TOKEN   — Cloudflare API Token (wrangler reads CLOUDFLARE_API_TOKEN,
@@ -68,10 +68,10 @@ deploy-auth:
   variables:
     CLOUDFLARE_EMAIL: petersmartlink@gmail.com
 
-# ── Deploy otya-store (Next.js + main worker) ─────────────────────────────────
+# ── Deploy otya-backend (Next.js + main worker) ──────────────────────────────────
 # Runs after deploy-auth so the AUTH Service Binding is always resolvable.
-deploy-store:
-  stage: deploy-store
+deploy-backend:
+  stage: deploy-backend
   script:
     - npm run deploy
   environment:

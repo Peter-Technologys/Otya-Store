@@ -163,9 +163,9 @@ export async function sendWeeklyDigest(
   stats: SystemStats,
   feedbackSummary: string,
 ): Promise<void> {
-  const subject = `[Otya Store] Weekly Digest — ${new Date().toDateString()}`
+  const subject = `[OTYA Backend] Weekly Digest — ${new Date().toDateString()}`
   const text = [
-    '=== OTYA Store Weekly Digest ===',
+    '=== OTYA Backend Weekly Digest ===',
     '',
     '📊 Download Stats',
     `  Total downloads : ${stats.totalDownloads}`,
@@ -196,7 +196,7 @@ export async function sendAlertEmail(
 ): Promise<void> {
   try {
     await env.EMAIL.send({
-      from:    { email: 'worker@petersmartlink.com', name: 'Otya Store Worker' },
+      from:    { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
       to:      [{ email: 'petersmartlink@gmail.com' }],
       subject,
       text:    body,

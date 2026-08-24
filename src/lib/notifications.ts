@@ -164,7 +164,7 @@ export async function notifyNewRelease(
   env: any,
   release: ReleaseInfo,
 ): Promise<void> {
-  const subject = `[Otya Store] New Release: OTYA Player ${release.version}`
+  const subject = `[OTYA Backend] New Release: OTYA Player ${release.version}`
   const body = [
     `OTYA Player ${release.version} has been released.`,
     '',

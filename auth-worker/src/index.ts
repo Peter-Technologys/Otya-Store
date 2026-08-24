@@ -2,7 +2,7 @@
  * otya-auth — Cloudflare Worker
  *
  * Handles all user authentication for the Otya ecosystem.
- * Called by the main otya-store worker via Service Binding (env.AUTH).
+ * Called by the main otya-backend worker via Service Binding (env.AUTH).
  *
  * Routes:
  *   POST /auth/register           — email + password signup
@@ -12,8 +12,8 @@
  *   POST /auth/google             — Google ID token login/signup
  *   POST /auth/forgot-password    — send OTP via email
  *   POST /auth/reset-password     — verify OTP, update password
- *   POST /auth/delete-account     — delete user account + notify Otya-Store
- *   GET  /auth/verify             — validate JWT (called by otya-store via Service Binding)
+ *   POST /auth/delete-account     — delete user account + notify OTYA Backend
+ *   GET  /auth/verify             — validate JWT (called by otya-backend via Service Binding)
  *   POST /auth/send-verification  — send email verification OTP
  *   POST /auth/verify-email       — verify email via OTP (Bearer JWT + body { otp })
  *   GET  /auth/me                 — return user profile (JWT required)
@@ -30,8 +30,8 @@
  * Secrets (wrangler secret put):
  *   AUTH_JWT_SECRET          — HS256 signing secret for JWTs
  *   GOOGLE_CLIENT_ID         — Google OAuth client ID for ID token verification
- *   OTYA_STORE_INTERNAL_URL  — URL of the Otya-Store internal endpoint
- *   INTERNAL_SECRET          — Shared secret for Otya-Store internal calls
+ *   OTYA_STORE_INTERNAL_URL  — URL of the OTYA Backend internal endpoint
+ *   INTERNAL_SECRET          — Shared secret for OTYA Backend internal calls
  */
 
 import {
@@ -746,7 +746,7 @@ async function handleDeleteAccount(req: Request, env: Env): Promise<Response> {
   // Clean up Drive file ID from KV
   await env.AUTH_KV.delete(`drive_file:${payload.sub}`)
 
-  // Notify Otya-Store to delete all user data (Gap 5) — fire-and-forget
+  // Notify OTYA Backend to delete all user data (Gap 5) — fire-and-forget
   if (env.OTYA_STORE_INTERNAL_URL && env.INTERNAL_SECRET) {
     fetch(`${env.OTYA_STORE_INTERNAL_URL}/api/internal/delete-user`, {
       method:  'POST',
@@ -755,13 +755,13 @@ async function handleDeleteAccount(req: Request, env: Env): Promise<Response> {
         'X-Internal-Secret': env.INTERNAL_SECRET,
       },
       body: JSON.stringify({ user_id: payload.sub }),
-    }).catch(e => console.error('[auth/delete-account] Failed to notify Otya-Store:', (e as Error)?.message))
+    }).catch(e => console.error('[auth/delete-account] Failed to notify OTYA Backend:', (e as Error)?.message))
   }
 
   return jsonOk({ ok: true, message: 'Account deleted.' }, env)
 }
 
-/** GET /auth/verify — called by otya-store via Service Binding */
+/** GET /auth/verify — called by otya-backend via Service Binding */
 async function handleVerify(req: Request, env: Env): Promise<Response> {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
