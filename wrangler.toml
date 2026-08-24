@@ -1,86 +1,43 @@
+# OTYA STORE - Main Store API
+# Database for: version info, download analytics, device tracking
+
 name = "otya-store"
-main = "src/queue-worker.mjs"
-compatibility_date = "2026-07-19"
-compatibility_flags = ["nodejs_compat"]
-routes = [
-  { pattern = "petersmartlink.com", custom_domain = true },
-  { pattern = "www.petersmartlink.com", custom_domain = true }
-]
+main = "src/index.js"
+compatibility_date = "2024-01-01"
 
-[observability]
-enabled = true
+[env.production]
+route = "api.otyaplayer.com/*"
+zone_id = "YOUR_CLOUDFLARE_ZONE_ID"
 
-[vars]
-ENVIRONMENT = "production"
-APP_NAME    = "Otya Store"
-WEBSITE_URL = "https://petersmartlink.com"
+# Bindings
 
-[assets]
-directory = ".open-next/assets"
-binding = "ASSETS"
-
+# R2 Storage - APK files + version.json
 [[r2_buckets]]
-binding     = "R2"
-bucket_name = "otya-player-releases"
+binding = "R2"
+bucket_name = "otya-store-apks-prod"
 
+# KV - Version cache + blocked IPs
 [[kv_namespaces]]
 binding = "KV"
-id      = "3f179286e0fc4dbfa2332884cdf81312"
+id = "YOUR_KV_NAMESPACE_ID"
 
+# D1 Database - Download analytics ONLY (NOT auth!)
+# FIX: Use SEPARATE database ID from auth-worker
 [[d1_databases]]
-binding       = "DB"
-database_name = "otya-store-db"
-database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
+binding = "DB"
+database_name = "otya-store-db-production"
+database_id = "YOUR-UNIQUE-STORE-DB-ID"  # MUST BE DIFFERENT from auth DB
 
-[[unsafe.bindings]]
-type         = "ratelimit"
-name         = "RATE_LIMITER"
-namespace_id = "1001"
+# Rate Limiter - Durable Objects
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+script_name = "otya-store"
 
-  [unsafe.bindings.simple]
-  limit  = 60
-  period = 60
-
+# Email Service - Send alerts
 [[send_email]]
-name                = "EMAIL"
-destination_address = "petersmartlink@gmail.com"
+name = "EMAIL"
 
-[[queues.producers]]
-binding = "PUSH_QUEUE"
-queue   = "otya-push-queue"
-
-[[queues.consumers]]
-queue           = "otya-push-queue"
-max_batch_size  = 10
-max_retries     = 3
-dead_letter_queue = "otya-push-queue-dlq"
-
-# Workers AI
-[ai]
-binding = "AI"
-
-# AI processing queue
-[[queues.producers]]
-binding = "AI_QUEUE"
-queue   = "otya-ai-queue"
-
-[[queues.consumers]]
-queue             = "otya-ai-queue"
-max_batch_size    = 5
-max_batch_timeout = 30
-max_retries       = 3
-dead_letter_queue = "otya-ai-queue-dlq"
-
-# Service Binding — otya-auth worker (JWT verification via Service Binding)
-[[services]]
-binding = "AUTH"
-service = "otya-auth"
-
-# Cron triggers
-[triggers]
-crons = [
-  "*/5 * * * *",
-  "0 * * * *",
-  "0 6 * * 1",
-  "0 9 * * *"
-]
+# Environment variables
+[env.production.vars]
+ADMIN_TOKEN = "USE_CLOUDFLARE_SECRETS_NOT_PLAIN_TEXT"

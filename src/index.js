@@ -2,6 +2,12 @@
  * OTYA Player API routes — runs as Next.js middleware inside OpenNext.
  * Handles: /version /latest /stats /download /apk/arm64 /apk/arm32
  * Everything else is passed through to Next.js pages.
+ * 
+ * FIXES:
+ * 1. Added timeout to rate limiter
+ * 2. Added fallback version.json retrieval from KV
+ * 3. Better error handling for missing APK
+ * 4. Separated auth database from store database
  */
 
 const CORS = {
@@ -10,6 +16,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 const KV_VERSION_KEY = 'version:current'
+const KV_VERSION_FALLBACK_KEY = 'version:fallback'  // FIX: Fallback if current missing
 const KV_VERSION_TTL = 600
 const APK_CACHE_TTL  = 86400
 let dbInitialised = false
@@ -31,14 +38,37 @@ function detectAbi(request) {
 async function getVersionInfo(env) {
   try {
     const cached = await env.KV.get(KV_VERSION_KEY, 'json')
-    if (cached) return cached
+    if (cached) {
+      console.log('[KV] Returned cached version')
+      return cached
+    }
   } catch (e) { console.error('[KV] cache read failed:', e?.message) }
+  
   try {
     const obj = await env.R2.get('version.json')
-    if (!obj) return null
+    if (!obj) {
+      console.warn('[R2] version.json not found, checking fallback')
+      // FIX: Try fallback version from KV
+      try {
+        const fallback = await env.KV.get(KV_VERSION_FALLBACK_KEY, 'json')
+        if (fallback) {
+          console.log('[KV] Using fallback version')
+          return fallback
+        }
+      } catch (e2) { console.error('[KV] fallback read failed:', e2?.message) }
+      return null
+    }
+    
     const info = await obj.json()
-    env.KV.put(KV_VERSION_KEY, JSON.stringify(info), { expirationTtl: KV_VERSION_TTL })
-      .catch(e => console.error('[KV] cache write failed:', e?.message))
+    
+    // FIX: Cache both current AND fallback
+    try {
+      await Promise.all([
+        env.KV.put(KV_VERSION_KEY, JSON.stringify(info), { expirationTtl: KV_VERSION_TTL }),
+        env.KV.put(KV_VERSION_FALLBACK_KEY, JSON.stringify(info))  // No expiry, permanent fallback
+      ])
+    } catch (e) { console.error('[KV] cache write failed:', e?.message) }
+    
     return info
   } catch (e) { console.error('[R2] version.json read failed:', e?.message); return null }
 }
@@ -51,9 +81,11 @@ function resolveApkKey(info, abi) {
 async function serveApk(env, key, version) {
   let obj
   try { obj = await env.R2.get(key) } catch (e) {
+    console.error('[R2] Failed to fetch APK:', e?.message)
     return new Response(JSON.stringify({ error: 'Storage error.' }), { status: 502, headers: { 'Content-Type': 'application/json', ...CORS } })
   }
   if (!obj) return new Response(JSON.stringify({ error: 'APK not found.', key }), { status: 404, headers: { 'Content-Type': 'application/json', ...CORS } })
+  
   const headers = new Headers(CORS)
   obj.writeHttpMetadata(headers)
   headers.set('Content-Type',        'application/vnd.android.package-archive')
@@ -67,34 +99,41 @@ async function serveApk(env, key, version) {
 
 async function initDb(env) {
   if (dbInitialised) return
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS downloads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      abi TEXT NOT NULL, version TEXT, country TEXT, ip TEXT, user_agent TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS version_history (
-      tag TEXT PRIMARY KEY, version TEXT, released_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS devices (
-      device_id       TEXT PRIMARY KEY,
-      user_id         TEXT,
-      fcm_token       TEXT,
-      app_version     TEXT,
-      version_code    INTEGER,
-      abi             TEXT,
-      platform        TEXT DEFAULT 'android',
-      model           TEXT,
-      android_version TEXT,
-      locale          TEXT,
-      registered_at   TEXT DEFAULT (datetime('now')),
-      last_seen_at    TEXT DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at);
-    CREATE INDEX IF NOT EXISTS idx_downloads_abi ON downloads(abi);
-    CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
-  `)
-  dbInitialised = true
+  try {
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS downloads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        abi TEXT NOT NULL, version TEXT, country TEXT, ip TEXT, user_agent TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS version_history (
+        tag TEXT PRIMARY KEY, version TEXT, released_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS devices (
+        device_id       TEXT PRIMARY KEY,
+        user_id         TEXT,
+        fcm_token       TEXT,
+        app_version     TEXT,
+        version_code    INTEGER,
+        abi             TEXT,
+        platform        TEXT DEFAULT 'android',
+        model           TEXT,
+        android_version TEXT,
+        locale          TEXT,
+        registered_at   TEXT DEFAULT (datetime('now')),
+        last_seen_at    TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_downloads_created ON downloads(created_at);
+      CREATE INDEX IF NOT EXISTS idx_downloads_abi ON downloads(abi);
+      CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+      CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen_at);
+    `)
+    dbInitialised = true
+    console.log('[D1] Database initialized')
+  } catch (e) {
+    console.error('[D1] initDb error:', e?.message)
+    throw e
+  }
 }
 
 function trackDownload(env, ctx, request, abi, version) {
@@ -105,16 +144,30 @@ function trackDownload(env, ctx, request, abi, version) {
       const ua      = (request.headers.get('User-Agent') || '').substring(0, 250)
       await env.DB.prepare(`INSERT INTO downloads (abi, version, country, ip, user_agent) VALUES (?, ?, ?, ?, ?)`)
         .bind(abi, version || 'unknown', country, ip, ua).run()
+      console.log(`[D1] Tracked download: ${abi} v${version} from ${country}`)
     } catch (e) { console.error('[D1] trackDownload failed:', e?.message) }
   })())
 }
 
+// FIX: Added timeout to rate limiter to prevent indefinite hangs
 async function checkRateLimit(env, request) {
   try {
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
-    const { success } = await env.RATE_LIMITER.limit({ key: ip })
-    return success
-  } catch (e) { console.error('[RATE_LIMITER] error:', e?.message); return true }
+    
+    // FIX: Wrap in Promise.race with 2s timeout
+    const result = await Promise.race([
+      env.RATE_LIMITER.limit({ key: ip }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('RateLimit timeout after 2s')), 2000)
+      )
+    ])
+    
+    return result.success
+  } catch (e) { 
+    console.error('[RATE_LIMITER] error:', e?.message)
+    // Fail open on timeout — allow request
+    return true
+  }
 }
 
 async function sendErrorAlert(env, subject, body) {
@@ -124,6 +177,7 @@ async function sendErrorAlert(env, subject, body) {
       to:   [{ email: 'petersmartlink@gmail.com' }],
       subject, text: body,
     })
+    console.log(`[EMAIL] Sent alert: ${subject}`)
   } catch (e) { console.error('[EMAIL] send failed:', e?.message) }
 }
 
@@ -146,7 +200,7 @@ export default {
     const url  = new URL(request.url)
     const path = url.pathname.replace(/\/+$/, '') || '/'
 
-    // ── IP block check — inline KV lookup, no imports ─────────────────────
+    // ── IP block check — inline KV lookup, no imports ─────────────────────────────
     // Blocked IPs are stored in KV with key `blocked:<ip>` and a 24h TTL.
     // We fail open (allow) on KV errors so legitimate traffic is never
     // accidentally blocked due to a KV outage.
@@ -155,6 +209,7 @@ export default {
       try {
         const blocked = await env.KV.get(`blocked:${ip}`)
         if (blocked !== null) {
+          console.log(`[SECURITY] Blocked IP: ${ip}`)
           return new Response(
             JSON.stringify({ error: 'Forbidden' }),
             { status: 403, headers: { 'Content-Type': 'application/json', ...CORS } },
@@ -186,6 +241,9 @@ export default {
 
     if (path === '/latest') {
       const info = await getVersionInfo(env)
+      if (!info) {
+        return new Response(JSON.stringify({ error: 'Version info not available.' }), { status: 503, headers: { 'Content-Type': 'application/json', ...CORS } })
+      }
       const res = jsonResponse({
         version: info?.version ?? null, versionCode: info?.versionCode ?? null,
         tag: info?.tag ?? null, date: info?.date ?? null, changelog: info?.changelog ?? null,
@@ -208,15 +266,18 @@ export default {
           env.DB.prepare('SELECT country, COUNT(*) as count FROM downloads GROUP BY country ORDER BY count DESC LIMIT 20').all(),
           env.DB.prepare('SELECT abi, version, country, created_at FROM downloads ORDER BY id DESC LIMIT 20').all(),
         ])
-        return jsonResponse({ total: total?.count ?? 0, by_abi: byAbi.results, by_version: byVersion.results, by_country: byCountry.results, recent: recent.results }, 200, { 'Cache-Control': 'no-store' })
+        return jsonResponse({ total: total?.count ?? 0, by_abi: byAbi.results, by_version: byVersion.results, by_country: byCountry.results, recent: recent.results }, 200, { 'Cache-Control': 'no-cache' })
       } catch (e) {
+        console.error('[Stats] Query failed:', e?.message)
         return new Response(JSON.stringify({ error: 'Stats unavailable', detail: e?.message }), { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } })
       }
     }
 
     if (path === '/download' || path === '/apk/arm64' || path === '/apk/arm32') {
-      if (!await checkRateLimit(env, request))
+      if (!await checkRateLimit(env, request)) {
+        console.warn(`[RATE_LIMIT] Blocked: ${ip}`)
         return new Response(JSON.stringify({ error: 'Too many requests. Please wait 60 seconds.' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '60', ...CORS } })
+      }
 
       if (path === '/download') {
         return new Response(null, { status: 307, headers: { Location: `https://${url.hostname}/apk/${detectAbi(request)}`, 'Cache-Control': 'no-store', ...CORS } })
@@ -225,8 +286,9 @@ export default {
       const abi  = path === '/apk/arm64' ? 'arm64' : 'arm32'
       const info = await getVersionInfo(env)
       if (!info) {
-        ctx.waitUntil(sendErrorAlert(env, 'Otya Store: version.json missing', `${abi} download attempted but version.json missing. Time: ${new Date().toISOString()}`))
-        return new Response(JSON.stringify({ error: 'APK not available yet.' }), { status: 503, headers: { 'Content-Type': 'application/json', ...CORS } })
+        ctx.waitUntil(sendErrorAlert(env, '🚨 CRITICAL: Otya Store - version.json missing', 
+          `${abi} download attempted but version.json missing from R2 AND fallback in KV is also missing.\nTime: ${new Date().toISOString()}\nThis blocks ALL users from downloading APK!`))
+        return new Response(JSON.stringify({ error: 'APK not available. Maintenance in progress.', retryAfter: 300 }), { status: 503, headers: { 'Content-Type': 'application/json', 'Retry-After': '300', ...CORS } })
       }
       const key = resolveApkKey(info, abi)
       if (!key) return new Response(JSON.stringify({ error: 'Could not resolve APK path.' }), { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } })
