@@ -123,7 +123,6 @@ const LAST_LOGIN_IP_TTL_SECS  = 90 * 24 * 60 * 60 // 90 days
 const ALLOWED_ORIGINS = new Set([
   'https://petersmartlink.com',
   'https://www.petersmartlink.com',
-  'https://getotya.petersmartlink.com',
 ])
 
 const PRIMARY_ORIGIN = 'https://petersmartlink.com'

@@ -93,7 +93,6 @@ export function parsePagination(url: URL): PaginationParams {
 const ALLOWED_ORIGINS = new Set([
   'https://petersmartlink.com',
   'https://www.petersmartlink.com',
-  'https://getotya.petersmartlink.com',
 ])
 
 const PRIMARY_ORIGIN = 'https://petersmartlink.com'
