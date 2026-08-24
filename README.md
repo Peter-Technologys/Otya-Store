@@ -1,8 +1,20 @@
-# Otya Store — Cloudflare Worker
+# OTYA Backend — API, Auth & Distribution
 
-Serves OTYA Player APK downloads from Cloudflare R2, with analytics, caching, rate limiting, and email alerts.
+The complete backend for OTYA Player. Handles authentication, API, cloud sync, APK distribution, admin panel, blog, POS/business management, and push notifications. Built with Next.js (App Router) + TypeScript, deployed on Vercel. APK distribution via Cloudflare R2.
 
 **Live at:** https://getotya.petersmartlink.com
+
+## What this backend does
+- **Auth** — JWT-based email/password + Google OAuth via `/auth/*` endpoints
+- **App sync** — device registration, FCM tokens, EQ presets, playlists, history
+- **APK distribution** — R2 bucket streaming with rate limiting and analytics
+- **Update checker** — version comparison for in-app update prompts
+- **Push notifications** — FCM re-engagement campaigns
+- **Pro subscriptions** — expiry management and webhook payment processing
+- **Admin panel** — release management, stats dashboard
+- **Blog** — CMS for app news and updates
+- **Group Receipts (GR)** — group-based receipt and transaction management
+- **POS** — customers, products, sales, services, staff, inventory management
 
 ## Endpoints
 

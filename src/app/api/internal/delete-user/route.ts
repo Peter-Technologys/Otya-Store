@@ -2,9 +2,9 @@
 // POST /internal/delete-user
 //
 // Internal endpoint called by the Auth Worker after a user deletes their account.
-// Deletes all user data from Otya-Store's D1 database.
+// Deletes all user data from OTYA Backend's D1 database.
 //
-// Auth: INTERNAL_SECRET header (shared secret between Auth Worker and Otya-Store).
+// Auth: INTERNAL_SECRET header (shared secret between Auth Worker and OTYA Backend).
 //       NOT exposed to the public — only callable by the Auth Worker via fetch().
 //
 // Body: { user_id: string }
