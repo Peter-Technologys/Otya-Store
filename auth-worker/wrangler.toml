@@ -13,7 +13,7 @@ database_name = "otya-auth-db"
 # Run: wrangler d1 create otya-auth-db
 # Then paste the generated database_id here.
 # Currently shares the same ID as otya-store-db which is WRONG.
-database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
+database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 
 [[kv_namespaces]]
 binding = "AUTH_KV"
