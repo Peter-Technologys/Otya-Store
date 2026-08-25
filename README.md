@@ -1,6 +1,6 @@
 # OTYA Backend — API, Auth & Distribution
 
-The complete backend for OTYA Player. Handles authentication, API, cloud sync, APK distribution, admin panel, blog, POS/business management, and push notifications. Built with Next.js (App Router) + TypeScript, deployed on Vercel. APK distribution via Cloudflare R2.
+The complete backend for OTYA Player. Handles authentication, API, cloud sync, APK distribution, admin panel, blog, and push notifications. Built with Next.js (App Router) + TypeScript, deployed on Vercel. APK distribution via Cloudflare R2.
 
 **Live at:** https://petersmartlink.com
 
@@ -13,8 +13,6 @@ The complete backend for OTYA Player. Handles authentication, API, cloud sync, A
 - **Pro subscriptions** — expiry management and webhook payment processing
 - **Admin panel** — release management, stats dashboard
 - **Blog** — CMS for app news and updates
-- **Group Receipts (GR)** — group-based receipt and transaction management
-- **POS** — customers, products, sales, services, staff, inventory management
 
 ## Endpoints
 
