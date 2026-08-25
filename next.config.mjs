@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+
+const isDev = process.env.NODE_ENV === 'development'
+
+const ADSENSE_ID = 'ca-pub-2517163652161686'
+
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -28,11 +33,16 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // unsafe-eval needed by Next.js dev
+      // unsafe-eval only in dev (Next.js HMR needs it); production is strict
+      isDev
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com"
+        : "script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://petersmartlink.com https://otya-auth.workers.dev",
+      "img-src 'self' data: blob: https: https://pagead2.googlesyndication.com",
+      // AdSense connect-src — required for ad requests and reporting
+      "connect-src 'self' https://petersmartlink.com https://otya-auth.workers.dev https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
+      "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
       "frame-ancestors 'none'",
     ].join('; '),
   },
@@ -46,7 +56,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply security headers to all routes
         source: '/(.*)',
         headers: securityHeaders,
       },

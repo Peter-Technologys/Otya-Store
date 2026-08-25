@@ -11,6 +11,7 @@ const oxanium = Oxanium({
 })
 
 const SITE_URL   = 'https://petersmartlink.com'
+const APP_VERSION = '1.6.0'  // ← update this when pubspec.yaml version changes
 const ADSENSE_ID = 'ca-pub-2517163652161686'
 
 export const metadata: Metadata = {
@@ -113,7 +114,7 @@ const schemaOrg = {
       alternateName: 'com.otyaplayer.app',
       operatingSystem: 'Android 5.0+',
       applicationCategory: 'MultimediaApplication',
-      softwareVersion: '1.5.0',
+      softwareVersion: APP_VERSION,
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
       url: `${SITE_URL}/otya-player`,
       downloadUrl: `${SITE_URL}/download/otya-player`,
@@ -139,6 +140,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" dir="ltr" className={oxanium.variable}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }} />
+        {/* AdSense account verification — required by Google */}
+        <meta name="google-adsense-account" content={ADSENSE_ID} />
       </head>
       <body className={oxanium.className}>
         {children}

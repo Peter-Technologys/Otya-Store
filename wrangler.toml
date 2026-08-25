@@ -79,8 +79,8 @@ service = "otya-auth"
 # Cron triggers
 [triggers]
 crons = [
-  "*/5 * * * *",
-  "0 * * * *",
-  "0 6 * * 1",
-  "0 9 * * *"
+  "*/15 * * * *",  # Health check every 15 min (was 5 — too aggressive for free plan)
+  "0 * * * *",     # Hourly: abuse detection + midnight daily report
+  "0 6 * * 1",     # Monday 6am: weekly digest
+  "0 9 * * *"      # Daily 9am: churn prediction
 ]

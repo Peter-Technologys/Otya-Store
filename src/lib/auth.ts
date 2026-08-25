@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest as _NextRequest } from 'next/server'
 
 /**
  * HMAC-SHA256 request verification middleware.
@@ -73,29 +73,6 @@ function timingSafeEqual(a: string, b: string): boolean {
     result |= a.charCodeAt(i) ^ b.charCodeAt(i)
   }
   return result === 0
-}
-
-/**
- * Legacy token auth — kept for backward compatibility during migration.
- * @deprecated Use verifyRequest() instead.
- */
-export function requireAppToken(
-  req: NextRequest,
-  env: Record<string, unknown>,
-): NextResponse | null {
-  const expected = env.APP_TOKEN as string | undefined
-  if (!expected) {
-    console.warn('[auth] APP_TOKEN not set.')
-    return null
-  }
-  const provided = req.headers.get('x-app-token') ?? ''
-  if (provided !== expected) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Access-Control-Allow-Origin': 'https://petersmartlink.com' } },
-    )
-  }
-  return null
 }
 
 /**
