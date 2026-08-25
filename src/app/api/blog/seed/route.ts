@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
   let inserted = 0
   for (const post of POSTS) {
-    const result = await db.prepare(`
+    await db.prepare(`
       INSERT OR IGNORE INTO blog_posts
         (id, title, excerpt, content, category, authorName, createdAt, isPublished)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)

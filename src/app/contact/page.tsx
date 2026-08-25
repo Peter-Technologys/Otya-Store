@@ -1,5 +1,3 @@
-import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata } from 'next'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'

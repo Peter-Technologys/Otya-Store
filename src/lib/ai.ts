@@ -72,12 +72,6 @@ export async function categorizeFeedback(
   ai: AiBinding,
   description: string,
 ): Promise<CategorizeFeedbackResult> {
-  const fallback: CategorizeFeedbackResult = {
-    category:   'complaint',
-    sentiment:  'NEUTRAL',
-    confidence: 0,
-  }
-
   // ── Step 1: sentiment via DistilBERT ─────────────────────────────────────
   let sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' = 'NEUTRAL'
   let confidence = 0

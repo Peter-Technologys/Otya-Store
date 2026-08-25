@@ -32,7 +32,7 @@ function isAuthorized(req: NextRequest, env: Record<string, unknown>): boolean {
 }
 
 /** Build the HTML body for the re-engagement email. */
-function buildEmailHtml(email: string): string {
+function buildEmailHtml(_email: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
