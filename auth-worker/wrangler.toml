@@ -9,6 +9,10 @@ enabled = true
 [[d1_databases]]
 binding       = "AUTH_DB"
 database_name = "otya-auth-db"
+# TODO: Replace this database_id with the actual otya-auth-db ID.
+# Run: wrangler d1 create otya-auth-db
+# Then paste the generated database_id here.
+# Currently shares the same ID as otya-store-db which is WRONG.
 database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 
 [[kv_namespaces]]
@@ -20,10 +24,6 @@ id      = "6b9faff751724fdb86c16452b9c99cf6"
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
-
-[[r2_buckets]]
-binding     = "GR_RECEIPTS"
-bucket_name = "gr-app-receipts"
 
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
