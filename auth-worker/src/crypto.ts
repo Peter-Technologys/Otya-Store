@@ -5,153 +5,67 @@
  */
 
 // ── UUID v4 ───────────────────────────────────────────────────────────────────
-
-/** Generate a UUID v4 using Web Crypto. */
 export function generateUuid(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
-  // Set version bits (4) and variant bits (10xx)
   bytes[6] = (bytes[6] & 0x0f) | 0x40
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20),
-  ].join('-')
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-')
 }
 
 // ── PBKDF2 password hashing ───────────────────────────────────────────────────
-
 const PBKDF2_ITERATIONS = 100_000
-const PBKDF2_HASH      = 'SHA-256'
-const PBKDF2_KEY_LEN   = 32   // bytes → 256-bit key
+const PBKDF2_HASH = 'SHA-256'
+const PBKDF2_KEY_LEN = 32
 
-/**
- * Hash a password using PBKDF2-SHA256 with a random 16-byte salt.
- * Returns a string in the format: `pbkdf2:iterations:base64(salt):base64(hash)`
- */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16)) as unknown as ArrayBuffer
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  )
-  const derived = await crypto.subtle.deriveBits(
-    {
-      name:       'PBKDF2',
-      salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash:       PBKDF2_HASH,
-    },
-    keyMaterial,
-    PBKDF2_KEY_LEN * 8,
-  )
-  const saltB64 = bufToBase64(salt)
-  const hashB64 = bufToBase64(new Uint8Array(derived))
-  return `pbkdf2:${PBKDF2_ITERATIONS}:${saltB64}:${hashB64}`
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH }, keyMaterial, PBKDF2_KEY_LEN * 8)
+  return `pbkdf2:${PBKDF2_ITERATIONS}:${bufToBase64(salt)}:${bufToBase64(new Uint8Array(derived))}`
 }
 
-/**
- * Verify a password against a stored PBKDF2 hash string.
- * Returns true if the password matches.
- */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(':')
   if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false
-
   const iterations = parseInt(parts[1], 10)
-  const salt       = base64ToBuf(parts[2])
-  const expected   = base64ToBuf(parts[3])
-
+  const salt = base64ToBuf(parts[2])
+  const expected = base64ToBuf(parts[3])
   if (isNaN(iterations) || !salt || !expected) return false
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  )
-  const derived = await crypto.subtle.deriveBits(
-    {
-      name:       'PBKDF2',
-      salt,
-      iterations,
-      hash:       PBKDF2_HASH,
-    },
-    keyMaterial,
-    expected.byteLength * 8,
-  )
-
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: PBKDF2_HASH }, keyMaterial, expected.byteLength * 8)
   return timingSafeEqual(new Uint8Array(derived), expected)
 }
 
 // ── JWT (HS256) ───────────────────────────────────────────────────────────────
-
 export interface JwtPayload {
-  sub:   string   // user_id
+  sub: string
   email: string
-  iat:   number
-  exp:   number
+  iat: number
+  exp: number
 }
 
-/**
- * Sign a JWT using HS256 (HMAC-SHA256) with the given secret.
- * Returns the compact JWT string.
- */
 export async function signJwt(payload: JwtPayload, secret: string): Promise<string> {
-  const header  = base64urlEncode(new TextEncoder().encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
-  const body    = base64urlEncode(new TextEncoder().encode(JSON.stringify(payload)))
+  const header = base64urlEncode(new TextEncoder().encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
+  const body = base64urlEncode(new TextEncoder().encode(JSON.stringify(payload)))
   const signing = `${header}.${body}`
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signing))
   return `${signing}.${base64urlEncode(new Uint8Array(sig))}`
 }
 
-/**
- * Verify and decode a JWT signed with HS256.
- * Returns the payload if valid, or null if invalid/expired.
- */
 export async function verifyJwt(token: string, secret: string): Promise<JwtPayload | null> {
   const parts = token.split('.')
   if (parts.length !== 3) return null
-
   const [headerB64, payloadB64, sigB64] = parts
   const signing = `${headerB64}.${payloadB64}`
-
   try {
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    )
-    const sigBytes = base64urlDecode(sigB64)
-    const valid    = await crypto.subtle.verify(
-      'HMAC',
-      key,
-      sigBytes,
-      new TextEncoder().encode(signing),
-    )
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
+    const valid = await crypto.subtle.verify('HMAC', key, base64urlDecode(sigB64), new TextEncoder().encode(signing))
     if (!valid) return null
-
     const payload = JSON.parse(new TextDecoder().decode(base64urlDecode(payloadB64))) as JwtPayload
-    const now     = Math.floor(Date.now() / 1000)
-    if (payload.exp && payload.exp < now) return null   // expired
-
+    const now = Math.floor(Date.now() / 1000)
+    if (payload.exp && payload.exp < now) return null
     return payload
   } catch {
     return null
@@ -160,31 +74,23 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtPaylo
 
 // ── OTP ───────────────────────────────────────────────────────────────────────
 
-/**
- * Generate an OTP in the format A123 — 1 uppercase letter + 3 digits.
- * Excludes I and O (visually confusing with 1 and 0).
- */
+/** Generate an OTP in the OTYA contract format: A1234 (1 uppercase letter + 4 digits). */
 export function generateOtp(): string {
-  // Exclude I and O — visually confusing with 1 and 0
+  // Exclude I and O — visually confusing with 1 and 0.
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-  const bytes   = crypto.getRandomValues(new Uint8Array(4))
-  const letter  = letters[bytes[0] % letters.length]
-  const digits  = String(
-    ((bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) % 1000
-  ).padStart(3, '0')
-  return `${letter}${digits}`
+  const bytes = crypto.getRandomValues(new Uint8Array(5))
+  const letter = letters[bytes[0] % letters.length]
+  const number = (((bytes[1] << 24) >>> 0) + (bytes[2] << 16) + (bytes[3] << 8) + bytes[4]) % 10000
+  return `${letter}${String(number).padStart(4, '0')}`
 }
 
 // ── Refresh token ─────────────────────────────────────────────────────────────
-
-/** Generate a cryptographically random 32-byte refresh token (hex). */
 export function generateRefreshToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
-
 function bufToBase64(buf: Uint8Array): string {
   let str = ''
   for (const b of buf) str += String.fromCharCode(b)
@@ -204,7 +110,7 @@ function base64urlEncode(buf: Uint8Array): string {
 
 function base64urlDecode(str: string): Uint8Array {
   const b64 = str.replace(/-/g, '+').replace(/_/g, '/')
-  const pad  = (4 - (b64.length % 4)) % 4
+  const pad = (4 - (b64.length % 4)) % 4
   return base64ToBuf(b64 + '='.repeat(pad))
 }
 
