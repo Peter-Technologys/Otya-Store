@@ -19,7 +19,7 @@ const PBKDF2_HASH = 'SHA-256'
 const PBKDF2_KEY_LEN = 32
 
 export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16)) as unknown as ArrayBuffer
+  const salt = crypto.getRandomValues(new Uint8Array(16))
   const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
   const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH }, keyMaterial, PBKDF2_KEY_LEN * 8)
   return `pbkdf2:${PBKDF2_ITERATIONS}:${bufToBase64(salt)}:${bufToBase64(new Uint8Array(derived))}`
