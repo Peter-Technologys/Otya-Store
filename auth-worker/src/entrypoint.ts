@@ -23,6 +23,13 @@ interface ResendEnv extends Record<string, unknown> {
   RESEND_API_KEY?: string
 }
 
+function normalizeEmailText(text: string): string {
+  return text.replace(
+    '(1 letter + 3 digits — enter it exactly as shown)',
+    '(1 uppercase letter + 4 digits — enter it exactly as shown, e.g. A1234)',
+  )
+}
+
 function createEmailAdapter(apiKey: string | undefined) {
   return {
     async send(message: LegacyEmailMessage): Promise<void> {
@@ -33,7 +40,7 @@ function createEmailAdapter(apiKey: string | undefined) {
         from,
         to: message.to.map((recipient) => recipient.email),
         subject: message.subject,
-        text: message.text,
+        text: normalizeEmailText(message.text),
       }
       await sendResendEmail(apiKey, email)
     },
