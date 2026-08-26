@@ -2,13 +2,16 @@ name: Deploy to Cloudflare Workers
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: true
+
 jobs:
-  deploy-auth:
-    name: Deploy Auth Worker
+  validate:
+    name: Validate backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -19,9 +22,40 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+
+      - name: Install store dependencies
+        run: npm ci
+
+      - name: Validate store build
+        run: npm run build
 
       - name: Install auth-worker dependencies
-        run: npm install
+        run: npm ci
+        working-directory: auth-worker
+
+      - name: Typecheck auth-worker
+        run: npx tsc --noEmit
+        working-directory: auth-worker
+
+  deploy-auth:
+    name: Deploy Auth Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: auth-worker/package-lock.json
+
+      - name: Install auth-worker dependencies
+        run: npm ci
         working-directory: auth-worker
 
       - name: Deploy otya-auth worker
@@ -36,7 +70,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: deploy-auth
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,9 +78,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build and deploy with OpenNext
         run: npm run deploy
