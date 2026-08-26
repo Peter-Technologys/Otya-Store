@@ -1,7 +1,7 @@
 {
-  "name": "PeterSmart Link",
-  "short_name": "PSL",
-  "description": "Mbirizi's Smart Tech & Finance Hub — PeterSmart Technologies",
+  "name": "OTYA System",
+  "short_name": "OTYA",
+  "description": "OTYA System — OTYA Player and platform services.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a1a",
@@ -9,13 +9,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/web-app-manifest-192x192.png",
+      "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/web-app-manifest-512x512.png",
+      "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
