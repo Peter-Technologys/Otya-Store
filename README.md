@@ -1,97 +1,82 @@
-# OTYA Backend — API, Auth & Distribution
+# OTYA Backend — API, Authentication & Distribution
 
-The complete backend for OTYA Player. Handles authentication, API, cloud sync, APK distribution, admin panel, blog, and push notifications. Built with Next.js (App Router) + TypeScript, deployed on Vercel. APK distribution via Cloudflare R2.
+The backend infrastructure of the **OTYA System**, serving OTYA Player and system services. It provides authentication integration, application APIs, cloud sync, APK distribution, administration, notifications, and supporting platform services.
 
 **Live at:** https://petersmartlink.com
 
-## What this backend does
-- **Auth** — JWT-based email/password + Google OAuth via `/auth/*` endpoints
-- **App sync** — device registration, FCM tokens, EQ presets, playlists, history
-- **APK distribution** — R2 bucket streaming with rate limiting and analytics
-- **Update checker** — version comparison for in-app update prompts
-- **Push notifications** — FCM re-engagement campaigns
-- **Pro subscriptions** — expiry management and webhook payment processing
-- **Admin panel** — release management, stats dashboard
-- **Blog** — CMS for app news and updates
+## OTYA System architecture
 
-## Endpoints
+- **OTYA Player** — the client application.
+- **OTYA Auth** — the authentication Worker. OTP is an authentication feature, not a separate service.
+- **OTYA Backend** — the main backend Worker and platform API.
+
+## What OTYA Backend does
+
+- **Authentication integration** — communicates with OTYA Auth through the Cloudflare Service Binding.
+- **App sync** — device registration, FCM tokens, EQ presets, playlists, and history.
+- **APK distribution** — R2-backed release streaming with rate limiting and analytics.
+- **Update checker** — version comparison for in-app update prompts.
+- **Push notifications** — FCM delivery and re-engagement processing.
+- **Pro subscriptions** — expiry management and payment webhook processing where enabled.
+- **Administration** — release management and platform statistics.
+- **Blog/CMS** — application news and updates.
+
+## Public endpoints
 
 | Route | Description |
 |---|---|
-| `GET /` | Redirects to download page |
-| `GET /version` | Current version info (KV-cached, 5 min TTL) |
-| `GET /latest` | Full version + download links JSON |
-| `GET /download` | Auto-detects ABI, redirects to APK |
-| `GET /apk/arm64` | Streams arm64 APK from R2 (rate-limited) |
-| `GET /apk/arm32` | Streams arm32 APK from R2 (rate-limited) |
+| `GET /` | Redirects to the download page |
+| `GET /version` | Current version information |
+| `GET /latest` | Version and download links JSON |
+| `GET /download` | Detects device ABI and redirects to APK |
+| `GET /apk/arm64` | Streams the arm64 APK from R2 |
+| `GET /apk/arm32` | Streams the arm32 APK from R2 |
 | `GET /stats` | Download analytics from D1 |
 
-## Bindings
+## Cloudflare resources
 
 | Binding | Type | Resource | Purpose |
 |---|---|---|---|
-| `R2` | R2 Bucket | `otya-player-releases` | APK file storage |
-| `KV` | KV Namespace | `otya-store-kv` | Version info cache (5 min TTL) |
-| `DB` | D1 Database | `otya-store-db` | Download analytics & version history |
-| `RATE_LIMITER` | Rate Limit | — | 60 req/min per IP on downloads |
-| `EMAIL` | Send Email | petersmartlink@gmail.com | Error alerts |
+| `R2` | R2 Bucket | `otya-player-releases` | OTYA Player release storage |
+| `KV` | KV Namespace | `otya-store-kv` | Version/cache data |
+| `DB` | D1 Database | `otya-store-db` | Backend analytics and version data |
+| `RATE_LIMITER` | Rate Limit | — | Download/API protection |
+| `AUTH` | Service Binding | `otya-auth` | Authentication service |
 
-## R2 Bucket Structure
+Email sending should use the server-side Resend integration where configured. Do not add Resend credentials to source code or the Flutter client.
+
+## R2 release structure
 
 Bucket: `otya-player-releases`
 
-```
-version.json          ← { tag, version, versionCode, date, changelog, arm64, arm32 }
+```text
+version.json
 releases/
   v1.0.0/
     otya-player-v1.0.0-arm64.apk
     otya-player-v1.0.0-arm32.apk
 ```
 
-## Deployment
+## Development and deployment
 
-Push to `main` → GitHub Actions auto-deploys via Wrangler.
+`otya-next` is the development branch. `main` is the stable branch.
 
-### Required GitHub Secrets
+Changes should be tested on `otya-next`, reviewed, and then merged into `main` before production deployment.
 
-| Secret | Description |
-|---|---|
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare Account ID |
-| `CLOUDFLARE_GLOBAL_API_KEY` | Cloudflare Global API Key |
+### Required Cloudflare credentials
 
-### Adding Wrangler Secrets (run once)
+Cloudflare credentials belong in GitHub/Cloudflare secret storage and must never be committed.
 
-```bash
-npx wrangler secret put NOTIFY_EMAIL_TO
-npx wrangler secret put ADMIN_TOKEN
-```
-
-### Manual Deploy
+### Manual deployment
 
 ```bash
 npm install
 npm run deploy
 ```
 
-## D1 Schema
+## Security
 
-Tables are auto-created on first request:
-
-```sql
--- Download tracking
-CREATE TABLE downloads (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  abi TEXT NOT NULL,
-  version TEXT,
-  ip TEXT,
-  user_agent TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
--- Version release history
-CREATE TABLE version_history (
-  tag TEXT PRIMARY KEY,
-  version TEXT,
-  released_at TEXT DEFAULT (datetime('now'))
-);
-```
+- Keep authentication secrets and provider API keys in Worker secrets.
+- Never expose Resend or Cloudflare credentials to OTYA Player.
+- Validate and authenticate backend requests before accessing protected data.
+- Do not remove production bindings or databases without verifying dependencies first.
