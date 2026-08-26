@@ -38,7 +38,7 @@ jobs:
         run: npm run typecheck
 
       - name: Install auth-worker dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
 
       - name: Typecheck auth-worker
@@ -58,10 +58,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: auth-worker/package-lock.json
       - name: Install auth-worker dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
       - name: Deploy otya-auth worker
         run: npx wrangler deploy
