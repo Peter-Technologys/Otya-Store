@@ -32,7 +32,7 @@ wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put RESEND_API_KEY
 ```
 
-`RESEND_API_KEY` is a server-side secret. Never place it in Flutter, source code, GitHub, Wrangler `vars`, or client-visible configuration. Cloudflare recommends Worker secrets for sensitive API keys. urlCloudflare Workers secrets documentationhttps://developers.cloudflare.com/workers/configuration/secrets/
+`RESEND_API_KEY` is a server-side secret. Never place it in Flutter, source code, GitHub, Wrangler `vars`, or client-visible configuration. Cloudflare recommends Worker secrets for sensitive API keys: https://developers.cloudflare.com/workers/configuration/secrets/
 
 ### 5. Email provider
 
