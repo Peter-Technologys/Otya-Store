@@ -9,6 +9,9 @@ concurrency:
   group: cloudflare-production
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate backend
@@ -22,10 +25,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
 
+      # The store repository currently has no package-lock.json, so npm ci
+      # cannot be used yet. npm install is deterministic from package.json
+      # until a lockfile is committed.
       - name: Install store dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
 
       - name: Validate store build
         run: npm run build
@@ -78,10 +83,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
 
       - name: Build and deploy with OpenNext
         run: npm run deploy
