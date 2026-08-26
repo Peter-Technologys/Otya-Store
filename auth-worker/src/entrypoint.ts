@@ -26,9 +26,11 @@ interface ResendEnv extends Record<string, unknown> {
 function createEmailAdapter(apiKey: string | undefined) {
   return {
     async send(message: LegacyEmailMessage): Promise<void> {
-      const fromName = message.from.name ? ` ${message.from.name}` : ''
+      const from = message.from.name
+        ? `${message.from.name} <${message.from.email}>`
+        : message.from.email
       const email: ResendEmail = {
-        from: `${message.from.email}${fromName}`.trim(),
+        from,
         to: message.to.map((recipient) => recipient.email),
         subject: message.subject,
         text: message.text,
