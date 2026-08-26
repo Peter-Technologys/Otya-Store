@@ -1,5 +1,5 @@
 name = "otya-auth"
-main = "src/index.ts"
+main = "src/entrypoint.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 
@@ -16,14 +16,6 @@ database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 [[kv_namespaces]]
 binding = "AUTH_KV"
 id      = "6b9faff751724fdb86c16452b9c99cf6"
-
-# Legacy EMAIL binding is intentionally retained during the Resend migration.
-# Remove it only after all email call sites use sendResendEmail() and the
-# deployed Worker has passed verification, password-reset, welcome, and
-# security-alert email tests.
-[[send_email]]
-name                = "EMAIL"
-destination_address = "petersmartlink@gmail.com"
 
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
