@@ -3,10 +3,12 @@ name: Deploy to Cloudflare Workers
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: cloudflare-production
+  group: cloudflare-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -26,17 +28,17 @@ jobs:
         with:
           node-version: '22'
 
-      # The store repository currently has no package-lock.json, so npm ci
-      # cannot be used yet. npm install is deterministic from package.json
-      # until a lockfile is committed.
       - name: Install store dependencies
         run: npm install --no-package-lock --ignore-scripts
 
       - name: Validate store build
         run: npm run build
 
+      - name: Typecheck store/web application
+        run: npm run typecheck
+
       - name: Install auth-worker dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
 
       - name: Typecheck auth-worker
@@ -45,24 +47,20 @@ jobs:
 
   deploy-auth:
     name: Deploy Auth Worker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: validate
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: auth-worker/package-lock.json
-
       - name: Install auth-worker dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
-
       - name: Deploy otya-auth worker
         run: npx wrangler deploy
         working-directory: auth-worker
@@ -72,21 +70,19 @@ jobs:
 
   deploy-store:
     name: Deploy Worker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: deploy-auth
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
-
       - name: Build and deploy with OpenNext
         run: npm run deploy
         env:

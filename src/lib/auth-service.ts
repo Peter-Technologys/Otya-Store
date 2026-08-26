@@ -1,18 +1,10 @@
 /**
- * Auth Service helper — calls the otya-auth worker via Service Binding.
+ * Auth Service helper — verifies OTYA access tokens through the Auth Worker
+ * service binding.
  *
- * The AUTH binding is a Cloudflare Service Binding configured in wrangler.toml:
- *   [[services]]
- *   binding = "AUTH"
- *   service = "otya-auth"
- *
- * This avoids a real HTTP round-trip — the call is handled in-process by
- * the Cloudflare runtime, making it fast and free.
- *
- * Usage in route handlers:
- *   const jwtResult = await verifyJwtViaService(env, token)
- *   if (!jwtResult.ok) return errorJson(jwtResult.error ?? 'Unauthorized', 401)
- *   const { user_id, email } = jwtResult
+ * The mobile client is an untrusted environment: no shared application secret
+ * is ever accepted as proof of identity. Protected Backend endpoints require
+ * a short-lived Bearer access token issued by OTYA Auth.
  */
 
 export interface JwtVerifyResult {
@@ -22,12 +14,6 @@ export interface JwtVerifyResult {
   error?:   string
 }
 
-/**
- * Verify a JWT by calling GET /auth/verify on the otya-auth worker.
- * Returns { ok: true, user_id, email } on success, or { ok: false, error } on failure.
- *
- * Falls back gracefully if the AUTH binding is not configured (e.g. local dev).
- */
 export async function verifyJwtViaService(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -36,17 +22,21 @@ export async function verifyJwtViaService(
   const authService = env.AUTH as { fetch(req: Request): Promise<Response> } | undefined
 
   if (!authService) {
-    console.warn('[auth-service] AUTH binding not configured — JWT verification skipped.')
+    console.error('[auth-service] AUTH binding is not configured')
     return { ok: false, error: 'Auth service not available' }
   }
 
   try {
     const res = await authService.fetch(
       new Request('https://auth/auth/verify', {
-        method:  'GET',
+        method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       }),
     )
+
+    if (!res.ok) {
+      return { ok: false, error: 'Invalid or expired token' }
+    }
 
     const data = await res.json() as JwtVerifyResult
     return data
@@ -56,61 +46,41 @@ export async function verifyJwtViaService(
   }
 }
 
-/**
- * Extract a Bearer token from an Authorization header.
- * Returns null if the header is missing or not in Bearer format.
- */
 export function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader) return null
   const match = authHeader.match(/^Bearer\s+(.+)$/i)
-  return match ? match[1] : null
+  return match ? match[1].trim() : null
 }
 
 /**
- * Dual-auth helper: try JWT first (Bearer token), fall back to HMAC.
+ * Protected Backend authentication.
  *
- * Returns:
- *   { mode: 'jwt', user_id, email }  — JWT auth succeeded
- *   { mode: 'hmac' }                 — HMAC auth succeeded (legacy)
- *   { mode: 'none', error }          — both failed
- *
- * Usage:
- *   const authResult = await dualAuth(req, env)
- *   if (authResult.mode === 'none') return errorJson(authResult.error ?? 'Unauthorized', 401)
+ * The third parameter is retained as a compatibility argument so existing
+ * route handlers can migrate without a large coordinated edit. It is ignored.
+ * HMAC application-secret authentication has intentionally been removed:
+ * anything embedded in an APK can be extracted and therefore cannot be a
+ * server-side secret.
  */
 export type DualAuthResult =
-  | { mode: 'jwt';  user_id: string; email: string }
-  | { mode: 'hmac' }
+  | { mode: 'jwt'; user_id: string; email: string }
   | { mode: 'none'; error: string }
 
 export async function dualAuth(
-  // Accept NextRequest (subtype of Request) or plain Request
   req: Request,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  hmacVerify: (req: Request, env: any) => Promise<{ ok: boolean; error?: string }>,
+  _legacyHmacVerify?: (req: Request, env: any) => Promise<{ ok: boolean; error?: string }>,
 ): Promise<DualAuthResult> {
-  // ── Try JWT first ─────────────────────────────────────────────────────────
-  const authHeader = req.headers.get('Authorization')
-  const token      = extractBearerToken(authHeader)
-
-  if (token) {
-    const result = await verifyJwtViaService(env, token)
-    if (result.ok && result.user_id && result.email) {
-      return { mode: 'jwt', user_id: result.user_id, email: result.email }
-    }
-    // JWT present but invalid — don't fall through to HMAC
-    return { mode: 'none', error: result.error ?? 'Invalid token' }
+  const token = extractBearerToken(req.headers.get('Authorization'))
+  if (!token) {
+    return { mode: 'none', error: 'Authorization header required' }
   }
 
-  // ── Fall back to HMAC (legacy Flutter app) ────────────────────────────────
-  // Cast to plain Request so hmacVerify (which expects Request, not NextRequest)
-  // receives the correct type regardless of what the caller passes in.
-  const hmacResult = await hmacVerify(req as Request, env)
-  if (hmacResult.ok) {
-    return { mode: 'hmac' }
+  const result = await verifyJwtViaService(env, token)
+  if (result.ok && result.user_id && result.email) {
+    return { mode: 'jwt', user_id: result.user_id, email: result.email }
   }
 
-  return { mode: 'none', error: hmacResult.error ?? 'Unauthorized' }
+  return { mode: 'none', error: result.error ?? 'Invalid or expired token' }
 }

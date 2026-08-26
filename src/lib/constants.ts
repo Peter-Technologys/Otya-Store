@@ -1,10 +1,26 @@
+export const OTYA_SYSTEM = {
+  name: 'OTYA System',
+  product: 'OTYA Player',
+  auth: 'OTYA Auth',
+  backend: 'OTYA Backend',
+  website: 'https://petersmartlink.com',
+  supportEmail: 'support@petersmartlink.com',
+  noReplyEmail: 'noreply@petersmartlink.com',
+  description:
+    'OTYA System is the platform behind OTYA Player and its connected services.',
+} as const;
+
+// PeterSmart remains the legal/business owner identity where required for
+// business contact, address, billing, and legal disclosures. Product-facing
+// platform identity belongs to OTYA System.
 export const SITE_CONFIG = {
-  name: 'PeterSmart Link',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://petersmartlink.com',
-  description: "Mbirizi's leading tech hub for mobile money, phone financing, smartphones, and quality electronics.",
+  name: OTYA_SYSTEM.name,
+  ownerName: 'PeterSmart Link',
+  url: OTYA_SYSTEM.website,
+  description: OTYA_SYSTEM.description,
   phone: '+256775912582',
   whatsapp: 'https://wa.me/256775912582',
-  email: 'hello@petersmartlink.com',
+  email: OTYA_SYSTEM.supportEmail,
   address: 'Mbirizi Town Council, Lwengo District, Uganda',
   social: {
     facebook: 'https://www.facebook.com/PeterSmartLink',

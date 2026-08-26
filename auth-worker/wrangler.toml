@@ -1,5 +1,5 @@
 name = "otya-auth"
-main = "src/index.ts"
+main = "src/entrypoint.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 
@@ -10,26 +10,22 @@ enabled = true
 binding       = "AUTH_DB"
 database_name = "otya-auth-db"
 # TODO: Replace this database_id with the actual otya-auth-db ID.
-# Run: wrangler d1 create otya-auth-db
-# Then paste the generated database_id here.
-# Currently shares the same ID as otya-store-db which is WRONG.
+# Confirm the live Cloudflare binding before changing this value.
 database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 
 [[kv_namespaces]]
 binding = "AUTH_KV"
 id      = "6b9faff751724fdb86c16452b9c99cf6"
 
-# EMAIL binding — add via Cloudflare Dashboard:
-#   Workers & Pages → otya-auth → Settings → Bindings → Add binding → Send Email
-[[send_email]]
-name                = "EMAIL"
-destination_address = "petersmartlink@gmail.com"
-
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
 
-# Secrets — set via:
-#   wrangler secret put AUTH_JWT_SECRET
+# Required server-side secrets. Values must be configured in Cloudflare and
+# local development secret files; never commit their values.
+[secrets]
+required = ["AUTH_JWT_SECRET", "RESEND_API_KEY"]
+
+# Additional optional secrets used by the auth service:
 #   wrangler secret put GOOGLE_CLIENT_ID
-#   wrangler secret put OTYA_STORE_INTERNAL_URL   (e.g. https://petersmartlink.com)
-#   wrangler secret put INTERNAL_SECRET           (shared secret for /internal/delete-user)
+#   wrangler secret put OTYA_STORE_INTERNAL_URL
+#   wrangler secret put INTERNAL_SECRET

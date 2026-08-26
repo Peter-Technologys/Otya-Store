@@ -12,7 +12,7 @@ enabled = true
 
 [vars]
 ENVIRONMENT = "production"
-APP_NAME    = "Otya Store"
+APP_NAME    = "OTYA Backend"
 WEBSITE_URL = "https://petersmartlink.com"
 
 [assets]
@@ -50,9 +50,9 @@ binding = "PUSH_QUEUE"
 queue   = "otya-push-queue"
 
 [[queues.consumers]]
-queue           = "otya-push-queue"
-max_batch_size  = 10
-max_retries     = 3
+queue             = "otya-push-queue"
+max_batch_size    = 10
+max_retries       = 3
 dead_letter_queue = "otya-push-queue-dlq"
 
 # Workers AI
@@ -71,7 +71,7 @@ max_batch_timeout = 30
 max_retries       = 3
 dead_letter_queue = "otya-ai-queue-dlq"
 
-# Service Binding — otya-auth worker (JWT verification via Service Binding)
+# Service Binding — authentication worker (JWT verification via Service Binding)
 [[services]]
 binding = "AUTH"
 service = "otya-auth"
@@ -79,8 +79,8 @@ service = "otya-auth"
 # Cron triggers
 [triggers]
 crons = [
-  "*/15 * * * *",  # Health check every 15 min (was 5 — too aggressive for free plan)
-  "0 * * * *",     # Hourly: abuse detection + midnight daily report
-  "0 6 * * 1",     # Monday 6am: weekly digest
-  "0 9 * * *"      # Daily 9am: churn prediction
+  "*/15 * * * *",
+  "0 * * * *",
+  "0 6 * * 1",
+  "0 9 * * *"
 ]
