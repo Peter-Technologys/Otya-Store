@@ -35,6 +35,9 @@ jobs:
       - name: Validate store build
         run: npm run build
 
+      - name: Typecheck store/web application
+        run: npm run typecheck
+
       - name: Install auth-worker dependencies
         run: npm ci
         working-directory: auth-worker
