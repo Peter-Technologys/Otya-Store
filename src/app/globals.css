@@ -3,13 +3,17 @@
 @tailwind utilities;
 
 * { box-sizing: border-box; padding: 0; margin: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; color-scheme: dark; }
 
 /*
  * PeterSmart Link / OTYA approved visual system.
- * Single source of truth for the website: near-black foundations, layered
- * charcoal surfaces, one purple brand family and restrained depth. Product
- * imagery/screenshots should provide most of the page colour.
+ * One production visual language: near-black foundations, layered charcoal
+ * surfaces, one purple brand family and restrained depth. Product imagery and
+ * screenshots provide most of the page colour.
+ *
+ * Do not automatically switch this site to a separate light palette based on
+ * the visitor's OS preference. The product/brand presentation is intentionally
+ * dark and should remain consistent with the OTYA application and download UI.
  */
 :root {
   --cosmos-primary: #8B5CF6;
@@ -27,7 +31,7 @@ html { scroll-behavior: smooth; }
   --cosmos-icon-tint: #A855F7;
   --radius-card: 18px;
 
-  /* Compatibility aliases for older pages while they migrate. */
+  /* Compatibility aliases while older pages are consolidated. */
   --bg: var(--cosmos-scaffold);
   --bg-secondary: var(--cosmos-surface);
   --text: var(--cosmos-text-primary);
@@ -39,21 +43,6 @@ html { scroll-behavior: smooth; }
   --purple: var(--cosmos-primary);
   --indigo: var(--cosmos-secondary);
   --nav-bg: rgba(8,8,11,.92);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --cosmos-primary: #7C3AED;
-    --cosmos-secondary: #6D28D9;
-    --cosmos-scaffold: #FAFAFC;
-    --cosmos-surface: #F3F3F7;
-    --cosmos-accent: #8B5CF6;
-    --cosmos-text-primary: #111116;
-    --cosmos-text-secondary: #62626D;
-    --cosmos-app-bar: #FFFFFF;
-    --cosmos-card: #FFFFFF;
-    --cosmos-divider: #E4E4EA;
-  }
 }
 
 body {
@@ -93,11 +82,11 @@ a:hover, button:hover { opacity: .94; }
   background-clip: text;
 }
 .cosmos-button {
-  background: linear-gradient(135deg, #7C3AED, #9333EA);
+  background: #7C3AED;
   box-shadow: 0 8px 24px rgba(124,58,237,.20);
   color: #fff !important;
 }
-.cosmos-button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(124,58,237,.28); }
+.cosmos-button:hover { background: #8B5CF6; transform: translateY(-1px); box-shadow: 0 10px 28px rgba(124,58,237,.28); }
 
 /* Legacy visual hooks remain non-destructive but intentionally quiet. */
 .cosmos-stars { display: none; }
