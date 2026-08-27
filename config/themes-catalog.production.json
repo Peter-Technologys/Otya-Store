@@ -1,0 +1,62 @@
+{
+  "catalogVersion": 1,
+  "themes": [
+    {
+      "id": "otya-midnight",
+      "name": "OTYA Midnight",
+      "story": "A calm dark OTYA look designed for everyday listening.",
+      "scene": "mountain_lake",
+      "version": 1,
+      "overlay": 0.42,
+      "palette": {
+        "background": "#0B1020",
+        "surface": "#151B2D",
+        "primary": "#7C8CFF",
+        "accent": "#55D6BE",
+        "text": "#F5F7FF"
+      }
+    },
+    {
+      "id": "otya-christmas",
+      "name": "Christmas Glow",
+      "story": "A warm seasonal OTYA palette for the Christmas period.",
+      "scene": "winter_night",
+      "version": 1,
+      "overlay": 0.4,
+      "palette": {
+        "background": "#10251C",
+        "surface": "#183428",
+        "primary": "#E8C56A",
+        "accent": "#F1F4EA",
+        "text": "#FFFFFF"
+      },
+      "seasonal": {
+        "start": "12-15",
+        "end": "12-26",
+        "autoApply": true,
+        "priority": 20
+      }
+    },
+    {
+      "id": "otya-new-year-midnight",
+      "name": "New Year Midnight",
+      "story": "A reusable midnight celebration palette for the turn of every year.",
+      "scene": "city_midnight",
+      "version": 1,
+      "overlay": 0.38,
+      "palette": {
+        "background": "#080D1B",
+        "surface": "#141B31",
+        "primary": "#9CA8FF",
+        "accent": "#F6D978",
+        "text": "#FFFFFF"
+      },
+      "seasonal": {
+        "start": "12-27",
+        "end": "01-07",
+        "autoApply": true,
+        "priority": 30
+      }
+    }
+  ]
+}

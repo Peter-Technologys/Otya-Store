@@ -15,6 +15,7 @@ enabled = true
 ENVIRONMENT = "production"
 APP_NAME    = "OTYA Backend"
 WEBSITE_URL = "https://petersmartlink.com"
+ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 
 # TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are configured in the live
 # Cloudflare Worker environment. keep_vars=true prevents Wrangler/OpenNext
@@ -47,6 +48,8 @@ namespace_id = "1001"
   limit  = 60
   period = 60
 
+# Legacy Cloudflare email binding is intentionally retained until live Resend
+# verification/welcome/reset/security/admin delivery tests pass end-to-end.
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
@@ -61,11 +64,9 @@ max_batch_size    = 10
 max_retries       = 3
 dead_letter_queue = "otya-push-queue-dlq"
 
-# Workers AI
 [ai]
 binding = "AI"
 
-# AI processing queue
 [[queues.producers]]
 binding = "AI_QUEUE"
 queue   = "otya-ai-queue"
@@ -77,12 +78,19 @@ max_batch_timeout = 30
 max_retries       = 3
 dead_letter_queue = "otya-ai-queue-dlq"
 
-# Service Binding — authentication worker (JWT verification via Service Binding)
 [[services]]
 binding = "AUTH"
 service = "otya-auth"
 
-# Cron triggers
+[[workflows]]
+name = "otya-release-workflow"
+binding = "OTYA_RELEASE_WORKFLOW"
+class_name = "OtyaReleaseWorkflow"
+
+[[analytics_engine_datasets]]
+binding = "OTYA_ANALYTICS"
+dataset = "otya_analytics"
+
 [triggers]
 crons = [
   "*/5 * * * *",
