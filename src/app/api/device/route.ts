@@ -1,10 +1,14 @@
 // app/api/device/route.ts
 // POST /api/device
 // Upserts device info into D1 `devices` table.
-// Called once on first launch / version change by the Flutter app.
+// Called on first launch / version change by the Flutter app.
 //
-// Auth: JWT (Bearer token) takes priority — user_id is extracted from the token.
-//       Falls back to HMAC + body user_id for backward compatibility.
+// Authentication model:
+//   - Verified JWT: links the installation to the token's user_id.
+//   - Legacy HMAC: accepted for older trusted clients.
+//   - Anonymous: allowed for non-sensitive installation metadata only; user_id
+//     is always forced to null so an unauthenticated caller cannot impersonate
+//     or link itself to another account.
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,18 +18,18 @@ import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 export interface DevicePayload {
-  device_id:        string   // stable UUID (stored in SharedPreferences)
-  app_version:      string   // e.g. "1.5.0"
-  version_code?:    number   // e.g. 8
-  app_build?:       number   // back-compat alias for version_code
-  abi?:             string   // "arm64" | "arm32"
-  arch?:            string   // back-compat alias for abi
-  fcm_token?:       string   // FCM token — optional
-  user_id?:         string   // optional user identifier (ignored when JWT present)
-  platform?:        string   // "android" (default)
-  model?:           string   // e.g. "Samsung SM-G991B"
-  android_version?: string   // e.g. "14"
-  locale?:          string   // e.g. "en_UG"
+  device_id:        string
+  app_version:      string
+  version_code?:    number
+  app_build?:       number
+  abi?:             string
+  arch?:            string
+  fcm_token?:       string
+  user_id?:         string
+  platform?:        string
+  model?:           string
+  android_version?: string
+  locale?:          string
 }
 
 const CORS_HEADERS = {
@@ -34,14 +38,20 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
+function cleanText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  if (!text) return null
+  return text.slice(0, maxLength)
+}
+
 export async function POST(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  // Attempt authenticated modes, but do not reject a clean anonymous install.
+  // dualAuth's error is intentionally ignored for anonymous registration.
   const auth = await dualAuth(request, env, verifyRequest)
-  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: DevicePayload
   try {
     body = await request.json() as DevicePayload
@@ -49,20 +59,26 @@ export async function POST(request: NextRequest) {
     return errorJson('Invalid JSON body', 400)
   }
 
-  if (!body.device_id || typeof body.device_id !== 'string') {
-    return errorJson('device_id is required', 400)
-  }
+  const deviceId = cleanText(body.device_id, 128)
+  if (!deviceId) return errorJson('device_id is required', 400)
 
-  // Resolve back-compat aliases
-  const versionCode = body.version_code ?? body.app_build ?? 0
-  const abi         = body.abi          ?? body.arch      ?? 'arm64'
-  const platform    = body.platform     ?? 'android'
+  const rawVersionCode = body.version_code ?? body.app_build ?? 0
+  const versionCode = Number.isFinite(Number(rawVersionCode))
+    ? Math.max(0, Math.trunc(Number(rawVersionCode)))
+    : 0
 
-  // JWT auth: user_id comes from the verified token (cannot be spoofed).
-  // HMAC auth: user_id comes from the request body (legacy behavior).
-  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : (body.user_id ?? null)
+  const abi = cleanText(body.abi ?? body.arch, 32) ?? 'arm64'
+  const platform = cleanText(body.platform, 32) ?? 'android'
 
-  // ── 3. Upsert — columns match the actual D1 schema ───────────────────────
+  // Never trust body.user_id for an unauthenticated installation. JWT is the
+  // only modern path that may establish account ownership. Legacy HMAC keeps
+  // its historical user_id behavior for older trusted releases.
+  const resolvedUserId = auth.mode === 'jwt'
+    ? auth.user_id
+    : auth.mode === 'hmac'
+      ? cleanText(body.user_id, 128)
+      : null
+
   const db = getDB(env as Record<string, unknown>)
 
   await db.prepare(`
@@ -75,6 +91,7 @@ export async function POST(request: NextRequest) {
       app_version     = excluded.app_version,
       version_code    = excluded.version_code,
       abi             = excluded.abi,
+      platform        = excluded.platform,
       model           = COALESCE(excluded.model,           devices.model),
       android_version = COALESCE(excluded.android_version, devices.android_version),
       locale          = COALESCE(excluded.locale,          devices.locale),
@@ -82,21 +99,21 @@ export async function POST(request: NextRequest) {
       user_id         = COALESCE(excluded.user_id,         devices.user_id),
       last_seen_at    = datetime('now')
   `).bind(
-    body.device_id,
+    deviceId,
     resolvedUserId,
-    body.fcm_token       ?? null,
-    body.app_version     ?? '0.0.0',
+    cleanText(body.fcm_token, 4096),
+    cleanText(body.app_version, 64) ?? '0.0.0',
     versionCode,
     abi,
     platform,
-    body.model           ?? null,
-    body.android_version ?? null,
-    body.locale          ?? null,
+    cleanText(body.model, 256),
+    cleanText(body.android_version, 64),
+    cleanText(body.locale, 32),
   ).run()
 
-  return secureJson({ ok: true })
+  return secureJson({ ok: true, authenticated: auth.mode !== 'none' })
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
