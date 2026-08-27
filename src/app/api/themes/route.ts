@@ -40,15 +40,63 @@ const THEMES = [
       accent: '#A78BFA',
     },
   },
+  {
+    id: 'christmas-under-the-stars',
+    name: 'Christmas Under the Stars',
+    story: 'A peaceful Christmas night in the mountains — snowy ridges, warm village lights and a violet sky. Festive without turning OTYA into a red-and-green toy.',
+    scene: 'winter_lights',
+    version: 1,
+    overlay: 0.34,
+    featured: true,
+    seasonal: {
+      start: '12-15',
+      end: '12-26',
+      priority: 100,
+      autoApply: true,
+    },
+    palette: {
+      skyTop: '#0E1027',
+      skyMid: '#35206B',
+      horizon: '#8B5CF6',
+      land: '#080A10',
+      water: '#0C1020',
+      accent: '#C4B5FD',
+      warm: '#FDE68A',
+    },
+  },
+  {
+    id: 'midnight-2027',
+    name: 'Midnight 2027',
+    story: 'A new year begins over a quiet lake — violet fireworks above dark mountains, reflected light on the water and a clean midnight atmosphere for a fresh start.',
+    scene: 'fireworks_lake',
+    version: 1,
+    overlay: 0.30,
+    featured: true,
+    seasonal: {
+      start: '12-27',
+      end: '01-07',
+      priority: 110,
+      autoApply: true,
+    },
+    palette: {
+      skyTop: '#070818',
+      skyMid: '#231153',
+      horizon: '#6D28D9',
+      land: '#050609',
+      water: '#090B18',
+      accent: '#A78BFA',
+      warm: '#FDE68A',
+    },
+  },
 ] as const
 
 export async function GET() {
   return NextResponse.json(
     {
       ok: true,
-      catalogVersion: 1,
+      catalogVersion: 2,
       themes: THEMES,
-      updatedAt: '2026-08-27T00:00:00Z',
+      updatedAt: '2026-08-27T08:30:00Z',
     },
     {
       headers: {
