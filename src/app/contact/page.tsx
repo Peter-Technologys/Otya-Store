@@ -3,8 +3,8 @@ import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
-  title: 'Contact Us — PeterSmart Technologies',
-  description: 'Contact PeterSmart Technologies in Mbirizi, Lwengo District, Uganda.',
+  title: 'Contact | PeterSmart Link',
+  description: 'Contact PeterSmart Link in Mbirizi Town Council, Lwengo District, Uganda.',
   alternates: { canonical: 'https://petersmartlink.com/contact' },
 }
 
@@ -13,63 +13,63 @@ const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.
 export default function ContactPage() {
   return (
     <div className="min-h-screen relative" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
-      <div className="cosmos-stars" />
       <SiteNav />
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 relative z-10">
-        <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--cosmos-text-primary)' }}>Contact Us</h1>
-        <p className="text-sm mb-8" style={{ color: 'var(--cosmos-text-secondary)' }}>PeterSmart Technologies · Mbirizi Town Council, Lwengo District, Uganda</p>
+      <main className="max-w-2xl mx-auto px-5 sm:px-6 py-12 sm:py-16 relative z-10">
+        <div className="mb-10">
+          <div className="text-xs font-bold tracking-[0.16em] uppercase mb-3" style={{ color: 'var(--cosmos-primary)' }}>Support & business</div>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2">Contact PeterSmart Link</h1>
+          <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Mbirizi Town Council, Lwengo District, Uganda</p>
+        </div>
+
         <div className="space-y-3 mb-8">
-          <a href="https://wa.me/256775912582?text=Hi PeterSmart!"
-            target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-green-300"
-            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+          <a href="https://wa.me/256775912582?text=Hi%20PeterSmart%20Link!" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-5 rounded-2xl border hover:-translate-y-0.5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
             <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#25d366' }}>
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>WhatsApp — Fastest response</div>
-              <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>+256 775 912 582</div>
+              <div className="font-bold text-sm">WhatsApp</div>
+              <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Fast support and business enquiries</div>
             </div>
           </a>
-          <a href="mailto:support@petersmartlink.com"
-            className="flex items-center gap-4 p-5 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-300"
-            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--cosmos-surface)' }}>
+
+          <a href="mailto:support@petersmartlink.com" className="flex items-center gap-4 p-5 rounded-2xl border hover:-translate-y-0.5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(139,92,246,.12)' }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--cosmos-primary)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
               </svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>Email</div>
+              <div className="font-bold text-sm">Email</div>
               <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>support@petersmartlink.com</div>
             </div>
           </a>
-          <div className="flex items-center gap-4 p-5 rounded-2xl border"
-            style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--cosmos-surface)' }}>
+
+          <div className="flex items-center gap-4 p-5 rounded-2xl border" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(139,92,246,.12)' }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: 'var(--cosmos-primary)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
               </svg>
             </div>
             <div>
-              <div className="font-bold text-sm" style={{ color: 'var(--cosmos-text-primary)' }}>Location</div>
+              <div className="font-bold text-sm">Location</div>
               <div className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Mbirizi Town Council, Lwengo District, Uganda</div>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border p-5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-          <h2 className="font-bold text-sm mb-4" style={{ color: 'var(--cosmos-text-primary)' }}>Business Hours</h2>
+
+        <section className="rounded-2xl border p-5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
+          <h2 className="font-bold text-sm mb-4">Business Hours</h2>
           <div className="space-y-2 text-sm">
             {[['Monday – Friday', '8:00 AM – 8:00 PM'], ['Saturday', '8:00 AM – 9:00 PM'], ['Sunday', '10:00 AM – 6:00 PM']].map(([d, h]) => (
-              <div key={d} className="flex justify-between">
+              <div key={d} className="flex justify-between gap-5">
                 <span style={{ color: 'var(--cosmos-text-secondary)' }}>{d}</span>
-                <span className="font-semibold" style={{ color: 'var(--cosmos-text-primary)' }}>{h}</span>
+                <span className="font-semibold">{h}</span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
       <SiteFooter />
     </div>
   )
