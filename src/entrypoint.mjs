@@ -1,6 +1,15 @@
 import worker from './queue-worker.mjs'
 export { OtyaReleaseWorkflow } from './release-workflow.mjs'
 
+const HEALTH_CHECK_CRON = '*/5 * * * *'
+const HEALTH_INCIDENT_KEY = 'monitor:health:incident:v2'
+const HEALTH_PATHS = [
+  '/',
+  '/download/otya-player',
+  '/api/version',
+  '/latest',
+]
+
 function isAdmin(request, env) {
   if (!env.ADMIN_TOKEN) return false
   const header = request.headers.get('Authorization') ?? ''
@@ -85,6 +94,127 @@ function writeRequestAnalytics(env, request, response, startedAt) {
   }
 }
 
+async function readHealthIncident(env) {
+  try {
+    return await env.KV?.get?.(HEALTH_INCIDENT_KEY) ?? null
+  } catch {
+    return null
+  }
+}
+
+async function writeHealthIncident(env, value) {
+  try {
+    await env.KV?.put?.(HEALTH_INCIDENT_KEY, value, { expirationTtl: 24 * 60 * 60 })
+  } catch {
+    // Incident de-duplication is best-effort.
+  }
+}
+
+async function clearHealthIncident(env) {
+  try {
+    await env.KV?.delete?.(HEALTH_INCIDENT_KEY)
+  } catch {
+    // Incident de-duplication is best-effort.
+  }
+}
+
+async function sendHealthEmail(env, subject, text) {
+  try {
+    await env.EMAIL.send({
+      from: { email: 'notifications@petersmartlink.com', name: 'OTYA Backend' },
+      to: [{ email: env.ADMIN_REPORT_EMAIL || 'petersmartlink@gmail.com' }],
+      subject,
+      text,
+    })
+  } catch (error) {
+    console.error('[health] Could not send Resend health notification:', error?.message ?? error)
+  }
+}
+
+/**
+ * Validate the routes that the current OTYA app actually consumes.
+ *
+ * The previous cron self-fetched obsolete /download and /version URLs with
+ * HEAD. That produced false outage alerts every five minutes. Calling the
+ * already-built Worker internally with GET avoids a Cloudflare self-fetch loop
+ * while proving that the deployed route handlers themselves are healthy.
+ */
+async function runProductionHealthCheck(env, ctx) {
+  const baseUrl = env.WEBSITE_URL || 'https://petersmartlink.com'
+  const results = []
+
+  for (const path of HEALTH_PATHS) {
+    const startedAt = Date.now()
+    try {
+      const request = new Request(new URL(path, baseUrl), {
+        method: 'GET',
+        headers: { 'User-Agent': 'OTYA-Internal-HealthCheck/2.0' },
+      })
+      const response = await worker.fetch(request, env, ctx)
+      const ok = response.status >= 200 && response.status < 400
+      results.push({ path, status: response.status, latency: Date.now() - startedAt, ok })
+      try {
+        await response.body?.cancel?.()
+      } catch {
+        // Ignore response-body cleanup failures.
+      }
+    } catch (error) {
+      results.push({
+        path,
+        status: 0,
+        latency: Date.now() - startedAt,
+        ok: false,
+        error: error?.message ?? 'request failed',
+      })
+    }
+  }
+
+  const down = results.filter((result) => !result.ok)
+  const previousIncident = await readHealthIncident(env)
+
+  if (down.length === 0) {
+    console.log('[health] Production route check: all routes OK')
+    if (previousIncident) {
+      await clearHealthIncident(env)
+      await sendHealthEmail(
+        env,
+        '[OTYA Backend] ✅ Production routes recovered',
+        [
+          'OTYA production route health has recovered.',
+          '',
+          ...results.map((result) => `✅ ${result.path} — ${result.status} (${result.latency}ms)`),
+          '',
+          `Checked at: ${new Date().toISOString()}`,
+        ].join('\n'),
+      )
+    }
+    return
+  }
+
+  const signature = JSON.stringify(down.map(({ path, status }) => [path, status]))
+  console.warn('[health] Production routes unhealthy:', down)
+
+  if (signature === previousIncident) {
+    console.log('[health] Same incident already reported; suppressing duplicate email')
+    return
+  }
+
+  await writeHealthIncident(env, signature)
+  await sendHealthEmail(
+    env,
+    `[OTYA Backend] ⚠️ ${down.length} production route(s) unhealthy`,
+    [
+      'OTYA production route health alert',
+      '',
+      ...down.map((result) =>
+        `❌ ${result.path} — status ${result.status}, latency ${result.latency}ms${result.error ? ` (${result.error})` : ''}`,
+      ),
+      '',
+      `Checked at: ${new Date().toISOString()}`,
+    ].join('\n'),
+  )
+}
+
 export default {
   ...worker,
 
@@ -166,6 +296,10 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    return worker.scheduled(event, withProductionAdapters(env), ctx)
+    const runtimeEnv = withProductionAdapters(env)
+    if (event.cron === HEALTH_CHECK_CRON) {
+      return runProductionHealthCheck(runtimeEnv, ctx)
+    }
+    return worker.scheduled(event, runtimeEnv, ctx)
   },
 }
