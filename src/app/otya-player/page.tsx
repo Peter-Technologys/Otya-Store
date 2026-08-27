@@ -1,161 +1,113 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata } from 'next'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
+import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
-  title: 'OTYA Player — Free Offline Media Player for Android',
-  description: 'OTYA Player is a free offline media player for Android built in Uganda. Play music and videos offline, share files via Flash Share, protect media in an encrypted Vault, and stream to any PC browser on Wi-Fi.',
+  title: 'OTYA Player — Offline Music & Video for Android',
+  description: 'OTYA Player by PeterSmart Link is an offline-first Android media experience for music, video, private media tools, sharing and playback controls.',
   alternates: { canonical: 'https://petersmartlink.com/otya-player' },
 }
 
-const WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z'
-
 const FEATURES = [
-  { emoji: '🎵', label: 'Audio Player', items: ['MP3, AAC, FLAC, OGG, M4A', 'Background playback with lock-screen controls', 'Shuffle, repeat, queue management', 'Speed control 0.5x–2.0x, sleep timer, 5-band EQ, synced lyrics'] },
-  { emoji: '🎬', label: 'Video Player', items: ['MP4, MKV, AVI, MOV, WebM', 'Hardware-accelerated, smooth playback', 'Gesture controls, Picture-in-Picture, subtitles', 'Double-tap to seek ±10 seconds'] },
-  { emoji: '🔒', label: 'Private Vault', items: ['AES-256 encryption', 'Fingerprint + PIN unlock', 'Files hidden from gallery and other apps', 'Extra security layer on file headers'] },
-  { emoji: '⚡', label: 'Flash Share', items: ['Send files phone-to-phone over Wi-Fi', 'No internet required', 'QR code connect, real-time progress'] },
-  { emoji: '🌐', label: 'Web Mirror', items: ['Stream your library to any PC browser on Wi-Fi', 'No cables needed', 'Search, stream, download from browser'] },
-  { emoji: '📊', label: 'Storage Analyzer', items: ['See what is using your storage', 'Clear cache in one tap', 'Auto-refresh when files change'] },
+  ['Audio', 'Background playback, queue, shuffle, repeat, speed, sleep timer, equalizer and lyrics.'],
+  ['Video', 'Hardware-accelerated playback, gestures, subtitles and Picture-in-Picture.'],
+  ['Private Vault', 'Protect selected local media with encrypted storage and device authentication.'],
+  ['Flash Share', 'Move files locally between devices without depending on mobile data.'],
+  ['Web Mirror', 'Access supported local media from a browser on the same Wi-Fi network.'],
+  ['Storage Tools', 'Understand media storage, find duplicates and keep the library organized.'],
 ]
 
-const SPECS = [
-  { label: 'Platform', value: 'Android 5.0+' },
-  { label: 'Size', value: '~35 MB' },
-  { label: 'Price', value: 'Free forever' },
-  { label: 'Internet', value: 'Not required' },
-  { label: 'Ads', value: 'Minimal' },
-  { label: 'Developer', value: 'PeterSmart Technologies' },
-]
+function OtyaMark({ size = 112 }: { size?: number }) {
+  return <div className="rounded-[30px] flex items-center justify-center border" style={{ width: size, height: size, borderColor: 'rgba(139,92,246,.32)', background: 'linear-gradient(145deg, rgba(139,92,246,.18), rgba(17,17,24,.98))', boxShadow: '0 24px 70px rgba(80,45,160,.24)' }}>
+    <svg width={Math.round(size * .46)} height={Math.round(size * .46)} viewBox="0 0 34 34" fill="none" aria-hidden="true">
+      <circle cx="17" cy="17" r="15" stroke="#A78BFA" strokeWidth="2" opacity=".88" />
+      <path d="M14 11.5L24 17L14 22.5V11.5Z" fill="#F7F5FF" />
+    </svg>
+  </div>
+}
 
-export default function OtyaPlayerPage() {
-  return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      <SiteNav />
+export default async function OtyaPlayerPage() {
+  let appVersion = '1.6.0'
+  try {
+    const { env } = await getCloudflareContext()
+    const kv = getKV(env as Record<string, unknown>)
+    const raw = await kv.get('LATEST_BUILD_INFO')
+    if (raw) appVersion = (JSON.parse(raw) as { version?: string }).version || appVersion
+  } catch {}
 
-      {/* Hero */}
-      <section className="border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, #0f0a1e 0%, #1a0a2e 50%, #0a1628 100%)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-          <div className="flex flex-col sm:flex-row items-center gap-10">
-            <div className="flex-1 text-center sm:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-5 border border-purple-500/30 bg-purple-500/10 text-purple-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Latest · v1.4.0 · Free · Android 5.0+
+  return <div className="min-h-screen flex flex-col" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+    <SiteNav />
+
+    <main className="flex-1">
+      <section className="relative overflow-hidden border-b" style={{ borderColor: 'var(--cosmos-divider)' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 70% 35%, rgba(124,58,237,.17), transparent 40%)' }} />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 relative">
+          <div className="grid lg:grid-cols-[1fr_.75fr] gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold mb-6" style={{ borderColor: 'rgba(139,92,246,.25)', background: 'rgba(139,92,246,.08)', color: '#C4B5FD' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Current release · v{appVersion}
               </div>
-              <h1 className="text-5xl sm:text-6xl font-black mb-4 leading-tight text-white">
-                OTYA<br />
-                <span style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Player</span>
-              </h1>
-              <p className="text-base leading-relaxed mb-3 max-w-lg text-slate-300">
-                The offline media player built in Uganda. Play any music or video without internet, share files phone-to-phone, lock private media in an encrypted vault, and stream your library to any PC browser on Wi-Fi.
-              </p>
-              <p className="text-sm mb-8 text-slate-500">by <span className="text-purple-400 font-semibold">PeterSmart Technologies</span> · Mbirizi, Uganda</p>
-              <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-                <Link href="/download/otya-player"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-bold text-sm"
-                  style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)', boxShadow: '0 4px 24px rgba(138,43,226,0.4)' }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Download Free APK
-                </Link>
-                <a href="https://wa.me/256775912582?text=Hi! I need help with OTYA Player" target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm text-white" style={{ background: '#25d366' }}>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d={WA} /></svg>
-                  WhatsApp Support
-                </a>
+              <p className="text-xs uppercase tracking-[.22em] font-semibold mb-4" style={{ color: 'var(--cosmos-primary)' }}>OTYA Player · by PeterSmart Link</p>
+              <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[.98] mb-6">Your media.<br/><span style={{ color: 'var(--cosmos-primary)' }}>Your way.</span></h1>
+              <p className="text-base sm:text-lg leading-relaxed max-w-2xl" style={{ color: 'var(--cosmos-text-secondary)' }}>A private, offline-first Android media experience for music and video, with useful playback, sharing and media-management tools built around your own files.</p>
+              <div className="flex flex-wrap gap-3 mt-8">
+                <Link href="/download/otya-player" className="cosmos-button px-6 py-3.5 rounded-xl font-bold text-sm">Download OTYA</Link>
+                <Link href="/apps/otya-player/support" className="px-6 py-3.5 rounded-xl border font-bold text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Support</Link>
+              </div>
+              <div className="flex flex-wrap gap-x-7 gap-y-2 mt-8 text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>
+                <span>Android</span><span>Offline first</span><span>No subscription</span><span>Local media</span>
               </div>
             </div>
-            <div className="flex-shrink-0">
-              <div className="relative w-44 h-44 sm:w-56 sm:h-56">
-                <div className="absolute inset-0 rounded-[32px] blur-3xl opacity-50" style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }} />
-                <div className="relative w-full h-full rounded-[32px] overflow-hidden" style={{ boxShadow: '0 24px 64px rgba(138,43,226,0.5)' }}>
-                  <Image src="/played-icon.png" alt="OTYA Player" fill style={{ objectFit: 'cover' }} priority />
-                </div>
-              </div>
-            </div>
+
+            <div className="flex justify-center lg:justify-end"><OtyaMark size={190} /></div>
           </div>
         </div>
       </section>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
-
-        {/* Quick specs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {SPECS.map(s => (
-            <div key={s.label} className="p-3 rounded-2xl border text-center" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-              <div className="text-xs font-bold mb-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
-              <div className="text-sm font-black" style={{ color: 'var(--text)' }}>{s.value}</div>
-            </div>
-          ))}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+        <div className="max-w-2xl mb-10">
+          <p className="text-xs uppercase tracking-[.2em] font-semibold mb-3" style={{ color: 'var(--cosmos-primary)' }}>Built around playback</p>
+          <h2 className="text-3xl sm:text-4xl font-black mb-3">More than a list of files.</h2>
+          <p className="leading-relaxed" style={{ color: 'var(--cosmos-text-secondary)' }}>OTYA connects your library, queue, artwork, background playback and system controls into one experience.</p>
         </div>
 
-        {/* Features */}
-        <div>
-          <h2 className="text-2xl font-black mb-6" style={{ color: 'var(--text)' }}>Everything you need, offline</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {FEATURES.map(f => (
-              <div key={f.label} className="p-5 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-2xl">{f.emoji}</span>
-                  <span className="font-bold text-sm" style={{ color: 'var(--text)' }}>{f.label}</span>
-                </div>
-                <ul className="space-y-1.5">
-                  {f.items.map(item => (
-                    <li key={item} className="flex items-start gap-2 text-xs" style={{ color: 'var(--text-sub)' }}>
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-[5px]" style={{ background: '#8A2BE2' }} />{item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FEATURES.map(([title, body], i) => <div key={title} className="modern-card p-6">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black mb-5" style={{ background: 'rgba(139,92,246,.10)', color: '#A78BFA' }}>{String(i + 1).padStart(2, '0')}</div>
+            <h3 className="font-black text-lg mb-2">{title}</h3>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--cosmos-text-secondary)' }}>{body}</p>
+          </div>)}
+        </div>
+      </section>
+
+      <section className="border-y" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 grid md:grid-cols-3 gap-7">
+          {[
+            ['Private by default', 'Normal playback happens on the device. Your local library is not uploaded just to play it.'],
+            ['Works offline', 'Core playback and library use remain useful without a mobile-data connection.'],
+            ['System integrated', 'Now Playing controls are designed for notifications, the lock screen and connected media controls.'],
+          ].map(([title, body]) => <div key={title}><h3 className="font-black mb-2">{title}</h3><p className="text-sm leading-relaxed" style={{ color: 'var(--cosmos-text-secondary)' }}>{body}</p></div>)}
+        </div>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+        <div className="rounded-[28px] border p-7 sm:p-10 flex flex-col md:flex-row md:items-center justify-between gap-8" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(145deg, rgba(20,20,28,.95), rgba(10,10,15,.96))' }}>
+          <div className="flex items-center gap-5"><OtyaMark size={74} /><div><p className="text-xs uppercase tracking-[.18em] font-semibold mb-2" style={{ color: 'var(--cosmos-primary)' }}>OTYA Player v{appVersion}</p><h2 className="text-2xl sm:text-3xl font-black">Ready for your Android phone.</h2></div></div>
+          <div className="flex flex-wrap gap-3"><Link href="/download/otya-player" className="cosmos-button px-5 py-3 rounded-xl font-bold text-sm">Get OTYA</Link><Link href="/apps/otya-player/changelog" className="px-5 py-3 rounded-xl border font-bold text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Changelog</Link></div>
         </div>
 
-        {/* Download CTA */}
-        <div className="rounded-2xl p-8 text-center" style={{ background: 'linear-gradient(135deg, #0f0a1e, #1a0a2e)' }}>
-          <Image src="/played-icon.png" alt="OTYA Player" width={64} height={64}
-            className="rounded-2xl mx-auto mb-4" style={{ display: 'block', boxShadow: '0 8px 32px rgba(138,43,226,0.4)' }} />
-          <h3 className="text-2xl font-black text-white mb-2">Download OTYA Player</h3>
-          <p className="text-sm text-slate-400 mb-6">Free. No subscription. No internet required. Works on all Android phones.</p>
-          <div className="flex flex-wrap gap-3 justify-center">
-            <Link href="/download/otya-player"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-bold text-sm"
-              style={{ background: 'linear-gradient(135deg, #8A2BE2, #00BFFF)' }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              Download APK
-            </Link>
-            <Link href="/apps/otya-player/changelog"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border border-white/20 text-slate-300 hover:border-purple-400">
-              Changelog
-            </Link>
-          </div>
+        <div className="mt-8 flex flex-wrap gap-2">
+          <Link href="/apps/otya-player/privacy" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Privacy Policy</Link>
+          <Link href="/apps/otya-player/terms" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Terms of Service</Link>
+          <Link href="/apps/otya-player/support" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Support &amp; FAQ</Link>
         </div>
+      </section>
+    </main>
 
-        {/* Legal links */}
-        <div className="rounded-2xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--card-border)' }}>
-          <h3 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: 'var(--text-muted)' }}>Legal & Support</h3>
-          <div className="flex flex-wrap gap-2">
-            {([
-              ['Privacy Policy', '/apps/otya-player/privacy'],
-              ['Terms of Service', '/apps/otya-player/terms'],
-              ['Support & FAQ', '/apps/otya-player/support'],
-            ] as [string, string][]).map(([l, h]) => (
-              <Link key={l} href={h}
-                className="px-4 py-2 rounded-xl text-sm font-medium border hover:border-purple-400 transition-colors"
-                style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--bg)' }}>{l}</Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="text-center pb-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--purple)' }}>
-            ← Back to PeterSmart Technologies
-          </Link>
-        </div>
-      </div>
-
-      <SiteFooter />
-    </div>
-  )
+    <SiteFooter />
+  </div>
 }
