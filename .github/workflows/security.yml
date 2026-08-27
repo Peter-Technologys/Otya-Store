@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----' -- ':!*.md'; then
+          if git grep -n -I -E -- '^-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----$' -- ':!*.md'; then
             echo '::error::Private-key material detected in tracked source.'
             exit 1
           fi
