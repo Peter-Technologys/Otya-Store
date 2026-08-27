@@ -1,82 +1,39 @@
-# OTYA Backend — API, Authentication & Distribution
+# OTYA Platform Backend
 
-The backend infrastructure of the **OTYA System**, serving OTYA Player and system services. It provides authentication integration, application APIs, cloud sync, APK distribution, administration, notifications, and supporting platform services.
+The private production backend for the OTYA System by PeterSmartLink.
 
-**Live at:** https://petersmartlink.com
+**Official service:** https://petersmartlink.com
 
-## OTYA System architecture
+This repository contains production infrastructure for OTYA account services, application APIs, secure recovery, release delivery, notifications and supporting platform services.
 
-- **OTYA Player** — the client application.
-- **OTYA Auth** — the authentication Worker. OTP is an authentication feature, not a separate service.
-- **OTYA Backend** — the main backend Worker and platform API.
+## Production principles
 
-## What OTYA Backend does
+- Real server-side authentication and session management
+- Server-side Google identity verification
+- Explicit opt-in recovery backup support
+- Transactional email through server-side providers
+- Signed application release delivery
+- Cloudflare Workers-based production infrastructure
+- Security scanning and dependency review through GitHub Actions
+- Secrets stored in protected platform/GitHub secret stores, never in client code
 
-- **Authentication integration** — communicates with OTYA Auth through the Cloudflare Service Binding.
-- **App sync** — device registration, FCM tokens, EQ presets, playlists, and history.
-- **APK distribution** — R2-backed release streaming with rate limiting and analytics.
-- **Update checker** — version comparison for in-app update prompts.
-- **Push notifications** — FCM delivery and re-engagement processing.
-- **Pro subscriptions** — expiry management and payment webhook processing where enabled.
-- **Administration** — release management and platform statistics.
-- **Blog/CMS** — application news and updates.
+## Public product information
 
-## Public endpoints
+Customer-facing product information, downloads, support and release notices are published through the official OTYA/PeterSmartLink channels rather than this source repository.
 
-| Route | Description |
-|---|---|
-| `GET /` | Redirects to the download page |
-| `GET /version` | Current version information |
-| `GET /latest` | Version and download links JSON |
-| `GET /download` | Detects device ABI and redirects to APK |
-| `GET /apk/arm64` | Streams the arm64 APK from R2 |
-| `GET /apk/arm32` | Streams the arm32 APK from R2 |
-| `GET /stats` | Download analytics from D1 |
-
-## Cloudflare resources
-
-| Binding | Type | Resource | Purpose |
-|---|---|---|---|
-| `R2` | R2 Bucket | `otya-player-releases` | OTYA Player release storage |
-| `KV` | KV Namespace | `otya-store-kv` | Version/cache data |
-| `DB` | D1 Database | `otya-store-db` | Backend analytics and version data |
-| `RATE_LIMITER` | Rate Limit | — | Download/API protection |
-| `AUTH` | Service Binding | `otya-auth` | Authentication service |
-
-Email sending should use the server-side Resend integration where configured. Do not add Resend credentials to source code or the Flutter client.
-
-## R2 release structure
-
-Bucket: `otya-player-releases`
-
-```text
-version.json
-releases/
-  v1.0.0/
-    otya-player-v1.0.0-arm64.apk
-    otya-player-v1.0.0-arm32.apk
-```
-
-## Development and deployment
-
-`otya-next` is the development branch. `main` is the stable branch.
-
-Changes should be tested on `otya-next`, reviewed, and then merged into `main` before production deployment.
-
-### Required Cloudflare credentials
-
-Cloudflare credentials belong in GitHub/Cloudflare secret storage and must never be committed.
-
-### Manual deployment
-
-```bash
-npm install
-npm run deploy
-```
+- Website: https://petersmartlink.com
+- OTYA Player: https://petersmartlink.com/download/otya-player
 
 ## Security
 
-- Keep authentication secrets and provider API keys in Worker secrets.
-- Never expose Resend or Cloudflare credentials to OTYA Player.
-- Validate and authenticate backend requests before accessing protected data.
-- Do not remove production bindings or databases without verifying dependencies first.
+Do not report vulnerabilities in public issues. Follow [SECURITY.md](SECURITY.md) for the private reporting process.
+
+## Source and licensing
+
+The OTYA backend is proprietary software and production infrastructure. Source code, deployment configuration, schemas, internal routes, operational documentation and platform integration logic may not be copied, redistributed, modified or commercially reused without prior written permission from PeterSmartLink, except for third-party components governed by their own licenses.
+
+See [LICENSE](LICENSE).
+
+---
+
+**OTYA System · PeterSmartLink**
