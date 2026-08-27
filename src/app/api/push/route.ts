@@ -5,21 +5,20 @@ import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 import { getFcmAccessToken, sendFcmWithToken } from '@/lib/fcm'
 
-// POST /api/push — Admin-only: send FCM push notification
-// Uses the same HMAC auth as all other endpoints (X-Otya-Timestamp + X-Otya-Signature).
+// POST /api/push — Admin-only: send FCM push notification.
+// Admin requests remain protected by the Worker-side HMAC/admin secret; this
+// secret is never embedded in the Flutter APK.
 //
 // Body:
 // {
 //   "title":    "New update!",
 //   "body":     "OTYA Player v1.5.0 is available.",
-//   "url":      "https://petersmartlink.com/download",  // optional
-//   "deviceId": "abc123"                                // optional — omit to broadcast all
+//   "url":      "https://petersmartlink.com/download/otya-player", // optional
+//   "deviceId": "abc123"                                         // optional
 // }
-//
-// Uses FCM HTTP v1 API with OAuth2 service account credentials.
-// Set FCM_SERVICE_ACCOUNT_JSON to the Firebase service account JSON key (Worker secret).
 
-const CHUNK_SIZE = 100  // FCM v1 processes tokens in batches; keep chunks small for reliability
+const CHUNK_SIZE = 100
+const OTYA_DOWNLOAD_URL = 'https://petersmartlink.com/download/otya-player'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
@@ -30,7 +29,6 @@ const CORS_HEADERS = {
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Verify HMAC (consistent with all other endpoints) ─────────────────
   const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
   if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
 
@@ -39,7 +37,13 @@ export async function POST(req: NextRequest) {
     return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
   }
 
-  const body = await req.json() as Record<string, string>
+  let body: Record<string, string>
+  try {
+    body = await req.json() as Record<string, string>
+  } catch {
+    return errorJson('Invalid JSON body', 400)
+  }
+
   const { title, body: msgBody, url, deviceId } = body
   if (!title || !msgBody) {
     return errorJson('title and body required', 400)
@@ -47,7 +51,6 @@ export async function POST(req: NextRequest) {
 
   const db = getDB(env as Record<string, unknown>)
 
-  // ── 2. Fetch FCM tokens (paginated — no hardcoded LIMIT 500) ─────────────
   let tokens: string[] = []
   if (deviceId) {
     const row = await db.prepare(
@@ -55,7 +58,6 @@ export async function POST(req: NextRequest) {
     ).bind(deviceId).first<{ fcm_token: string }>()
     if (row?.fcm_token) tokens = [row.fcm_token]
   } else {
-    // Paginate through all devices in batches of 1000
     let offset = 0
     const pageSize = 1000
     while (true) {
@@ -68,16 +70,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Avoid duplicate sends when the same token was accidentally registered on
+  // more than one stale device row.
+  tokens = [...new Set(tokens.filter(Boolean))]
+
   if (tokens.length === 0) {
     return secureJson({ ok: true, sent: 0, message: 'No registered devices', ts: Date.now() })
   }
 
   const sa = JSON.parse(serviceAccountJson) as { project_id: string }
-  const link = url ?? 'https://petersmartlink.com/download'
+  const link = url?.trim() || OTYA_DOWNLOAD_URL
 
-  // ── 3. Get OAuth2 token ONCE, then send in chunks ─────────────────────────
-  // getFcmAccessToken makes a full JWT + Google OAuth2 roundtrip. Calling it
-  // once here (not per-chunk) saves N-1 network calls for large device lists.
   let accessToken: string
   try {
     accessToken = await getFcmAccessToken(serviceAccountJson)
