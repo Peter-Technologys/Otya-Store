@@ -2,6 +2,7 @@ name = "otya-store"
 main = "src/queue-worker.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 routes = [
   { pattern = "petersmartlink.com", custom_domain = true },
   { pattern = "www.petersmartlink.com", custom_domain = true }
@@ -14,6 +15,11 @@ enabled = true
 ENVIRONMENT = "production"
 APP_NAME    = "OTYA Backend"
 WEBSITE_URL = "https://petersmartlink.com"
+
+# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are configured in the live
+# Cloudflare Worker environment. keep_vars=true prevents Wrangler/OpenNext
+# deployments from deleting live dashboard-managed vars/secrets that are not
+# committed to this repository. Never commit secret values here.
 
 [assets]
 directory = ".open-next/assets"
