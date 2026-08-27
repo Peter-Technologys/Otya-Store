@@ -1,33 +1,36 @@
 // app/api/sync/route.ts
 // POST /api/sync
-// Called by the app when the user comes online.
-// Updates last_seen_at, optionally updates fcm_token, checks for outdated version,
-// and queues targeted push/welcome-back notifications via AI_QUEUE.
-//
-// Auth: JWT (Bearer token) takes priority — user_id is linked from the token.
-//       Falls back to HMAC for backward compatibility.
+// Called when the app comes online. Anonymous installation sync is supported;
+// a verified JWT is required only to link a device to an account.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
 import { dualAuth } from '@/lib/auth-service'
 import { secureJson, errorJson } from '@/lib/response'
-import { getDB } from '@/lib/d1'
+import { getDB, getKV } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Device-Id',
+}
+
+function cleanText(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  return text ? text.slice(0, max) : null
+}
+
+function versionCode(value: unknown): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0
 }
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
-
-  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
   const auth = await dualAuth(req, env, verifyRequest)
-  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: Record<string, unknown>
   try {
     body = await req.json() as Record<string, unknown>
@@ -35,96 +38,116 @@ export async function POST(req: NextRequest) {
     return errorJson('Invalid JSON body', 400)
   }
 
-  const { device_id, version_code, app_version, abi, fcm_token } = body
+  const deviceId = cleanText(body.device_id, 128)
+  if (!deviceId) return errorJson('device_id is required', 400)
 
-  if (!device_id || typeof device_id !== 'string') {
-    return errorJson('device_id is required', 400)
-  }
-
-  const versionCodeNum = version_code != null ? Number(version_code) : 0
-  // JWT auth: link device to authenticated user_id (cannot be spoofed)
+  const currentVersionCode = versionCode(body.version_code)
+  const appVersion = cleanText(body.app_version, 64)
+  const abi = cleanText(body.abi, 32)
+  const fcmToken = cleanText(body.fcm_token, 4096)
   const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : null
   const db = getDB(env as Record<string, unknown>)
 
-  // ── 3. Fetch current device record ───────────────────────────────────────
   const existing = await db.prepare(
     'SELECT last_seen_at, version_code FROM devices WHERE device_id = ?'
-  ).bind(device_id).first<{ last_seen_at: string; version_code: number }>()
+  ).bind(deviceId).first<{ last_seen_at: string; version_code: number }>()
 
-  // ── 4. Upsert device — update last_seen_at and optionally fcm_token/user_id
   await db.prepare(`
     INSERT INTO devices
       (device_id, user_id, app_version, version_code, abi, fcm_token, last_seen_at, registered_at)
     VALUES
       (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'), datetime('now'))
     ON CONFLICT(device_id) DO UPDATE SET
-      user_id      = COALESCE(?2,  devices.user_id),
-      app_version  = COALESCE(?3,  devices.app_version),
-      version_code = COALESCE(?4,  devices.version_code),
-      abi          = COALESCE(?5,  devices.abi),
-      fcm_token    = COALESCE(?6,  devices.fcm_token),
+      user_id      = COALESCE(?2, devices.user_id),
+      app_version  = COALESCE(?3, devices.app_version),
+      version_code = CASE WHEN ?4 > 0 THEN ?4 ELSE devices.version_code END,
+      abi          = COALESCE(?5, devices.abi),
+      fcm_token    = COALESCE(?6, devices.fcm_token),
       last_seen_at = datetime('now')
   `).bind(
-    device_id,
-    resolvedUserId   ?? null,
-    app_version      ?? null,
-    versionCodeNum   || null,
-    abi              ?? null,
-    fcm_token        ?? null,
+    deviceId,
+    resolvedUserId,
+    appVersion,
+    currentVersionCode,
+    abi,
+    fcmToken,
   ).run()
 
-  // ── 5. Fetch latest release from D1 (graceful fallback if table empty) ───
+  let latestVersion = '0.0.0'
+  let latestVersionCode = 0
+  let latestChangelog = ''
+
+  // Prefer the releases table, then fall back to the release metadata written
+  // atomically by the GitHub → R2 publisher.
   const latestRelease = await db.prepare(
     'SELECT version, version_code, changelog FROM releases ORDER BY version_code DESC LIMIT 1'
   ).first<{ version: string; version_code: number; changelog: string | null }>()
-    .catch(() => null)   // table may not exist yet in dev / fresh deploy
+    .catch(() => null)
 
-  const latestVersionCode = latestRelease?.version_code ?? 0
-  const latestVersion     = latestRelease?.version      ?? '0.0.0'
-  const upToDate          = versionCodeNum >= latestVersionCode
+  if (latestRelease) {
+    latestVersion = latestRelease.version
+    latestVersionCode = latestRelease.version_code
+    latestChangelog = latestRelease.changelog ?? ''
+  } else {
+    try {
+      const raw = await getKV(env as Record<string, unknown>).get('LATEST_BUILD_INFO')
+      if (raw) {
+        const info = JSON.parse(raw) as Record<string, unknown>
+        latestVersion = cleanText(info.version, 64) ?? latestVersion
+        latestVersionCode = versionCode(info.versionCode ?? info.build_number ?? info.version_code)
+        latestChangelog = cleanText(info.changelog ?? info.release_notes, 2000) ?? ''
+      }
+    } catch { /* keep safe defaults */ }
+  }
 
-  // ── 6. Queue notifications if needed (fire-and-forget, never throws) ─────
+  const upToDate = latestVersionCode <= 0 || currentVersionCode >= latestVersionCode
+
+  let daysSince = 0
+  if (existing?.last_seen_at) {
+    const previous = new Date(existing.last_seen_at).getTime()
+    if (Number.isFinite(previous)) {
+      daysSince = Math.max(0, Math.floor((Date.now() - previous) / 86_400_000))
+    }
+  }
+  const welcomeBack = daysSince >= 7
+
   const aiQueue = (env as Record<string, unknown>).AI_QUEUE as
     | { send(body: unknown): Promise<void> }
     | undefined
 
   if (aiQueue) {
-    if (!upToDate && latestRelease) {
+    if (!upToDate && latestVersionCode > 0) {
       void aiQueue.send({
-        type:      'send_update_notification',
-        version:   latestRelease.version,
-        changelog: latestRelease.changelog ?? '',
-        deviceId:  device_id,
-      }).catch(() => { /* non-fatal */ })
+        type: 'send_update_notification',
+        version: latestVersion,
+        changelog: latestChangelog,
+        deviceId,
+      }).catch(() => {})
     }
 
-    if (existing?.last_seen_at) {
-      const daysSince = Math.floor(
-        (Date.now() - new Date(existing.last_seen_at).getTime()) / 86_400_000,
-      )
-      if (daysSince >= 7) {
-        void aiQueue.send({
-          type:      'send_update_notification',
-          version:   latestVersion,
-          changelog: `Welcome back! It's been ${daysSince} days. Check out what's new.`,
-          deviceId:  device_id,
-        }).catch(() => { /* non-fatal */ })
-      }
+    if (welcomeBack) {
+      void aiQueue.send({
+        type: 'send_update_notification',
+        version: latestVersion,
+        changelog: `Welcome back! It's been ${daysSince} days. Check out what's new.`,
+        deviceId,
+      }).catch(() => {})
     }
   }
 
-  // ── 7. Respond ────────────────────────────────────────────────────────────
   return secureJson({
     upToDate,
     latestVersion,
     latestVersionCode,
+    welcomeBack,
     message: upToDate
-      ? 'You are up to date.'
+      ? (welcomeBack ? 'Welcome back! You are up to date.' : 'You are up to date.')
       : `Update available: ${latestVersion}`,
+    authenticated: auth.mode !== 'none',
     ts: Date.now(),
   })
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
