@@ -214,10 +214,16 @@ async function revokeAllRefreshTokens(kv: KVNamespace, userId: string): Promise<
 
 // ── Registration / OTP rate limiting helpers (Task 2) ────────────────────────
 
-const REG_RATE_TTL_SECS  = 60 * 60  // 1 hour
-const OTP_RATE_TTL_SECS  = 60 * 60  // 1 hour
-const MAX_REG_PER_IP     = 5
-const MAX_OTP_PER_EMAIL  = 3
+const REG_RATE_TTL_SECS       = 60 * 60  // 1 hour
+const OTP_RATE_TTL_SECS       = 60 * 60  // 1 hour
+const VERIFY_RATE_TTL_SECS    = 60 * 60  // 1 hour
+const VERIFY_ATTEMPT_TTL_SECS = 10 * 60  // 10 minutes
+const RESET_ATTEMPT_TTL_SECS  = 10 * 60  // 10 minutes
+const MAX_REG_PER_IP          = 5
+const MAX_OTP_PER_EMAIL       = 3
+const MAX_VERIFY_SENDS        = 3
+const MAX_VERIFY_ATTEMPTS     = 8
+const MAX_RESET_ATTEMPTS      = 8
 
 interface RateLimitResult {
   allowed: boolean
@@ -715,9 +721,19 @@ async function handleResetPassword(req: Request, env: Env): Promise<Response> {
   }
 
   const normalizedEmail = (email as string).toLowerCase().trim()
-  const storedOtp       = await env.AUTH_KV.get(`otp:${normalizedEmail}`)
+  const resetRate = await checkRateLimit(
+    env.AUTH_KV,
+    `reset_attempt:${normalizedEmail}:${getClientIp(req)}`,
+    MAX_RESET_ATTEMPTS,
+    RESET_ATTEMPT_TTL_SECS,
+  )
+  if (!resetRate.allowed) {
+    return jsonErr('Too many reset attempts. Request a new code and try again later.', env, 429)
+  }
 
-  if (!storedOtp || storedOtp !== otp) {
+  const storedOtp = await env.AUTH_KV.get(`otp:${normalizedEmail}`)
+
+  if (!storedOtp || storedOtp.toUpperCase() !== otp.trim().toUpperCase()) {
     return jsonErr('Invalid or expired OTP', env, 401)
   }
 
@@ -727,8 +743,10 @@ async function handleResetPassword(req: Request, env: Env): Promise<Response> {
   const newHash = await hashPassword(new_password as string)
   await updatePasswordHash(env.AUTH_DB, user.id, newHash)
   await env.AUTH_KV.delete(`otp:${normalizedEmail}`)
+  await env.AUTH_KV.delete(`reset_attempt:${normalizedEmail}:${getClientIp(req)}`)
+  await revokeAllRefreshTokens(env.AUTH_KV, user.id)
 
-  return jsonOk({ ok: true, message: 'Password updated successfully.' }, env)
+  return jsonOk({ ok: true, message: 'Password updated successfully. Please sign in again.' }, env)
 }
 
 /** POST /auth/delete-account */
@@ -793,6 +811,13 @@ async function handleSendVerification(req: Request, env: Env): Promise<Response>
     return jsonOk({ ok: true, message: 'Email already verified.' }, env)
   }
 
+  const sendRate = await checkRateLimit(
+    env.AUTH_KV, `verify_send:${payload.sub}`, MAX_VERIFY_SENDS, VERIFY_RATE_TTL_SECS,
+  )
+  if (!sendRate.allowed) {
+    return jsonErr('Too many verification codes requested. Try again later.', env, 429)
+  }
+
   try {
     await sendVerificationOtp(env, user.id, user.email)
   } catch (e) {
@@ -817,6 +842,13 @@ async function handleVerifyEmail(req: Request, env: Env): Promise<Response> {
     return jsonErr('otp is required', env, 400)
   }
 
+  const verifyRate = await checkRateLimit(
+    env.AUTH_KV, `verify_attempt:${payload.sub}`, MAX_VERIFY_ATTEMPTS, VERIFY_ATTEMPT_TTL_SECS,
+  )
+  if (!verifyRate.allowed) {
+    return jsonErr('Too many verification attempts. Request a new code and try again later.', env, 429)
+  }
+
   const storedOtp = await env.AUTH_KV.get(`verify_otp:${payload.sub}`)
   if (!storedOtp) {
     return jsonErr('No pending verification OTP — request a new one', env, 400)
@@ -837,6 +869,7 @@ async function handleVerifyEmail(req: Request, env: Env): Promise<Response> {
   }
 
   await env.AUTH_KV.delete(`verify_otp:${payload.sub}`)
+  await env.AUTH_KV.delete(`verify_attempt:${payload.sub}`)
 
   return jsonOk({ ok: true, message: 'Email verified successfully.' }, env)
 }
