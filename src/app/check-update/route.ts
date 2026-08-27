@@ -13,30 +13,52 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const CACHE_HEADERS = {
+  ...CORS_HEADERS,
+  'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
+}
+
+function asVersionCode(data: Record<string, unknown>): number {
+  const raw = data.versionCode ?? data.build_number ?? data.version_code ?? 0
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.trunc(raw) : 0
+  if (typeof raw === 'string') {
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value : fallback
+}
+
+function normaliseRelease(data: Record<string, unknown>) {
+  const workerUrl = asString(data.workerUrl, 'https://petersmartlink.com').replace(/\/$/, '')
+  return {
+    versionCode:  asVersionCode(data),
+    version:      asString(data.version),
+    changelog:    asString(data.changelog ?? data.release_notes, 'Bug fixes and improvements.'),
+    force_update: Boolean(data.force_update),
+    download_url: asString(data.download_url, `${workerUrl}/download/otya-player`),
+  }
+}
+
 export async function GET(_req: NextRequest) {
   try {
     const { env } = await getCloudflareContext({ async: true })
 
-    // 1. KV — fastest, written by publish_r2.sh immediately after upload
+    // 1. KV — fastest, written by publish_r2.sh immediately after upload.
+    // publish_r2.sh historically used build_number/release_notes, so normalize
+    // those names here to the exact versionCode/changelog contract Android reads.
     try {
       const kv  = getKV(env as Record<string, unknown>)
       const raw = await kv.get('LATEST_BUILD_INFO')
       if (raw) {
         const data = JSON.parse(raw) as Record<string, unknown>
-        return NextResponse.json({
-          versionCode:   data.versionCode   ?? 0,
-          version:       data.version       ?? '',
-          changelog:     data.changelog     ?? 'Bug fixes and improvements.',
-          force_update:  data.force_update  ?? false,
-          download_url:  data.workerUrl
-            ? `${data.workerUrl}/download/otya-player`
-            : 'https://petersmartlink.com/download/otya-player',
-        }, {
-          headers: {
-            ...CORS_HEADERS,
-            'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
-          },
-        })
+        const release = normaliseRelease(data)
+        if (release.versionCode > 0 && release.version) {
+          return NextResponse.json(release, { headers: CACHE_HEADERS })
+        }
       }
     } catch { /* fall through */ }
 
@@ -47,18 +69,10 @@ export async function GET(_req: NextRequest) {
         'SELECT version_code, version, changelog, force_update, download_url FROM releases ORDER BY version_code DESC LIMIT 1'
       ).first<Record<string, unknown>>()
       if (row) {
-        return NextResponse.json({
-          versionCode:  row.version_code,
-          version:      row.version,
-          changelog:    row.changelog     ?? 'Bug fixes and improvements.',
-          force_update: Boolean(row.force_update),
-          download_url: row.download_url  ?? 'https://petersmartlink.com/download/otya-player',
-        }, {
-          headers: {
-            ...CORS_HEADERS,
-            'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
-          },
-        })
+        const release = normaliseRelease(row)
+        if (release.versionCode > 0 && release.version) {
+          return NextResponse.json(release, { headers: CACHE_HEADERS })
+        }
       }
     } catch { /* fall through */ }
 
@@ -70,18 +84,10 @@ export async function GET(_req: NextRequest) {
       const obj = await r2.get('version.json')
       if (obj) {
         const data = JSON.parse(await obj.text()) as Record<string, unknown>
-        return NextResponse.json({
-          versionCode:  data.versionCode ?? 0,
-          version:      data.version     ?? '',
-          changelog:    data.changelog   ?? 'Bug fixes and improvements.',
-          force_update: false,
-          download_url: 'https://petersmartlink.com/download/otya-player',
-        }, {
-          headers: {
-            ...CORS_HEADERS,
-            'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
-          },
-        })
+        const release = normaliseRelease(data)
+        if (release.versionCode > 0 && release.version) {
+          return NextResponse.json(release, { headers: CACHE_HEADERS })
+        }
       }
     } catch { /* fall through */ }
 
