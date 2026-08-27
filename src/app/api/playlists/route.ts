@@ -11,9 +11,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
-// GET /api/playlists?user_id=xxx
 export async function GET(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
@@ -29,20 +28,26 @@ export async function GET(req: NextRequest) {
   return secureJson({ playlists: results, ts: Date.now() })
 }
 
-// POST /api/playlists — upsert
 export async function POST(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  const body = await req.json() as Record<string, string>
-  const { id, name, media_ids } = body
-  const user_id = body.user_id
+  let body: Record<string, string>
+  try {
+    body = await req.json() as Record<string, string>
+  } catch {
+    return errorJson('Invalid JSON body', 400)
+  }
 
-  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : user_id
+  const id = body.id?.trim()
+  const name = body.name?.trim()
+  const mediaIds = body.media_ids ?? '[]'
+  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : body.user_id?.trim()
   if (!id || !resolvedUserId || !name) {
     return errorJson('id, user_id, name required', 400)
   }
+
   const db  = getDB(env as Record<string, unknown>)
   const now = new Date().toISOString()
   await db.prepare(`
@@ -52,26 +57,38 @@ export async function POST(req: NextRequest) {
       name       = excluded.name,
       media_ids  = excluded.media_ids,
       updated_at = excluded.updated_at
-  `).bind(id, resolvedUserId, name, media_ids ?? '[]', now, now).run()
+  `).bind(id, resolvedUserId, name.slice(0, 200), mediaIds, now, now).run()
   return secureJson({ ok: true, ts: Date.now() })
 }
 
-// DELETE /api/playlists — body: { id, user_id }
+// Flutter sends DELETE query parameters. Accept an optional JSON body as a
+// backwards-compatible fallback, but ownership always comes from JWT when used.
 export async function DELETE(req: NextRequest) {
-  const { env } = await getCloudflareContext()
+  const { env } = await getCloudflareContext({ async: true })
   const auth = await dualAuth(req, env, verifyRequest)
   if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  const body = await req.json() as Record<string, string>
-  const { id } = body
-  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : body.user_id
-  if (!id || !resolvedUserId) return errorJson('id, user_id required', 400)
+  let id = req.nextUrl.searchParams.get('id')?.trim() ?? ''
+  let legacyUserId = req.nextUrl.searchParams.get('user_id')?.trim() ?? ''
+
+  if (!id) {
+    try {
+      const body = await req.json() as Record<string, string>
+      id = body.id?.trim() ?? ''
+      legacyUserId = legacyUserId || body.user_id?.trim() || ''
+    } catch { /* query-string form needs no body */ }
+  }
+
+  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : legacyUserId
+  if (!id || !resolvedUserId) return errorJson('id and user_id required', 400)
 
   const db = getDB(env as Record<string, unknown>)
-  await db.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').bind(id, resolvedUserId).run()
+  await db.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?')
+    .bind(id, resolvedUserId)
+    .run()
   return secureJson({ ok: true, ts: Date.now() })
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
