@@ -1,0 +1,16 @@
+# OTYA Store/backend ownership
+* @PeterSmartLink
+
+# Deployment and Cloudflare configuration
+/.github/workflows/ @PeterSmartLink
+/wrangler.toml @PeterSmartLink
+/auth-worker/wrangler.toml @PeterSmartLink
+
+# Authentication and email
+/auth-worker/ @PeterSmartLink
+
+# Production APIs, queues and release workflow
+/src/app/api/ @PeterSmartLink
+/src/entrypoint.mjs @PeterSmartLink
+/src/queue-worker.mjs @PeterSmartLink
+/src/release-workflow.mjs @PeterSmartLink
