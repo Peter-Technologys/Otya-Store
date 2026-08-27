@@ -18,6 +18,46 @@ function json(data, status = 200) {
   })
 }
 
+function createResendEmailAdapter(env) {
+  return {
+    async send(message) {
+      if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured')
+      const from = message?.from?.name
+        ? `${message.from.name} <${message.from.email}>`
+        : message?.from?.email
+      const to = Array.isArray(message?.to)
+        ? message.to.map((recipient) => recipient.email).filter(Boolean)
+        : []
+      if (!from || to.length === 0) throw new Error('Invalid email envelope')
+
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to,
+          subject: message.subject,
+          text: message.text,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.id) {
+        throw new Error(`Resend email failed: ${data.message ?? data.name ?? `HTTP ${response.status}`}`)
+      }
+    },
+  }
+}
+
+function withProductionAdapters(env) {
+  return {
+    ...env,
+    EMAIL: createResendEmailAdapter(env),
+  }
+}
+
 function analyticsPath(pathname) {
   if (pathname.startsWith('/auth/')) return '/auth/*'
   if (pathname.startsWith('/apk/')) return '/apk/*'
@@ -49,19 +89,20 @@ export default {
   ...worker,
 
   async fetch(request, env, ctx) {
+    const runtimeEnv = withProductionAdapters(env)
     const startedAt = Date.now()
     const url = new URL(request.url)
     let response
 
     if (url.pathname === '/api/admin/release-workflow' && request.method === 'POST') {
-      if (!isAdmin(request, env)) {
+      if (!isAdmin(request, runtimeEnv)) {
         response = json({ error: 'Unauthorized' }, 401)
-      } else if (!env.OTYA_RELEASE_WORKFLOW?.create) {
+      } else if (!runtimeEnv.OTYA_RELEASE_WORKFLOW?.create) {
         response = json({ error: 'Release workflow binding unavailable' }, 503)
       } else {
         try {
           const params = await request.json()
-          const instance = await env.OTYA_RELEASE_WORKFLOW.create({ params })
+          const instance = await runtimeEnv.OTYA_RELEASE_WORKFLOW.create({ params })
           response = json({ ok: true, instanceId: instance.id, status: 'queued' }, 202)
         } catch (error) {
           response = json({
@@ -70,14 +111,14 @@ export default {
           }, 400)
         }
       }
-      writeRequestAnalytics(env, request, response, startedAt)
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt)
       return response
     }
 
     if (url.pathname === '/api/admin/release-workflow/status' && request.method === 'GET') {
-      if (!isAdmin(request, env)) {
+      if (!isAdmin(request, runtimeEnv)) {
         response = json({ error: 'Unauthorized' }, 401)
-      } else if (!env.OTYA_RELEASE_WORKFLOW?.get) {
+      } else if (!runtimeEnv.OTYA_RELEASE_WORKFLOW?.get) {
         response = json({ error: 'Release workflow binding unavailable' }, 503)
       } else {
         const id = url.searchParams.get('id')
@@ -85,19 +126,19 @@ export default {
           response = json({ error: 'id is required' }, 400)
         } else {
           try {
-            const instance = await env.OTYA_RELEASE_WORKFLOW.get(id)
+            const instance = await runtimeEnv.OTYA_RELEASE_WORKFLOW.get(id)
             response = json({ ok: true, instanceId: id, workflow: await instance.status() })
           } catch {
             response = json({ error: 'Workflow instance not found' }, 404)
           }
         }
       }
-      writeRequestAnalytics(env, request, response, startedAt)
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt)
       return response
     }
 
     if (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) {
-      if (!env.AUTH?.fetch) {
+      if (!runtimeEnv.AUTH?.fetch) {
         response = new Response(
           JSON.stringify({ error: 'Authentication service unavailable' }),
           {
@@ -109,14 +150,22 @@ export default {
           },
         )
       } else {
-        response = await env.AUTH.fetch(request)
+        response = await runtimeEnv.AUTH.fetch(request)
       }
-      writeRequestAnalytics(env, request, response, startedAt)
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt)
       return response
     }
 
-    response = await worker.fetch(request, env, ctx)
-    writeRequestAnalytics(env, request, response, startedAt)
+    response = await worker.fetch(request, runtimeEnv, ctx)
+    writeRequestAnalytics(runtimeEnv, request, response, startedAt)
     return response
+  },
+
+  async queue(batch, env, ctx) {
+    return worker.queue(batch, withProductionAdapters(env), ctx)
+  },
+
+  async scheduled(event, env, ctx) {
+    return worker.scheduled(event, withProductionAdapters(env), ctx)
   },
 }
