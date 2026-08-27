@@ -48,25 +48,35 @@ export const metadata: Metadata = {
     siteName: 'OTYA System',
     title: 'OTYA System — OTYA Player & Platform',
     description: 'The official home of OTYA System and OTYA Player.',
-    images: [{ url: '/og-image.svg', width: 1200, height: 630, alt: 'OTYA System', type: 'image/svg+xml' }],
+    images: [{
+      url: '/og-image.jpg',
+      width: 1200,
+      height: 630,
+      alt: 'OTYA Player — Your Sound, Your Way',
+      type: 'image/jpeg',
+    }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'OTYA System — OTYA Player & Platform',
     description: 'The official home of OTYA System and OTYA Player.',
-    images: ['/og-image.svg'],
+    images: ['/og-image.jpg'],
   },
   icons: {
-    icon: '/otya-icon.svg',
-    apple: '/otya-icon.svg',
-    shortcut: '/otya-icon.svg',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/favicon.ico',
   },
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'OTYA System', statusBarStyle: 'black-translucent' },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#050510',
+  themeColor: '#050618',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -80,7 +90,12 @@ const schemaOrg = {
       '@id': `${SITE_URL}/#organization`,
       name: 'OTYA System',
       url: SITE_URL,
-      logo: { '@type': 'ImageObject', url: `${SITE_URL}/otya-icon.svg`, width: 512, height: 512 },
+      logo: {
+        '@type': 'ImageObject',
+        url: `${SITE_URL}/android-chrome-512x512.png`,
+        width: 512,
+        height: 512,
+      },
     },
     {
       '@type': 'MobileApplication',
@@ -95,8 +110,9 @@ const schemaOrg = {
       downloadUrl: `${SITE_URL}/download/otya-player`,
       author: { '@id': `${SITE_URL}/#organization` },
       description: 'Free offline media player for Android with music and video playback, Flash Share, Private Vault and Web Mirror.',
-      featureList: 'Offline playback, Flash Share, Private Vault, Web Mirror, Storage Analyzer, Seasonal Themes, 5-band Equalizer, Picture-in-Picture, WhatsApp Trimmer, Audio Extractor',
-      image: `${SITE_URL}/otya-icon.svg`,
+      featureList: 'Offline playback, Flash Share, Private Vault, Web Mirror, Storage Analyzer, Seasonal Themes, Equalizer, Picture-in-Picture, WhatsApp Trimmer, Audio Extractor',
+      image: `${SITE_URL}/android-chrome-512x512.png`,
+      screenshot: `${SITE_URL}/og-image.jpg`,
       releaseNotes: `${SITE_URL}/download/otya-player`,
     },
     {
