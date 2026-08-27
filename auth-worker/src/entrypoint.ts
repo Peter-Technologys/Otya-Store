@@ -2,11 +2,13 @@
  * OTYA Auth production entrypoint.
  *
  * The large auth module still calls env.EMAIL internally. This wrapper replaces
- * that interface with a server-side Resend adapter and adds production guards
- * that can be applied without risking a broad auth rewrite.
+ * that interface with a server-side Resend adapter, hardens Google auth, and
+ * handles encrypted Google Drive recovery without exposing encryption keys to
+ * Flutter or Drive.
  */
 
 import legacyWorker from './index'
+import { handleBackupRoute } from './backup_route'
 import { sendResendEmail, type ResendEmail } from './resend'
 
 interface LegacyEmailMessage {
@@ -19,12 +21,14 @@ interface LegacyEmailMessage {
 interface KVNamespace {
   get(key: string): Promise<string | null>
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
+  delete(key: string): Promise<void>
 }
 
 interface ResendEnv extends Record<string, unknown> {
   RESEND_API_KEY?: string
   GOOGLE_CLIENT_ID?: string
-  AUTH_KV?: KVNamespace
+  AUTH_JWT_SECRET: string
+  AUTH_KV: KVNamespace
   CORS_ORIGIN?: string
 }
 
@@ -78,7 +82,6 @@ function clientIp(request: Request): string {
 }
 
 async function checkGoogleRateLimit(request: Request, env: ResendEnv): Promise<boolean> {
-  if (!env.AUTH_KV) return true
   const key = `google_ip_rate:${clientIp(request)}`
   const raw = await env.AUTH_KV.get(key)
   const current = raw ? Number.parseInt(raw, 10) : 0
@@ -140,8 +143,6 @@ async function validateGoogleRequest(
     return { error: jsonError('Google verification service unavailable', 503, env) }
   }
 
-  // Rebuild the consumed request body for the existing auth handler. No Google
-  // token values are logged or persisted by this wrapper.
   return {
     request: new Request(request, { body: bodyText }),
   }
@@ -154,8 +155,13 @@ export default {
       EMAIL: createEmailAdapter(env.RESEND_API_KEY),
     }
 
-    let forwardedRequest = request
     const url = new URL(request.url)
+    if (url.pathname === '/auth/backup' && request.method !== 'OPTIONS') {
+      const backupResponse = await handleBackupRoute(request, env)
+      if (backupResponse) return backupResponse
+    }
+
+    let forwardedRequest = request
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const checked = await validateGoogleRequest(request, env)
       if (checked.error) return checked.error
