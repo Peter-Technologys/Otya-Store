@@ -34,7 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
       - name: Install store dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Validate store build
@@ -61,8 +60,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: auth-worker/package.json
       - name: Install auth-worker dependencies
         run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
@@ -101,7 +98,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Build and deploy with OpenNext
