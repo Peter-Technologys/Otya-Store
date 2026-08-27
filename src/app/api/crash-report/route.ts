@@ -3,7 +3,9 @@
 // Accepts crash reports from the Flutter app, inserts into D1, and queues
 // AI processing (grouping via Vectorize) via AI_QUEUE.
 //
-// user_id is extracted from JWT if present, otherwise null (anonymous report).
+// Crash capture runs before login, so anonymous telemetry is supported.
+// A verified JWT may associate a report with its user; anonymous requests can
+// never supply or spoof a trusted user identity.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
@@ -18,14 +20,25 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
+function text(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null
+  const cleaned = value.trim()
+  return cleaned ? cleaned.slice(0, max) : null
+}
+
+function integer(value: unknown): number | null {
+  if (value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null
+}
+
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // ── 1. Dual auth: JWT first, then HMAC ───────────────────────────────────
+  // JWT/HMAC are used when available, but crash capture must also work before
+  // sign-in. Never trust a body user_id; only a verified JWT establishes it.
   const auth = await dualAuth(req, env, verifyRequest)
-  if (auth.mode === 'none') return errorJson(auth.error ?? 'Unauthorized', 401)
 
-  // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: Record<string, unknown>
   try {
     body = await req.json() as Record<string, unknown>
@@ -33,19 +46,20 @@ export async function POST(req: NextRequest) {
     return errorJson('Invalid JSON body', 400)
   }
 
-  const { device_id, app_version, version_code, error_type, stack_trace, description } = body
+  const deviceId    = text(body.device_id, 128)
+  const appVersion  = text(body.app_version, 64)
+  const versionCode = integer(body.version_code)
+  const errorType   = text(body.error_type, 160)
+  const stackTrace  = text(body.stack_trace, 4000)
+  const description = text(body.description, 2000)
 
-  // description or error_type is required to be useful
-  if (!description && !error_type) {
+  if (!description && !errorType) {
     return errorJson('description or error_type is required', 400)
   }
 
-  // Extract user_id from JWT if authenticated, otherwise null
   const userId = auth.mode === 'jwt' ? auth.user_id : null
-
   const db = getDB(env as Record<string, unknown>)
 
-  // ── 3. Ensure crash_reports table exists (idempotent) ────────────────────
   try {
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS crash_reports (
@@ -63,11 +77,9 @@ export async function POST(req: NextRequest) {
       )
     `).run()
   } catch (e) {
-    // Table may already exist — not fatal
-    console.error('[crash-report] CREATE TABLE failed (may already exist):', (e as Error)?.message)
+    console.error('[crash-report] CREATE TABLE failed:', (e as Error)?.message)
   }
 
-  // ── 4. Insert crash report ────────────────────────────────────────────────
   let crashId: number | null = null
   try {
     const result = await db.prepare(`
@@ -75,23 +87,21 @@ export async function POST(req: NextRequest) {
         (device_id, user_id, app_version, version_code, error_type, stack_trace, description)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      device_id    ?? null,
+      deviceId,
       userId,
-      app_version  ?? null,
-      version_code != null ? Number(version_code) : null,
-      error_type   ?? null,
-      typeof stack_trace === 'string' ? stack_trace.substring(0, 4000) : null,
-      typeof description === 'string' ? description.substring(0, 2000) : null,
+      appVersion,
+      versionCode,
+      errorType,
+      stackTrace,
+      description,
     ).run()
 
-    // D1 returns last_row_id in meta
     crashId = (result.meta as Record<string, unknown>)?.last_row_id as number ?? null
   } catch (e) {
     console.error('[crash-report] INSERT failed:', (e as Error)?.message)
     return errorJson('Failed to save crash report', 500)
   }
 
-  // ── 5. Queue AI processing ────────────────────────────────────────────────
   if (crashId !== null) {
     const aiQueue = (env as Record<string, unknown>).AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
     if (aiQueue) {
@@ -99,20 +109,23 @@ export async function POST(req: NextRequest) {
         await aiQueue.send({
           type:        'process_crash',
           crashId,
-          errorType:   error_type   ?? null,
-          stackTrace:  stack_trace  ?? null,
-          description: description  ?? null,
+          errorType,
+          stackTrace,
+          description,
         })
       } catch (e) {
-        // Non-fatal — crash is already saved
         console.error('[crash-report] Failed to queue AI processing:', (e as Error)?.message)
       }
     }
   }
 
-  return secureJson({ ok: true, ts: Date.now() })
+  return secureJson({
+    ok: true,
+    authenticated: auth.mode !== 'none',
+    ts: Date.now(),
+  })
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
