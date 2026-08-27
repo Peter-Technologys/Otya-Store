@@ -3,8 +3,16 @@ name: Deploy to Cloudflare Workers
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
 
 concurrency:
@@ -22,25 +30,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
+          cache: npm
       - name: Install store dependencies
         run: npm install --no-package-lock --ignore-scripts
-
       - name: Validate store build
         run: npm run build
-
       - name: Typecheck store/web application
         run: npm run typecheck
-
       - name: Install auth-worker dependencies
         run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
-
       - name: Typecheck auth-worker
         run: npx tsc --noEmit
         working-directory: auth-worker
@@ -54,16 +57,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
+          cache: npm
+          cache-dependency-path: auth-worker/package.json
       - name: Install auth-worker dependencies
         run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
-
       - name: Configure Auth Worker secrets
         working-directory: auth-worker
         env:
@@ -79,7 +81,6 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'CLOUDFLARE_API_TOKEN GitHub secret is missing'; exit 1; }
           printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
-
       - name: Deploy otya-auth worker
         working-directory: auth-worker
         run: npx wrangler deploy
@@ -96,15 +97,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
+          cache: npm
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
-
       - name: Build and deploy with OpenNext
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -115,19 +114,12 @@ jobs:
           npm run deploy 2>&1 | tee /tmp/otya-deploy.log
           deploy_status=${PIPESTATUS[0]}
           set -e
-
-          if [ "$deploy_status" -eq 0 ]; then
-            exit 0
-          fi
-
+          if [ "$deploy_status" -eq 0 ]; then exit 0; fi
           if ! grep -q 'need to enable Analytics Engine' /tmp/otya-deploy.log; then
             echo 'Cloudflare deployment failed for a reason unrelated to Analytics Engine.'
             exit "$deploy_status"
           fi
-
-          echo '::warning title=Analytics Engine disabled::Cloudflare account has not enabled Analytics Engine yet. Retrying this deploy without only the OTYA_ANALYTICS binding; wrangler.toml remains the source of truth and the binding will activate automatically after Analytics Engine is enabled.'
-
-          cp wrangler.toml /tmp/wrangler-with-analytics.toml
+          echo '::warning title=Analytics Engine disabled::Retrying without only the OTYA_ANALYTICS binding.'
           python3 - <<'PYEOF'
           from pathlib import Path
           path = Path('wrangler.toml')
@@ -138,13 +130,8 @@ jobs:
               if line.strip() == '[[analytics_engine_datasets]]':
                   skipping = True
                   continue
-              if skipping and line.startswith('['):
-                  skipping = False
-              if not skipping:
-                  output.append(line)
+              if skipping and line.startswith('['): skipping = False
+              if not skipping: output.append(line)
           path.write_text('\n'.join(output).rstrip() + '\n')
           PYEOF
-
-          # The OpenNext build already succeeded in the first attempt. Retry the
-          # deployment only, preserving Workflow/D1/KV/R2/queues/AUTH bindings.
           npx opennextjs-cloudflare deploy
