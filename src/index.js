@@ -48,7 +48,13 @@ function resolveApkKey(info, abi) {
   return abi === 'arm64' ? (info.arm64 || 'OtyaPlayer-arm64.apk') : (info.arm32 || 'OtyaPlayer-arm32.apk')
 }
 
-async function serveApk(env, key, version) {
+function brandedApkFilename(version, abi) {
+  const safeVersion = String(version || 'latest').replace(/[^0-9A-Za-z._-]/g, '-')
+  const safeAbi = abi === 'arm32' ? 'arm32' : 'arm64'
+  return `OTYA-Player-v${safeVersion}-${safeAbi}.apk`
+}
+
+async function serveApk(env, key, version, abi) {
   let obj
   try { obj = await env.R2.get(key) } catch (e) {
     return new Response(JSON.stringify({ error: 'Storage error.' }), { status: 502, headers: { 'Content-Type': 'application/json', ...CORS } })
@@ -57,11 +63,12 @@ async function serveApk(env, key, version) {
   const headers = new Headers(CORS)
   obj.writeHttpMetadata(headers)
   headers.set('Content-Type',        'application/vnd.android.package-archive')
-  headers.set('Content-Disposition', 'attachment; filename="OtyaPlayer.apk"')
+  headers.set('Content-Disposition', `attachment; filename="${brandedApkFilename(version, abi)}"`)
   headers.set('Cache-Control',       `public, max-age=${APK_CACHE_TTL}, immutable`)
   headers.set('ETag',                obj.httpEtag)
   if (obj.size)  headers.set('Content-Length', String(obj.size))
   if (version)   headers.set('X-OTYA-Version', version)
+  headers.set('X-OTYA-ABI', abi)
   return new Response(obj.body, { headers })
 }
 
@@ -118,13 +125,38 @@ async function checkRateLimit(env, request) {
 }
 
 async function sendErrorAlert(env, subject, body) {
+  const to = env.ALERT_EMAIL_TO || 'petersmartlink@gmail.com'
+
+  if (env.RESEND_API_KEY) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: env.ALERT_EMAIL_FROM || 'OTYA Backend <notifications@petersmartlink.com>',
+          to: [to],
+          subject,
+          text: body,
+        }),
+      })
+      if (response.ok) return
+      console.error('[RESEND] alert send failed:', response.status, await response.text())
+    } catch (e) {
+      console.error('[RESEND] alert send failed:', e?.message)
+    }
+  }
+
   try {
+    if (!env.EMAIL?.send) throw new Error('EMAIL binding unavailable')
     await env.EMAIL.send({
       from: { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
-      to:   [{ email: 'petersmartlink@gmail.com' }],
+      to:   [{ email: to }],
       subject, text: body,
     })
-  } catch (e) { console.error('[EMAIL] send failed:', e?.message) }
+  } catch (e) { console.error('[EMAIL] fallback send failed:', e?.message) }
 }
 
 function jsonResponse(data, status = 200, extraHeaders = {}) {
@@ -146,10 +178,6 @@ export default {
     const url  = new URL(request.url)
     const path = url.pathname.replace(/\/+$/, '') || '/'
 
-    // ── IP block check — inline KV lookup, no imports ─────────────────────
-    // Blocked IPs are stored in KV with key `blocked:<ip>` and a 24h TTL.
-    // We fail open (allow) on KV errors so legitimate traffic is never
-    // accidentally blocked due to a KV outage.
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
     if (ip !== 'unknown') {
       try {
@@ -162,11 +190,9 @@ export default {
         }
       } catch (e) {
         console.error('[KV] IP block check failed:', e?.message)
-        // fail open — do not block on KV errors
       }
     }
 
-    // Not an API route — pass through to Next.js / OpenNext
     if (!API_ROUTES.has(path)) return env.ASSETS.fetch(request)
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
@@ -176,7 +202,6 @@ export default {
     try { await initDb(env) } catch (e) { console.error('[D1] initDb failed:', e?.message) }
 
     if (path === '/version' || path === '/check-update') {
-      // /check-update is an alias for /version — backward compat for older app versions
       const info = await getVersionInfo(env)
       if (!info) return new Response(JSON.stringify({ error: 'Version info not available.' }), { status: 503, headers: { 'Content-Type': 'application/json', ...CORS } })
       const res = jsonResponse(info)
@@ -231,7 +256,7 @@ export default {
       const key = resolveApkKey(info, abi)
       if (!key) return new Response(JSON.stringify({ error: 'Could not resolve APK path.' }), { status: 500, headers: { 'Content-Type': 'application/json', ...CORS } })
       trackDownload(env, ctx, request, abi, info.version)
-      return serveApk(env, key, info.version)
+      return serveApk(env, key, info.version, abi)
     }
 
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...CORS } })
