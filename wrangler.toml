@@ -1,5 +1,5 @@
 name = "otya-store"
-main = "src/queue-worker.mjs"
+main = "src/entrypoint.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
