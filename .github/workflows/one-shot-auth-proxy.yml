@@ -1,4 +1,5 @@
 name: One-shot auth proxy repair
+# trigger
 
 on:
   push:
