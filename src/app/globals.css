@@ -6,213 +6,84 @@
 html { scroll-behavior: smooth; }
 
 :root {
-  --cosmos-primary: #7B61FF;
-  --cosmos-secondary: #5A42D4;
-  --cosmos-scaffold: #050510;
-  --cosmos-surface: #0D0D2E;
-  --cosmos-accent: #00D4FF;
-  --cosmos-error: #FF4757;
-  --cosmos-text-primary: #E8E8FF;
-  --cosmos-text-secondary: #7878A8;
-  
-  --cosmos-app-bar: #020208;
-  --cosmos-card: #0D0D2E;
-  --cosmos-nav-selected: #7B61FF;
-  --cosmos-divider: #1A1A3E;
-  --cosmos-icon-tint: #00D4FF;
-  
+  --cosmos-primary: #8B5CF6;
+  --cosmos-secondary: #6D3ED8;
+  --cosmos-scaffold: #07070B;
+  --cosmos-surface: #0C0C12;
+  --cosmos-accent: #A78BFA;
+  --cosmos-error: #EF4444;
+  --cosmos-text-primary: #F7F7FA;
+  --cosmos-text-secondary: #9A9AA6;
+  --cosmos-app-bar: #07070B;
+  --cosmos-card: #101016;
+  --cosmos-nav-selected: #8B5CF6;
+  --cosmos-divider: #24242C;
+  --cosmos-icon-tint: #A78BFA;
   --radius-card: 18px;
-
-  /* Legacy aliases to catch any missed var usage */
   --bg: var(--cosmos-scaffold);
   --bg-secondary: var(--cosmos-surface);
   --text: var(--cosmos-text-primary);
   --text-sub: var(--cosmos-text-secondary);
-  --text-muted: #4A4A6A;
+  --text-muted: #6D6D78;
   --border: var(--cosmos-divider);
   --card: var(--cosmos-card);
   --card-border: var(--cosmos-divider);
   --purple: var(--cosmos-primary);
   --indigo: var(--cosmos-secondary);
-  --nav-bg: rgba(2, 2, 8, 0.95);
+  --nav-bg: rgba(7,7,11,.90);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --cosmos-primary: #6B4FE8;
-    --cosmos-secondary: #4A35C0;
-    --cosmos-scaffold: #F4F4FF;
-    --cosmos-surface: #EAEAF8;
-    --cosmos-accent: #0099CC;
-    --cosmos-error: #D93025;
-    --cosmos-text-primary: #0A0A1A;
-    --cosmos-text-secondary: #4A4A7A;
-
+    --cosmos-primary: #7C3AED;
+    --cosmos-secondary: #6D28D9;
+    --cosmos-scaffold: #FAFAFC;
+    --cosmos-surface: #F3F3F7;
+    --cosmos-accent: #7C3AED;
+    --cosmos-text-primary: #111116;
+    --cosmos-text-secondary: #62626D;
     --cosmos-app-bar: #FFFFFF;
     --cosmos-card: #FFFFFF;
-    --cosmos-nav-selected: #6B4FE8;
-    --cosmos-divider: #D0D0E8;
-    --cosmos-icon-tint: #0099CC;
-
-    /* Legacy aliases */
-    --bg: var(--cosmos-scaffold);
-    --bg-secondary: var(--cosmos-surface);
-    --text: var(--cosmos-text-primary);
-    --text-sub: var(--cosmos-text-secondary);
-    --text-muted: #8888AA;
-    --border: var(--cosmos-divider);
-    --card: var(--cosmos-card);
-    --card-border: var(--cosmos-divider);
-    --purple: var(--cosmos-primary);
-    --indigo: var(--cosmos-secondary);
-    --nav-bg: rgba(255, 255, 255, 0.95);
-  }
-
-  ::-webkit-scrollbar-track { background: var(--cosmos-scaffold); }
-  ::-webkit-scrollbar-thumb { background: rgba(107,79,232,0.3); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--cosmos-primary); }
-
-  .cosmos-stars::before, .cosmos-stars::after { opacity: 0.08; }
-
-  .cosmos-card {
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  }
-
-  .cosmos-card:hover {
-    box-shadow: 0 4px 20px rgba(107,79,232,0.15);
+    --cosmos-divider: #E4E4EA;
   }
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--cosmos-scaffold);
+  color: var(--cosmos-text-primary);
   max-width: 100vw;
   overflow-x: hidden;
   font-family: var(--font-oxanium), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  letter-spacing: 0.02em;
+  text-rendering: optimizeLegibility;
 }
-
-/* Responsive images */
 img { max-width: 100%; height: auto; }
-
-/* Prevent horizontal overflow on all elements */
 section, div, nav, footer, main { max-width: 100%; }
-
-::selection { background: rgba(123,97,255,0.3); color: var(--cosmos-text-primary); }
-
+::selection { background: rgba(139,92,246,.28); color: var(--cosmos-text-primary); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--cosmos-scaffold); }
-::-webkit-scrollbar-thumb { background: rgba(123,97,255,0.4); border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: var(--cosmos-primary); }
+::-webkit-scrollbar-thumb { background: #34343D; border-radius: 999px; }
+a, button { transition: opacity .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease; }
+a:hover, button:hover { opacity: .94; }
+:focus-visible { outline: 2px solid var(--cosmos-primary); outline-offset: 3px; border-radius: 6px; }
 
-a, button { transition: all 0.2s ease; }
-
-:focus-visible { outline: 2px solid var(--cosmos-primary); outline-offset: 2px; border-radius: 6px; }
-
-/* Keyframes */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-
-@keyframes cosmos-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(123,97,255,0.3), 0 0 30px rgba(0,212,255,0.1); }
-  50% { box-shadow: 0 0 25px rgba(123,97,255,0.6), 0 0 50px rgba(0,212,255,0.3); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
-}
-
-@keyframes marquee-reverse {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-
-/* Cosmos utilities */
-.cosmos-stars {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.cosmos-stars::before, .cosmos-stars::after {
-  content: "";
-  position: absolute;
-  top: -50%; left: -50%; right: -50%; bottom: -50%;
-  background-image: 
-    radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 40px 70px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(1.5px 1.5px at 50px 160px, rgba(123,97,255,0.9), rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 90px 40px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(2px 2px at 130px 80px, rgba(123,97,255,0.8), rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 160px 120px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 200px 30px, rgba(0,212,255,0.8), rgba(0,0,0,0)),
-    radial-gradient(1.5px 1.5px at 250px 90px, rgba(0,212,255,0.8), rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 300px 180px, #ffffff, rgba(0,0,0,0)),
-    radial-gradient(1px 1px at 350px 60px, #ffffff, rgba(0,0,0,0));
-  background-repeat: repeat;
-  background-size: 400px 400px;
-  animation: twinkle 4s infinite ease-in-out;
-  opacity: 0.6;
-}
-
-.cosmos-stars::after {
-  background-size: 250px 250px;
-  animation-delay: 2s;
-  animation-duration: 5s;
-  opacity: 0.4;
-}
-
-.cosmos-card {
+.modern-card, .cosmos-card {
   background: var(--cosmos-card);
   border: 1px solid var(--cosmos-divider);
   border-radius: var(--radius-card);
-  transition: all 0.3s ease;
 }
-
-.cosmos-card:hover {
-  border-color: var(--cosmos-primary);
-  box-shadow: 0 0 20px rgba(123,97,255,0.15);
-  transform: translateY(-2px);
-}
-
-.cosmos-pill {
-  border: 1px solid var(--cosmos-divider);
-  background: var(--cosmos-card);
-  color: var(--cosmos-text-secondary);
-  border-radius: 9999px;
-  transition: all 0.3s ease;
-}
-
-.cosmos-pill:hover {
-  border-color: var(--cosmos-primary);
-  background: rgba(123,97,255,0.05);
-}
-
-.cosmos-gradient-text {
-  background: linear-gradient(135deg, var(--cosmos-primary), var(--cosmos-accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
+.modern-card { transition: border-color .2s ease, transform .2s ease; }
+.modern-card:hover { border-color: #3A3A46; transform: translateY(-2px); }
+.cosmos-pill { border: 1px solid var(--cosmos-divider); background: var(--cosmos-card); color: var(--cosmos-text-secondary); border-radius: 999px; }
+.cosmos-gradient-text { color: var(--cosmos-primary); }
 .cosmos-button {
-  background: linear-gradient(135deg, var(--cosmos-primary), var(--cosmos-accent));
-  box-shadow: 0 4px 20px rgba(123,97,255,0.3);
-  color: var(--cosmos-text-primary) !important;
+  background: linear-gradient(135deg, #7C3AED, #9333EA);
+  box-shadow: 0 8px 24px rgba(124,58,237,.20);
+  color: #fff !important;
 }
-.cosmos-button:hover {
-  box-shadow: 0 6px 25px rgba(123,97,255,0.5);
-  transform: scale(1.05);
-}
+.cosmos-button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(124,58,237,.28); }
+
+/* Kept for compatibility with older pages, deliberately much quieter. */
+.cosmos-stars { display: none; }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes cosmos-glow { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 8px 28px rgba(124,58,237,.15); } }
