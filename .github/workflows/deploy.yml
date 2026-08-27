@@ -54,16 +54,31 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: Install auth-worker dependencies
         run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
-      - name: Deploy otya-auth worker
-        run: npx wrangler deploy
+
+      - name: Configure Auth Worker secrets
         working-directory: auth-worker
+        env:
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$AUTH_JWT_SECRET" || { echo 'AUTH_JWT_SECRET GitHub secret is missing'; exit 1; }
+          test -n "$RESEND_API_KEY" || { echo 'RESEND_API_KEY GitHub secret is missing'; exit 1; }
+          printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
+          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+
+      - name: Deploy otya-auth worker
+        working-directory: auth-worker
+        run: npx wrangler deploy
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -77,12 +92,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
+
       - name: Build and deploy with OpenNext
         run: npm run deploy
         env:
