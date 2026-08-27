@@ -5,10 +5,9 @@
 //
 // Authentication model:
 //   - Verified JWT: links the installation to the token's user_id.
-//   - Legacy HMAC: accepted for older trusted clients.
-//   - Anonymous: allowed for non-sensitive installation metadata only; user_id
-//     is always forced to null so an unauthenticated caller cannot impersonate
-//     or link itself to another account.
+//   - Anonymous/legacy unsigned install: allowed for non-sensitive installation
+//     metadata only. user_id is always forced to null so an unauthenticated
+//     caller cannot impersonate or link itself to another account.
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
@@ -48,8 +47,7 @@ function cleanText(value: unknown, maxLength: number): string | null {
 export async function POST(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
 
-  // Attempt authenticated modes, but do not reject a clean anonymous install.
-  // dualAuth's error is intentionally ignored for anonymous registration.
+  // Attempt JWT verification, but do not reject a clean anonymous install.
   const auth = await dualAuth(request, env, verifyRequest)
 
   let body: DevicePayload
@@ -70,14 +68,10 @@ export async function POST(request: NextRequest) {
   const abi = cleanText(body.abi ?? body.arch, 32) ?? 'arm64'
   const platform = cleanText(body.platform, 32) ?? 'android'
 
-  // Never trust body.user_id for an unauthenticated installation. JWT is the
-  // only modern path that may establish account ownership. Legacy HMAC keeps
-  // its historical user_id behavior for older trusted releases.
-  const resolvedUserId = auth.mode === 'jwt'
-    ? auth.user_id
-    : auth.mode === 'hmac'
-      ? cleanText(body.user_id, 128)
-      : null
+  // Only a verified JWT may establish account ownership. The Flutter app no
+  // longer embeds a shared HMAC secret, so anonymous installation metadata is
+  // intentionally accepted without trusting a body-supplied user_id.
+  const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : null
 
   const db = getDB(env as Record<string, unknown>)
 
@@ -111,7 +105,7 @@ export async function POST(request: NextRequest) {
     cleanText(body.locale, 32),
   ).run()
 
-  return secureJson({ ok: true, authenticated: auth.mode !== 'none' })
+  return secureJson({ ok: true, authenticated: auth.mode === 'jwt' })
 }
 
 export async function OPTIONS() {
