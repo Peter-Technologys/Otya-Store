@@ -79,7 +79,7 @@ service = "otya-auth"
 # Cron triggers
 [triggers]
 crons = [
-  "*/15 * * * *",
+  "*/5 * * * *",
   "0 * * * *",
   "0 6 * * 1",
   "0 9 * * *"
