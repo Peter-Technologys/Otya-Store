@@ -5,7 +5,7 @@ const KEY = 'app:remote-config'
 
 const DEFAULT_CONFIG = {
   schemaVersion: 1,
-  revision: 2,
+  revision: 3,
   maintenance: {
     enabled: false,
     title: 'OTYA is temporarily unavailable',
@@ -26,6 +26,7 @@ const DEFAULT_CONFIG = {
     safe: true,
     equalizer: true,
     trimmer: true,
+    whatsappTrimmer: true,
     converter: true,
     merger: true,
     compressor: true,
