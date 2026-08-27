@@ -2,6 +2,7 @@ name = "otya-auth"
 main = "src/entrypoint.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 
 [observability]
 enabled = true
@@ -9,8 +10,7 @@ enabled = true
 [[d1_databases]]
 binding       = "AUTH_DB"
 database_name = "otya-auth-db"
-# TODO: Replace this database_id with the actual otya-auth-db ID.
-# Confirm the live Cloudflare binding before changing this value.
+# Confirmed live production D1 binding. Do not replace without Cloudflare audit.
 database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 
 [[kv_namespaces]]
@@ -20,12 +20,8 @@ id      = "6b9faff751724fdb86c16452b9c99cf6"
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
 
-# Required server-side secrets. Values must be configured in Cloudflare and
-# local development secret files; never commit their values.
-[secrets]
-required = ["AUTH_JWT_SECRET", "RESEND_API_KEY"]
-
-# Additional optional secrets used by the auth service:
-#   wrangler secret put GOOGLE_CLIENT_ID
-#   wrangler secret put OTYA_STORE_INTERNAL_URL
-#   wrangler secret put INTERNAL_SECRET
+# Secrets are configured through GitHub Actions / Cloudflare, never committed.
+# keep_vars=true preserves live optional secrets/vars such as internal service
+# configuration when Wrangler deploys this Worker.
+# Required: AUTH_JWT_SECRET, RESEND_API_KEY
+# Optional: GOOGLE_CLIENT_ID, OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET
