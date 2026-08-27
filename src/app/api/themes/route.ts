@@ -1,46 +1,73 @@
 // app/api/themes/route.ts
-// GET /api/themes
-// Returns the list of available themes from R2.
+// Public read-only catalog for installable OTYA visual themes.
+// Themes are tiny manifests: Flutter renders them locally, so once installed
+// they remain available offline and no binary wallpaper download is required.
 
-import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyRequest } from '@/lib/auth'
-import { secureJson, errorJson } from '@/lib/response'
-import { getR2 } from '@/lib/d1'
+import { NextResponse } from 'next/server'
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin':  'https://petersmartlink.com',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
-}
+const THEMES = [
+  {
+    id: 'rwenzori-echo',
+    name: 'Rwenzori Echo',
+    story: 'A quiet violet night above Uganda’s Mountains of the Moon — cold peaks, still water and a calm glow built for late-night listening.',
+    scene: 'mountain_lake',
+    version: 1,
+    overlay: 0.38,
+    featured: true,
+    palette: {
+      skyTop: '#150B2E',
+      skyMid: '#4C1D95',
+      horizon: '#A855F7',
+      land: '#09070E',
+      water: '#100B1D',
+      accent: '#8B5CF6',
+    },
+  },
+  {
+    id: 'nile-afterglow',
+    name: 'Nile Afterglow',
+    story: 'The last light follows the Nile into evening — warm violet water, papyrus silhouettes and a softer horizon for relaxed listening and reading.',
+    scene: 'river_sunset',
+    version: 1,
+    overlay: 0.34,
+    featured: true,
+    palette: {
+      skyTop: '#1B1028',
+      skyMid: '#6D28D9',
+      horizon: '#F472B6',
+      land: '#0A080D',
+      water: '#241033',
+      accent: '#A78BFA',
+    },
+  },
+] as const
 
-export async function GET(request: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-
-  // ── 1. Verify HMAC signature ─────────────────────────────────────────────
-  const auth = await verifyRequest(request, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
-
-  // ── 2. List themes from R2 ───────────────────────────────────────────────
-  const r2 = getR2(env as Record<string, unknown>)
-
-  try {
-    const listed = await r2.list({ prefix: 'themes/' })
-    const themes = listed.objects
-      .filter((obj) => obj.key.endsWith('.json'))
-      .map((obj) => ({
-        id:      obj.key.replace('themes/', '').replace('.json', ''),
-        key:     obj.key,
-        size:    obj.size,
-        uploaded: obj.uploaded,
-      }))
-
-    return secureJson({ themes, total: themes.length })
-  } catch (e) {
-    return errorJson(`Failed to list themes: ${e}`, 500)
-  }
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: true,
+      catalogVersion: 1,
+      themes: THEMES,
+      updatedAt: '2026-08-27T00:00:00Z',
+    },
+    {
+      headers: {
+        'Cache-Control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    },
+  )
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400',
+    },
+  })
 }
