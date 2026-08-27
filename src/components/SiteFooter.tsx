@@ -10,7 +10,7 @@ export function SiteFooter() {
           <p className="text-xs leading-relaxed max-w-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Useful technology, software and local digital services from Uganda.</p>
         </div>
         <FooterGroup title="Company" links={[["Home","/"],["Services","/services"],["Contact","/contact"],["Blog","/blog"]]} />
-        <FooterGroup title="OTYA Player" links={[["Product","/otya-player"],["Download","/download/otya-player"],["Support","/apps/otya-player/support"],["Privacy","/apps/otya-player/privacy"]]} />
+        <FooterGroup title="OTYA Player" links={[["Product","/otya-player"],["Download","/download/otya-player"],["Changelog","/apps/otya-player/changelog"],["Support","/apps/otya-player/support"],["Security","/apps/otya-player/security"],["Privacy","/apps/otya-player/privacy"]]} />
         <FooterGroup title="Legal" links={[["Privacy","/privacy"],["Terms","/terms"]]} />
       </div>
       <div className="border-t pt-5 flex flex-col sm:flex-row justify-between gap-2 text-xs" style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-secondary)' }}><span>© {new Date().getFullYear()} PeterSmart Link</span><span>Built in Uganda 🇺🇬</span></div>

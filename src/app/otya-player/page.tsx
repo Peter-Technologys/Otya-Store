@@ -57,6 +57,7 @@ export default async function OtyaPlayerPage() {
               <div className="flex flex-wrap gap-3 mt-8">
                 <Link href="/download/otya-player" className="cosmos-button px-6 py-3.5 rounded-xl font-bold text-sm">Download OTYA</Link>
                 <Link href="/apps/otya-player/support" className="px-6 py-3.5 rounded-xl border font-bold text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Support</Link>
+                <Link href="/apps/otya-player/security" className="px-6 py-3.5 rounded-xl border font-bold text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Security</Link>
               </div>
               <div className="flex flex-wrap gap-x-7 gap-y-2 mt-8 text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>
                 <span>Android</span><span>Offline first</span><span>No subscription</span><span>Local media</span>
@@ -94,7 +95,15 @@ export default async function OtyaPlayerPage() {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        <div className="grid md:grid-cols-3 gap-4">
+          <div className="modern-card p-6"><p className="text-xs uppercase tracking-[.18em] font-semibold mb-3" style={{ color: 'var(--cosmos-primary)' }}>Official download</p><h2 className="font-black text-xl mb-2">Install from PeterSmart Link.</h2><p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--cosmos-text-secondary)' }}>Use the official download page for production OTYA APKs. Avoid unknown third-party redistribution.</p><Link href="/download/otya-player" className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>Go to official download →</Link></div>
+          <div className="modern-card p-6"><p className="text-xs uppercase tracking-[.18em] font-semibold mb-3" style={{ color: 'var(--cosmos-primary)' }}>Release information</p><h2 className="font-black text-xl mb-2">See what changed.</h2><p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--cosmos-text-secondary)' }}>The public changelog is the customer-facing record for OTYA updates and release notes.</p><Link href="/apps/otya-player/changelog" className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>View changelog →</Link></div>
+          <div className="modern-card p-6"><p className="text-xs uppercase tracking-[.18em] font-semibold mb-3" style={{ color: 'var(--cosmos-primary)' }}>Private source</p><h2 className="font-black text-xl mb-2">Source repositories are not public distribution.</h2><p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--cosmos-text-secondary)' }}>OTYA Player and OTYA Server source repositories are private. Visitors should use this website for downloads, support and security information.</p><Link href="/apps/otya-player/security" className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>Read security guidance →</Link></div>
+        </div>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20 pt-0">
         <div className="rounded-[28px] border p-7 sm:p-10 flex flex-col md:flex-row md:items-center justify-between gap-8" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(145deg, rgba(20,20,28,.95), rgba(10,10,15,.96))' }}>
           <div className="flex items-center gap-5"><OtyaMark size={74} /><div><p className="text-xs uppercase tracking-[.18em] font-semibold mb-2" style={{ color: 'var(--cosmos-primary)' }}>OTYA Player v{appVersion}</p><h2 className="text-2xl sm:text-3xl font-black">Ready for your Android phone.</h2></div></div>
           <div className="flex flex-wrap gap-3"><Link href="/download/otya-player" className="cosmos-button px-5 py-3 rounded-xl font-bold text-sm">Get OTYA</Link><Link href="/apps/otya-player/changelog" className="px-5 py-3 rounded-xl border font-bold text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Changelog</Link></div>
@@ -104,6 +113,7 @@ export default async function OtyaPlayerPage() {
           <Link href="/apps/otya-player/privacy" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Privacy Policy</Link>
           <Link href="/apps/otya-player/terms" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Terms of Service</Link>
           <Link href="/apps/otya-player/support" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Support &amp; FAQ</Link>
+          <Link href="/apps/otya-player/security" className="px-4 py-2 rounded-xl border text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Security</Link>
         </div>
       </section>
     </main>
