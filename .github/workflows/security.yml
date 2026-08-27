@@ -3,6 +3,10 @@ name: Security
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [main]
   schedule:
@@ -33,6 +37,7 @@ jobs:
 
   codeql:
     name: CodeQL JavaScript/TypeScript
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -41,26 +46,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
+          cache: npm
       - name: Install backend dependencies
         run: npm install --no-package-lock --ignore-scripts
-
       - name: Install auth-worker dependencies
         run: npm install --no-package-lock --ignore-scripts
         working-directory: auth-worker
-
       - name: Build backend
         run: npm run build
-
       - name: Analyze
         uses: github/codeql-action/analyze@v3
