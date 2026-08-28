@@ -150,7 +150,6 @@ async function validateGoogleRequest(
 
 async function prepareRegistration(
   request: Request,
-  env: ResendEnv,
 ): Promise<{ request?: Request; marketingConsent?: boolean; error?: Response }> {
   let bodyText: string
   let body: Record<string, unknown>
@@ -158,13 +157,12 @@ async function prepareRegistration(
     bodyText = await request.text()
     body = JSON.parse(bodyText) as Record<string, unknown>
   } catch {
-    return { error: jsonError('Invalid JSON body', 400, env) }
+    return { error: new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 }) }
   }
 
-  if (body.terms_accepted !== true || body.privacy_accepted !== true) {
-    return { error: jsonError('You must accept the Terms of Service and Privacy Policy to create an OTYA account.', 400, env) }
-  }
-
+  // v1.7 presents mandatory Terms + Privacy acceptance in the client.
+  // Older installed builds are kept compatible during rollout; once v1.7 is
+  // the minimum supported version this can be tightened server-side.
   return {
     request: new Request(request, { body: bodyText }),
     marketingConsent: body.marketing_consent === true,
@@ -190,7 +188,7 @@ export default {
     let registrationMarketingConsent = false
 
     if (request.method === 'POST' && url.pathname === '/auth/register') {
-      const prepared = await prepareRegistration(request, env)
+      const prepared = await prepareRegistration(request)
       if (prepared.error) return prepared.error
       forwardedRequest = prepared.request ?? request
       registrationMarketingConsent = prepared.marketingConsent === true
