@@ -2,13 +2,14 @@
  * OTYA Auth production entrypoint.
  *
  * Production wrapper for Resend, Google verification, Telegram account linking,
- * account profile controls, Drive backup and explicit legal/marketing consent.
+ * account profile controls, phone verification, Drive backup and explicit legal/marketing consent.
  */
 
 import legacyWorker from './index'
 import { handleBackupRoute } from './backup_route'
 import { handleTelegramLogin } from './telegram-login'
 import { handleAccountProfile } from './account-profile'
+import { handlePhoneVerification } from './phone-verification'
 import { sendResendEmail, type ResendEmail } from './resend'
 import {
   handleConsentRoute,
@@ -48,6 +49,7 @@ interface ResendEnv extends Record<string, unknown> {
   TELEGRAM_LOGIN_CLIENT_ID?: string
   TELEGRAM_LOGIN_CLIENT_SECRET?: string
   TELEGRAM_LOGIN_REDIRECT_URI?: string
+  TELEGRAM_GATEWAY_TOKEN?: string
   AUTH_JWT_SECRET: string
   AUTH_KV: KVNamespace
   AUTH_DB: D1Database
@@ -256,6 +258,11 @@ export default {
     if (url.pathname.startsWith('/auth/telegram/') && request.method !== 'OPTIONS') {
       const telegramResponse = await handleTelegramLogin(request, env)
       if (telegramResponse) return telegramResponse
+    }
+
+    if (url.pathname.startsWith('/auth/phone/') && request.method !== 'OPTIONS') {
+      const phoneResponse = await handlePhoneVerification(request, env)
+      if (phoneResponse) return phoneResponse
     }
 
     if (url.pathname === '/auth/consent' && request.method !== 'OPTIONS') {
