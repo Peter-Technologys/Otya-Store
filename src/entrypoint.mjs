@@ -1,4 +1,5 @@
 import worker from './queue-worker.mjs'
+import { handleTelegramAi } from './telegram-ai.mjs'
 export { OtyaReleaseWorkflow } from './release-workflow.mjs'
 
 const HEALTH_CHECK_CRON = '*/5 * * * *'
@@ -60,6 +61,7 @@ function analyticsPath(pathname) {
   if (pathname.startsWith('/auth/')) return '/auth/*'
   if (pathname.startsWith('/apk/')) return '/apk/*'
   if (pathname.startsWith('/api/admin/')) return '/api/admin/*'
+  if (pathname.startsWith('/api/telegram/')) return '/api/telegram/*'
   if (pathname.startsWith('/api/')) return '/api/*'
   return pathname === '/' ? '/' : '/other'
 }
@@ -146,6 +148,12 @@ export default {
     const startedAt = Date.now()
     const url = new URL(request.url)
     let response
+    if (url.pathname.startsWith('/api/telegram/')) {
+      response = await handleTelegramAi(request, runtimeEnv)
+      if (!response) response = json({ error: 'Not found' }, 404)
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt)
+      return response
+    }
     if (url.pathname === '/api/admin/release-workflow' && request.method === 'POST') {
       if (!isAdmin(request, runtimeEnv)) response = json({ error: 'Unauthorized' }, 401)
       else if (!runtimeEnv.OTYA_RELEASE_WORKFLOW?.create) response = json({ error: 'Release workflow binding unavailable' }, 503)
