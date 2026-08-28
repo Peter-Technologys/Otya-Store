@@ -17,11 +17,6 @@ APP_NAME    = "OTYA Backend"
 WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 
-# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are configured in the live
-# Cloudflare Worker environment. keep_vars=true prevents Wrangler/OpenNext
-# deployments from deleting live dashboard-managed vars/secrets that are not
-# committed to this repository. Never commit secret values here.
-
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -43,13 +38,12 @@ database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 type         = "ratelimit"
 name         = "RATE_LIMITER"
 namespace_id = "1001"
-
   [unsafe.bindings.simple]
   limit  = 60
   period = 60
 
-# Legacy Cloudflare email binding is intentionally retained until live Resend
-# verification/welcome/reset/security/admin delivery tests pass end-to-end.
+# Legacy Cloudflare email binding is retained only until the final live Resend
+# acceptance test. Automated email is already adapted to Resend in production.
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
@@ -64,23 +58,19 @@ max_batch_size    = 10
 max_retries       = 3
 dead_letter_queue = "otya-push-queue-dlq"
 
-[ai]
-binding = "AI"
-
+# The main backend may enqueue AI jobs, but it no longer executes AI models or
+# consumes the AI queue. otya-ai owns AI inference and AI queue consumption.
 [[queues.producers]]
 binding = "AI_QUEUE"
 queue   = "otya-ai-queue"
 
-[[queues.consumers]]
-queue             = "otya-ai-queue"
-max_batch_size    = 5
-max_batch_timeout = 30
-max_retries       = 3
-dead_letter_queue = "otya-ai-queue-dlq"
-
 [[services]]
 binding = "AUTH"
 service = "otya-auth"
+
+[[services]]
+binding = "AI_SUPPORT"
+service = "otya-ai"
 
 [[workflows]]
 name = "otya-release-workflow"
