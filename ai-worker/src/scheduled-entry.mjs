@@ -3,12 +3,140 @@ import { handleSupportEmailAdmin } from './support-email.mjs'
 import { handleConsoleAdmin } from './console-tools.mjs'
 import { handleGmailConnector } from './gmail-connector.mjs'
 import { handlePublicChat, handleSharedTelegram } from './client-chat.mjs'
-const MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
+
+const FAST_MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
 const output=r=>typeof r?.response==='string'?r.response.trim():''
 const parse=s=>{try{const m=String(s||'').match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null}catch{return null}}
-async function email(env,subject,text){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY missing on otya-ai');const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:'OTYA Player <noreply@petersmartlink.com>',to:[env.ADMIN_REPORT_EMAIL||'petersmartlink@gmail.com'],reply_to:'support@petersmartlink.com',subject,text})});if(!r.ok)throw new Error(`Resend HTTP ${r.status}`)}
-async function weekly(env){const [total,week,active,feedback]=await Promise.all([env.DB.prepare('SELECT COUNT(*) count FROM downloads').first(),env.DB.prepare("SELECT COUNT(*) count FROM downloads WHERE created_at>=datetime('now','-7 days')").first(),env.DB.prepare("SELECT COUNT(*) count FROM devices WHERE last_seen_at>=datetime('now','-30 days')").first(),env.DB.prepare("SELECT category,description FROM feedback WHERE created_at>=datetime('now','-7 days') ORDER BY created_at DESC LIMIT 30").all()]);let summary='No feedback this week.';const items=feedback?.results||[];if(items.length){const r=await env.AI.run(env.OTYA_AI_MODEL||MODEL,{messages:[{role:'system',content:'Summarize OTYA Player feedback into concise themes and actionable issues. Do not invent facts.'},{role:'user',content:items.map((x,i)=>`${i+1}. [${x.category||'other'}] ${String(x.description||'').slice(0,600)}`).join('\n')}]});summary=output(r)||summary}await email(env,`[OTYA] Weekly AI digest — ${new Date().toDateString()}`,[`Total downloads: ${total?.count||0}`,`Downloads last 7d: ${week?.count||0}`,`Active devices 30d: ${active?.count||0}`,'','AI feedback summary:',summary,'',`Generated: ${new Date().toISOString()}`].join('\n'))}
-async function churn(env){const {results=[]}=await env.DB.prepare("SELECT DISTINCT user_id FROM devices WHERE user_id IS NOT NULL AND last_seen_at>=datetime('now','-14 days') AND last_seen_at<datetime('now','-7 days') LIMIT 500").all();for(const row of results){const id=row.user_id;if(!id)continue;const d=await env.DB.prepare('SELECT last_seen_at FROM devices WHERE user_id=? ORDER BY last_seen_at DESC LIMIT 1').bind(id).first();const days=Math.max(0,Math.floor((Date.now()-new Date(d?.last_seen_at||0).getTime())/86400000));const r=await env.AI.run(env.OTYA_AI_MODEL||MODEL,{messages:[{role:'system',content:'Estimate churn risk from supplied activity only. JSON only: {"risk":"low|medium|high","reason":"brief"}.'},{role:'user',content:`Days since last seen: ${days}`}]});const risk=parse(output(r))||{};await env.KV.put(`ai:churn:${id}`,JSON.stringify({risk:risk.risk||'unknown',reason:String(risk.reason||'').slice(0,300),updated_at:new Date().toISOString()}),{expirationTtl:604800});if(risk.risk==='high'&&env.PUSH_QUEUE?.send)await env.PUSH_QUEUE.send({title:'Your music is ready',body:'Open OTYA Player and continue listening.',user_id:id})}}
+const clean=(v,max=2000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
+
+async function email(env,subject,text){
+  if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY missing on otya-ai')
+  const r=await fetch('https://api.resend.com/emails',{
+    method:'POST',
+    headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      from:'OTYA <noreply@petersmartlink.com>',
+      to:[env.ADMIN_REPORT_EMAIL||'petersmartlink@gmail.com'],
+      reply_to:'support@petersmartlink.com',
+      subject,
+      text,
+    }),
+  })
+  if(!r.ok)throw new Error(`Resend HTTP ${r.status}`)
+}
+
+async function scalar(env,sql,bindings=[]){
+  if(!env.DB?.prepare)return 0
+  try{const row=await env.DB.prepare(sql).bind(...bindings).first();return Number(row?.count||0)}catch{return 0}
+}
+
+async function rows(env,sql,bindings=[]){
+  if(!env.DB?.prepare)return[]
+  try{const result=await env.DB.prepare(sql).bind(...bindings).all();return result?.results||[]}catch{return[]}
+}
+
+async function supportInbox(env,limit=8){
+  if(!env.RESEND_API_KEY)return[]
+  try{
+    const r=await fetch(`https://api.resend.com/emails/receiving?limit=${Math.max(1,Math.min(limit,20))}`,{headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'}})
+    if(!r.ok)return[]
+    const data=await r.json()
+    return Array.isArray(data?.data)?data.data.map(x=>({from:clean(x.from,180),subject:clean(x.subject,220),created_at:x.created_at})):[]
+  }catch{return[]}
+}
+
+async function operationsSnapshot(env,window='-24 hours'){
+  const [users,devices,active,downloads,crashes,feedback,supportActions,crashGroups,feedbackRows,support]=await Promise.all([
+    scalar(env,'SELECT COUNT(*) count FROM users'),
+    scalar(env,'SELECT COUNT(*) count FROM devices'),
+    scalar(env,`SELECT COUNT(*) count FROM devices WHERE last_seen_at>=datetime('now',?)`,[window]),
+    scalar(env,`SELECT COUNT(*) count FROM downloads WHERE created_at>=datetime('now',?)`,[window]),
+    scalar(env,`SELECT COUNT(*) count FROM crash_reports WHERE created_at>=datetime('now',?)`,[window]),
+    scalar(env,`SELECT COUNT(*) count FROM feedback WHERE created_at>=datetime('now',?)`,[window]),
+    scalar(env,`SELECT COUNT(*) count FROM ai_support_audit WHERE created_at>=datetime('now',?)`,[window]),
+    rows(env,`SELECT group_id,error_type,COUNT(*) count,MAX(created_at) latest FROM crash_reports WHERE created_at>=datetime('now',?) GROUP BY group_id,error_type ORDER BY count DESC LIMIT 8`,[window]),
+    rows(env,`SELECT category,sentiment,description,created_at FROM feedback WHERE created_at>=datetime('now',?) ORDER BY created_at DESC LIMIT 12`,[window]),
+    supportInbox(env,8),
+  ])
+  let latestRelease=null
+  try{latestRelease=await env.DB.prepare('SELECT tag,version,released_at FROM releases ORDER BY released_at DESC LIMIT 1').first()}catch{}
+  return{
+    generated_at:new Date().toISOString(),
+    services:{database:Boolean(env.DB),kv:Boolean(env.KV),ai:Boolean(env.AI?.run),email:Boolean(env.RESEND_API_KEY),push:Boolean(env.PUSH_QUEUE?.send)},
+    users,devices,active_devices:active,downloads,crashes,feedback,support_actions:supportActions,
+    latest_release:latestRelease,
+    crash_groups:crashGroups,
+    feedback_items:feedbackRows.map(x=>({...x,description:clean(x.description,500)})),
+    recent_support:support,
+  }
+}
+
+async function summarize(env,snapshot,kind){
+  if(!env.AI?.run)return''
+  const system=kind==='weekly'
+    ? 'You are the private operations analyst for OTYA. Produce a concise executive weekly review for the owner. Use only supplied data. Structure: Executive summary, Product health, Support/customer signals, Risks, Recommended actions. Prioritize facts and action; do not use hype.'
+    : 'You are the private operations analyst for OTYA. Produce a concise morning operations brief for the owner. Use only supplied data. Structure: Needs attention, Health, Customer/support signals, Release, Today. If nothing is urgent, say so clearly. Do not invent facts.'
+  try{return output(await env.AI.run(kind==='weekly'?(env.OTYA_AI_MODEL||FAST_MODEL):(env.OTYA_REPORT_MODEL||FAST_MODEL),{messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(snapshot).slice(0,24000)}]}))}catch{return''}
+}
+
+function rawFallback(snapshot){
+  return [
+    `Users: ${snapshot.users}`,
+    `Devices: ${snapshot.devices}`,
+    `Active devices: ${snapshot.active_devices}`,
+    `Downloads: ${snapshot.downloads}`,
+    `Crashes: ${snapshot.crashes}`,
+    `Feedback: ${snapshot.feedback}`,
+    `Support actions: ${snapshot.support_actions}`,
+    `Latest release: ${snapshot.latest_release?.version||snapshot.latest_release?.tag||'unknown'}`,
+  ].join('\n')
+}
+
+async function daily(env){
+  const snapshot=await operationsSnapshot(env,'-24 hours')
+  const summary=await summarize(env,snapshot,'daily')
+  const date=new Intl.DateTimeFormat('en-UG',{timeZone:'Africa/Kampala',dateStyle:'medium'}).format(new Date())
+  await email(env,`OTYA · Morning operations · ${date}`,[summary||rawFallback(snapshot),'',`Generated ${snapshot.generated_at}`].join('\n'))
+}
+
+async function weekly(env){
+  const snapshot=await operationsSnapshot(env,'-7 days')
+  const summary=await summarize(env,snapshot,'weekly')
+  const date=new Intl.DateTimeFormat('en-UG',{timeZone:'Africa/Kampala',dateStyle:'medium'}).format(new Date())
+  await email(env,`OTYA · Weekly review · ${date}`,[summary||rawFallback(snapshot),'',`Generated ${snapshot.generated_at}`].join('\n'))
+}
+
+async function urgent(env){
+  const crashes=await scalar(env,"SELECT COUNT(*) count FROM crash_reports WHERE created_at>=datetime('now','-1 hour')")
+  const threshold=Math.max(3,Number(env.ADMIN_CRASH_ALERT_THRESHOLD||5))
+  if(crashes<threshold)return
+  const hour=new Date().toISOString().slice(0,13)
+  const key=`ops:crash-alert:${hour}`
+  if(env.KV&&await env.KV.get(key))return
+  const groups=await rows(env,"SELECT group_id,error_type,COUNT(*) count,MAX(created_at) latest FROM crash_reports WHERE created_at>=datetime('now','-1 hour') GROUP BY group_id,error_type ORDER BY count DESC LIMIT 6")
+  await email(env,`OTYA alert · ${crashes} crashes in the last hour`,[
+    `OTYA recorded ${crashes} crash reports in the last hour.`,
+    '',
+    ...groups.map(x=>`• ${x.error_type||x.group_id||'Unknown'} — ${x.count} reports — latest ${x.latest||''}`),
+    '',
+    'Review the OTYA Console before taking any destructive or customer-facing action.',
+    `Generated ${new Date().toISOString()}`,
+  ].join('\n'))
+  if(env.KV)await env.KV.put(key,'1',{expirationTtl:7200})
+}
+
+async function churnSignals(env){
+  const {results=[]}=await env.DB.prepare("SELECT DISTINCT user_id FROM devices WHERE user_id IS NOT NULL AND last_seen_at>=datetime('now','-14 days') AND last_seen_at<datetime('now','-7 days') LIMIT 500").all()
+  for(const row of results){
+    const id=row.user_id;if(!id)continue
+    const d=await env.DB.prepare('SELECT last_seen_at FROM devices WHERE user_id=? ORDER BY last_seen_at DESC LIMIT 1').bind(id).first()
+    const days=Math.max(0,Math.floor((Date.now()-new Date(d?.last_seen_at||0).getTime())/86400000))
+    let risk={risk:'unknown',reason:'No model result'}
+    try{const r=await env.AI.run(env.OTYA_REPORT_MODEL||FAST_MODEL,{messages:[{role:'system',content:'Estimate churn risk from supplied activity only. JSON only: {"risk":"low|medium|high","reason":"brief"}. Do not recommend or send outreach.'},{role:'user',content:`Days since last seen: ${days}`}]});risk=parse(output(r))||risk}catch{}
+    await env.KV.put(`ai:churn:${id}`,JSON.stringify({risk:risk.risk||'unknown',reason:String(risk.reason||'').slice(0,300),updated_at:new Date().toISOString()}),{expirationTtl:604800})
+  }
+}
+
 export default {
   ...aiWorker,
   async fetch(request,env,ctx){
@@ -20,5 +148,11 @@ export default {
     if(url.pathname.startsWith('/api/telegram/')){const shared=await handleSharedTelegram(request,env);if(shared)return shared}
     return aiWorker.fetch(request,env,ctx)
   },
-  async scheduled(event,env,ctx){const task=event.cron==='0 6 * * 1'?weekly(env):event.cron==='0 9 * * *'?churn(env):Promise.resolve();ctx.waitUntil(task)}
+  async scheduled(event,env,ctx){
+    let task=Promise.resolve()
+    if(event.cron==='0 6 * * 1')task=weekly(env)
+    else if(event.cron==='0 5 * * *')task=Promise.all([daily(env),churnSignals(env)])
+    else if(event.cron==='0 * * * *')task=urgent(env)
+    ctx.waitUntil(task)
+  }
 }
