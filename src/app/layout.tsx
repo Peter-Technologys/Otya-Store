@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { Oxanium } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import ThemeControl from './ThemeControl'
 import './globals.css'
 
-const oxanium = Oxanium({ subsets: ['latin'], display: 'swap', weight: ['300','400','500','600','700','800'], variable: '--font-oxanium' })
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
 const SITE_URL='https://petersmartlink.com'
 const APP_VERSION='1.7.0'
 const ADSENSE_ID='ca-pub-2517163652161686'
@@ -26,6 +26,22 @@ export const viewport: Viewport = {themeColor:[{media:'(prefers-color-scheme: li
 
 const schemaOrg={'@context':'https://schema.org','@graph':[{'@type':'Organization','@id':`${SITE_URL}/#organization`,name:'OTYA System',url:SITE_URL,logo:{'@type':'ImageObject',url:`${SITE_URL}/android-chrome-512x512.png`,width:512,height:512}},{'@type':'MobileApplication','@id':`${SITE_URL}/#otyaplayer`,name:'OTYA Player',alternateName:'com.otyaplayer.app',operatingSystem:'Android 5.0+',applicationCategory:'MultimediaApplication',softwareVersion:APP_VERSION,offers:{'@type':'Offer',price:'0',priceCurrency:'USD',availability:'https://schema.org/InStock'},url:`${SITE_URL}/otya-player`,downloadUrl:`${SITE_URL}/download/otya-player`,author:{'@id':`${SITE_URL}/#organization`},description:'Free offline media player for Android with music and video playback, Flash Share, Private Vault and AI support.',featureList:'Offline playback, Flash Share, Private Vault, Web Mirror, Storage Analyzer, Seasonal Themes, Equalizer, Picture-in-Picture, WhatsApp Trimmer, Audio Extractor',image:`${SITE_URL}/android-chrome-512x512.png`,screenshot:`${SITE_URL}/og-image.jpg`,releaseNotes:`${SITE_URL}/download/otya-player`},{'@type':'WebSite','@id':`${SITE_URL}/#website`,url:SITE_URL,name:'OTYA System',publisher:{'@id':`${SITE_URL}/#organization`},potentialAction:{'@type':'SearchAction',target:`${SITE_URL}/blog/?search={search_term_string}`,'query-input':'required name=search_term_string'}}]}
 
+const initialThemeScript = `try {
+  var migrated = localStorage.getItem('otya_theme_system_v2');
+  if (!migrated) {
+    localStorage.setItem('otya_theme', 'system');
+    localStorage.setItem('otya_theme_system_v2', '1');
+  }
+  var t = localStorage.getItem('otya_theme') || 'system';
+  if (t === 'light' || t === 'dark') {
+    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.style.colorScheme = t;
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.style.colorScheme = 'light dark';
+  }
+} catch (e) {}`
+
 export default function RootLayout({children}:{children:React.ReactNode}){
-  return <html lang="en" dir="ltr" className={oxanium.variable} suppressHydrationWarning><head><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schemaOrg)}}/><meta name="google-adsense-account" content={ADSENSE_ID}/><script dangerouslySetInnerHTML={{__html:"try{var t=localStorage.getItem('otya_theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t}}catch(e){}"}}/></head><body className={oxanium.className}>{children}<ThemeControl/><Script id="google-adsense" async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_ID}`} crossOrigin="anonymous" strategy="afterInteractive"/></body></html>
+  return <html lang="en" dir="ltr" className={inter.variable} suppressHydrationWarning><head><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(schemaOrg)}}/><meta name="google-adsense-account" content={ADSENSE_ID}/><script dangerouslySetInnerHTML={{__html:initialThemeScript}}/></head><body className={inter.className}>{children}<ThemeControl/><Script id="google-adsense" async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_ID}`} crossOrigin="anonymous" strategy="afterInteractive"/></body></html>
 }
