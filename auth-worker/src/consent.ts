@@ -16,8 +16,8 @@ interface Env {
   AUTH_JWT_SECRET: string
 }
 
-const TERMS_VERSION = '2026-08-28'
-const PRIVACY_VERSION = '2026-08-28'
+export const TERMS_VERSION = '2026-08-28'
+export const PRIVACY_VERSION = '2026-08-28'
 
 async function ensureConsentSchema(db: D1Database): Promise<void> {
   await db.exec(`
@@ -109,20 +109,77 @@ export async function handleConsentRoute(request: Request, env: Env): Promise<Re
     try { body = await request.json() as Record<string, unknown> }
     catch { return json({ error: 'Invalid JSON body' }, 400) }
 
-    if (typeof body.marketing_consent !== 'boolean') {
+    const hasTerms = body.terms_accepted !== undefined
+    const hasPrivacy = body.privacy_accepted !== undefined
+    const hasMarketing = body.marketing_consent !== undefined
+    if (!hasTerms && !hasPrivacy && !hasMarketing) {
+      return json({ error: 'No consent fields supplied' }, 400)
+    }
+
+    if (hasTerms && body.terms_accepted !== true) {
+      return json({ error: 'terms_accepted may only be set to true' }, 400)
+    }
+    if (hasPrivacy && body.privacy_accepted !== true) {
+      return json({ error: 'privacy_accepted may only be set to true' }, 400)
+    }
+    if (hasMarketing && typeof body.marketing_consent !== 'boolean') {
       return json({ error: 'marketing_consent must be true or false' }, 400)
+    }
+    if (hasTerms && body.terms_version !== TERMS_VERSION) {
+      return json({ error: 'Current Terms of Service must be accepted', terms_version: TERMS_VERSION }, 409)
+    }
+    if (hasPrivacy && body.privacy_version !== PRIVACY_VERSION) {
+      return json({ error: 'Current Privacy Policy must be accepted', privacy_version: PRIVACY_VERSION }, 409)
     }
 
     await env.AUTH_DB.prepare(`
-      INSERT INTO user_consents (user_id, marketing_consent, marketing_updated_at, updated_at)
-      VALUES (?, ?, datetime('now'), datetime('now'))
-      ON CONFLICT(user_id) DO UPDATE SET
-        marketing_consent = excluded.marketing_consent,
-        marketing_updated_at = datetime('now'),
-        updated_at = datetime('now')
-    `).bind(userId, body.marketing_consent ? 1 : 0).run()
+      INSERT INTO user_consents (user_id, updated_at)
+      VALUES (?, datetime('now'))
+      ON CONFLICT(user_id) DO NOTHING
+    `).bind(userId).run()
 
-    return json({ ok: true, marketing_consent: body.marketing_consent })
+    if (hasTerms) {
+      await env.AUTH_DB.prepare(`
+        UPDATE user_consents SET
+          terms_accepted = 1,
+          terms_version = ?,
+          terms_accepted_at = datetime('now'),
+          updated_at = datetime('now')
+        WHERE user_id = ?
+      `).bind(TERMS_VERSION, userId).run()
+    }
+
+    if (hasPrivacy) {
+      await env.AUTH_DB.prepare(`
+        UPDATE user_consents SET
+          privacy_accepted = 1,
+          privacy_version = ?,
+          privacy_accepted_at = datetime('now'),
+          updated_at = datetime('now')
+        WHERE user_id = ?
+      `).bind(PRIVACY_VERSION, userId).run()
+    }
+
+    if (hasMarketing) {
+      await env.AUTH_DB.prepare(`
+        UPDATE user_consents SET
+          marketing_consent = ?,
+          marketing_updated_at = datetime('now'),
+          updated_at = datetime('now')
+        WHERE user_id = ?
+      `).bind(body.marketing_consent ? 1 : 0, userId).run()
+    }
+
+    const row = await env.AUTH_DB.prepare(
+      'SELECT * FROM user_consents WHERE user_id = ?'
+    ).bind(userId).first<Record<string, unknown>>()
+
+    return json({
+      ok: true,
+      terms_version: TERMS_VERSION,
+      privacy_version: PRIVACY_VERSION,
+      consent: row,
+    })
   }
 
   return json({ error: 'Method not allowed' }, 405)
