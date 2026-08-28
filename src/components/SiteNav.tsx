@@ -31,7 +31,7 @@ export function SiteNav() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/my-account" className="hidden sm:inline-flex items-center px-3 py-2 rounded-lg border text-sm font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Account</Link>
+          <Link href="/account" className="hidden sm:inline-flex items-center px-3 py-2 rounded-lg border text-sm font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Account</Link>
           <Link href="/download/otya-player" className="cosmos-button hidden sm:inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold">Get OTYA Player</Link>
           <button onClick={() => setOpen(v => !v)} className="md:hidden w-10 h-10 rounded-xl border flex items-center justify-center" style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} aria-label="Menu">
             <span className="text-xl leading-none">{open ? '×' : '☰'}</span>
@@ -41,7 +41,7 @@ export function SiteNav() {
 
       {open && <div className="md:hidden border-t px-4 py-3 space-y-1" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-app-bar)' }}>
         {NAV_LINKS.map(({ label, href }) => <Link key={href} href={href} onClick={() => setOpen(false)} className="block px-3 py-3 rounded-xl text-sm font-medium" style={{ color: 'var(--cosmos-text-primary)' }}>{label}</Link>)}
-        <Link href="/my-account" onClick={() => setOpen(false)} className="block px-3 py-3 rounded-xl text-sm font-medium">Account</Link>
+        <Link href="/account" onClick={() => setOpen(false)} className="block px-3 py-3 rounded-xl text-sm font-medium">Account</Link>
         <Link href="/download/otya-player" onClick={() => setOpen(false)} className="cosmos-button flex justify-center px-4 py-3 rounded-xl text-sm font-semibold mt-2">Get OTYA Player</Link>
       </div>}
     </nav>
