@@ -1,15 +1,14 @@
 /**
  * OTYA Auth production entrypoint.
  *
- * The large auth module still calls env.EMAIL internally. This wrapper replaces
- * that interface with a server-side Resend adapter, hardens Google auth, and
- * handles encrypted Google Drive recovery without exposing encryption keys to
- * Flutter or Drive.
+ * Production wrapper for Resend, Google verification, Drive backup and
+ * explicit legal/marketing consent.
  */
 
 import legacyWorker from './index'
 import { handleBackupRoute } from './backup_route'
 import { sendResendEmail, type ResendEmail } from './resend'
+import { handleConsentRoute, recordRegistrationConsent } from './consent'
 
 interface LegacyEmailMessage {
   from: { email: string; name?: string }
@@ -24,11 +23,23 @@ interface KVNamespace {
   delete(key: string): Promise<void>
 }
 
+interface D1Statement {
+  bind(...values: unknown[]): D1Statement
+  first<T = Record<string, unknown>>(): Promise<T | null>
+  run(): Promise<{ meta: { changes: number } }>
+}
+
+interface D1Database {
+  prepare(query: string): D1Statement
+  exec(query: string): Promise<unknown>
+}
+
 interface ResendEnv extends Record<string, unknown> {
   RESEND_API_KEY?: string
   GOOGLE_CLIENT_ID?: string
   AUTH_JWT_SECRET: string
   AUTH_KV: KVNamespace
+  AUTH_DB: D1Database
   CORS_ORIGIN?: string
 }
 
@@ -50,8 +61,6 @@ function createEmailAdapter(apiKey: string | undefined) {
   return {
     async send(message: LegacyEmailMessage): Promise<void> {
       const email: ResendEmail = {
-        // All automated account/client mail has one stable sender identity.
-        // support@petersmartlink.com is reserved for human support/contact flows.
         from: OTYA_NOREPLY_FROM,
         to: message.to.map((recipient) => recipient.email),
         subject: message.subject,
@@ -104,9 +113,7 @@ async function validateGoogleRequest(
   request: Request,
   env: ResendEnv,
 ): Promise<{ request?: Request; error?: Response }> {
-  if (!env.GOOGLE_CLIENT_ID) {
-    return { error: jsonError('Google auth not configured', 503, env) }
-  }
+  if (!env.GOOGLE_CLIENT_ID) return { error: jsonError('Google auth not configured', 503, env) }
   if (!(await checkGoogleRateLimit(request, env))) {
     return { error: jsonError('Too many Google sign-in attempts. Try again later.', 429, env) }
   }
@@ -121,23 +128,16 @@ async function validateGoogleRequest(
   }
 
   const idToken = body.id_token
-  if (typeof idToken !== 'string' || !idToken) {
-    return { error: jsonError('id_token is required', 400, env) }
-  }
+  if (typeof idToken !== 'string' || !idToken) return { error: jsonError('id_token is required', 400, env) }
 
   try {
-    const response = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
-    )
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`)
     if (!response.ok) return { error: jsonError('Invalid Google ID token', 401, env) }
-
     const payload = await response.json() as GoogleTokenPayload
     const verified = payload.email_verified === true || payload.email_verified === 'true'
-    const issuerOk = payload.iss === 'accounts.google.com'
-      || payload.iss === 'https://accounts.google.com'
+    const issuerOk = payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com'
     const expiry = Number(payload.exp ?? 0)
     const now = Math.floor(Date.now() / 1000)
-
     if (payload.aud !== env.GOOGLE_CLIENT_ID || !issuerOk || expiry <= now || !verified) {
       return { error: jsonError('Google account verification failed', 401, env) }
     }
@@ -145,34 +145,79 @@ async function validateGoogleRequest(
     return { error: jsonError('Google verification service unavailable', 503, env) }
   }
 
+  return { request: new Request(request, { body: bodyText }) }
+}
+
+async function prepareRegistration(
+  request: Request,
+  env: ResendEnv,
+): Promise<{ request?: Request; marketingConsent?: boolean; error?: Response }> {
+  let bodyText: string
+  let body: Record<string, unknown>
+  try {
+    bodyText = await request.text()
+    body = JSON.parse(bodyText) as Record<string, unknown>
+  } catch {
+    return { error: jsonError('Invalid JSON body', 400, env) }
+  }
+
+  if (body.terms_accepted !== true || body.privacy_accepted !== true) {
+    return { error: jsonError('You must accept the Terms of Service and Privacy Policy to create an OTYA account.', 400, env) }
+  }
+
   return {
     request: new Request(request, { body: bodyText }),
+    marketingConsent: body.marketing_consent === true,
   }
 }
 
 export default {
   async fetch(request: Request, env: ResendEnv): Promise<Response> {
-    const resendEnv = {
-      ...env,
-      EMAIL: createEmailAdapter(env.RESEND_API_KEY),
+    const resendEnv = { ...env, EMAIL: createEmailAdapter(env.RESEND_API_KEY) }
+    const url = new URL(request.url)
+
+    if (url.pathname === '/auth/consent' && request.method !== 'OPTIONS') {
+      const response = await handleConsentRoute(request, env)
+      if (response) return response
     }
 
-    const url = new URL(request.url)
     if (url.pathname === '/auth/backup' && request.method !== 'OPTIONS') {
       const backupResponse = await handleBackupRoute(request, env)
       if (backupResponse) return backupResponse
     }
 
     let forwardedRequest = request
+    let registrationMarketingConsent = false
+
+    if (request.method === 'POST' && url.pathname === '/auth/register') {
+      const prepared = await prepareRegistration(request, env)
+      if (prepared.error) return prepared.error
+      forwardedRequest = prepared.request ?? request
+      registrationMarketingConsent = prepared.marketingConsent === true
+    }
+
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const checked = await validateGoogleRequest(request, env)
       if (checked.error) return checked.error
       forwardedRequest = checked.request ?? request
     }
 
-    return legacyWorker.fetch(
+    const response = await legacyWorker.fetch(
       forwardedRequest,
       resendEnv as Parameters<typeof legacyWorker.fetch>[1],
     )
+
+    if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
+      try {
+        const cloned = response.clone()
+        const data = await cloned.json() as { user?: { id?: string } }
+        const userId = data.user?.id
+        if (userId) await recordRegistrationConsent(env, userId, registrationMarketingConsent)
+      } catch (error) {
+        console.error('[auth/consent] Could not persist registration consent:', (error as Error)?.message)
+      }
+    }
+
+    return response
   },
 }
