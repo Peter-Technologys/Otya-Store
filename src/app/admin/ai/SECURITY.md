@@ -1,0 +1,1 @@
+This route never receives Resend or Cloudflare secrets. It authenticates to otya-store with the existing admin bearer token; otya-store performs the service-to-service hop to otya-ai using INTERNAL_SECRET.

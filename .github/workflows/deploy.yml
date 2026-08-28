@@ -61,8 +61,6 @@ jobs:
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
           npx wrangler deploy
 
-  # Deploy the public store first so its current trigger configuration is live
-  # before the dedicated AI worker takes ownership of AI-only triggers.
   deploy-store:
     name: Deploy otya-store
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -98,20 +96,27 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          # Wrangler does not automatically remove a previously-created Queue
-          # consumer when its [[queues.consumers]] block disappears from another
-          # Worker's config. Remove only the obsolete otya-store ownership.
-          # A failure here is tolerated because the following otya-ai deploy is
-          # authoritative and will fail if another conflicting consumer remains.
           npx wrangler queues consumer remove otya-ai-queue otya-store || true
       - name: Configure and deploy AI
         working-directory: ai-worker
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          GMAIL_GOOGLE_CLIENT_SECRET: ${{ secrets.GMAIL_GOOGLE_CLIENT_SECRET }}
+          CONNECTOR_ENCRYPTION_KEY: ${{ secrets.CONNECTOR_ENCRYPTION_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$RESEND_API_KEY" && test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+          if [ -n "${INTERNAL_SECRET:-}" ]; then
+            printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET
+          fi
+          if [ -n "${GMAIL_GOOGLE_CLIENT_SECRET:-}" ]; then
+            printf '%s' "$GMAIL_GOOGLE_CLIENT_SECRET" | npx wrangler secret put GMAIL_GOOGLE_CLIENT_SECRET
+          fi
+          if [ -n "${CONNECTOR_ENCRYPTION_KEY:-}" ]; then
+            printf '%s' "$CONNECTOR_ENCRYPTION_KEY" | npx wrangler secret put CONNECTOR_ENCRYPTION_KEY
+          fi
           npx wrangler deploy
