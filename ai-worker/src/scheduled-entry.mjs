@@ -1,6 +1,7 @@
 import aiWorker from './index.mjs'
 import { handleSupportEmailAdmin } from './support-email.mjs'
 import { handleConsoleAdmin } from './console-tools.mjs'
+import { handleGmailConnector } from './gmail-connector.mjs'
 const MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
 const output=r=>typeof r?.response==='string'?r.response.trim():''
 const parse=s=>{try{const m=String(s||'').match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null}catch{return null}}
@@ -13,6 +14,7 @@ export default {
     const url=new URL(request.url)
     if(url.pathname.startsWith('/api/admin/ai/support/')) return handleSupportEmailAdmin(request,env)
     if(url.pathname.startsWith('/api/admin/ai/console/')) return handleConsoleAdmin(request,env)
+    if(url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,env)
     return aiWorker.fetch(request,env,ctx)
   },
   async scheduled(event,env,ctx){const task=event.cron==='0 6 * * 1'?weekly(env):event.cron==='0 9 * * *'?churn(env):Promise.resolve();ctx.waitUntil(task)}
