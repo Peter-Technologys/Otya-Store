@@ -42,8 +42,6 @@ namespace_id = "1001"
   limit  = 60
   period = 60
 
-# Legacy Cloudflare email binding is retained only until the final live Resend
-# acceptance test. Automated email is already adapted to Resend in production.
 [[send_email]]
 name                = "EMAIL"
 destination_address = "petersmartlink@gmail.com"
@@ -51,15 +49,13 @@ destination_address = "petersmartlink@gmail.com"
 [[queues.producers]]
 binding = "PUSH_QUEUE"
 queue   = "otya-push-queue"
-
 [[queues.consumers]]
 queue             = "otya-push-queue"
 max_batch_size    = 10
 max_retries       = 3
 dead_letter_queue = "otya-push-queue-dlq"
 
-# The main backend may enqueue AI jobs, but it no longer executes AI models or
-# consumes the AI queue. otya-ai owns AI inference and AI queue consumption.
+# Store/API produces AI jobs; otya-ai owns inference and AI queue consumption.
 [[queues.producers]]
 binding = "AI_QUEUE"
 queue   = "otya-ai-queue"
@@ -67,7 +63,6 @@ queue   = "otya-ai-queue"
 [[services]]
 binding = "AUTH"
 service = "otya-auth"
-
 [[services]]
 binding = "AI_SUPPORT"
 service = "otya-ai"
@@ -81,10 +76,6 @@ class_name = "OtyaReleaseWorkflow"
 binding = "OTYA_ANALYTICS"
 dataset = "otya_analytics"
 
+# Only non-AI operational schedules remain here.
 [triggers]
-crons = [
-  "*/5 * * * *",
-  "0 * * * *",
-  "0 6 * * 1",
-  "0 9 * * *"
-]
+crons = ["*/5 * * * *", "0 * * * *"]
