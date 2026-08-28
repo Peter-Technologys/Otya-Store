@@ -1,5 +1,7 @@
 const TELEGRAM_API = 'https://api.telegram.org'
 const DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
+const TELEGRAM_RATE_LIMIT = 20
+const TELEGRAM_RATE_WINDOW_SECS = 60
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
 const clean = (value, max = 3500) => String(value ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max)
@@ -19,6 +21,16 @@ async function telegram(env, method, body) {
   return data
 }
 
+async function telegramRateAllowed(env, identity) {
+  if (!env.KV || identity == null) return true
+  const bucket = Math.floor(Date.now() / (TELEGRAM_RATE_WINDOW_SECS * 1000))
+  const key = `telegram:rate:${identity}:${bucket}`
+  const current = Number.parseInt((await env.KV.get(key)) || '0', 10) || 0
+  if (current >= TELEGRAM_RATE_LIMIT) return false
+  await env.KV.put(key, String(current + 1), { expirationTtl: TELEGRAM_RATE_WINDOW_SECS * 2 })
+  return true
+}
+
 async function answerSupport(env, text) {
   const system = `You are OTYA Support, the official AI assistant for OTYA Player. Help with playback, downloads, account access, verification, updates, privacy, Terms and troubleshooting. Be concise and accurate. Never request or reveal passwords, OTPs, JWTs, API keys, bot tokens, secrets, payment credentials or private backend configuration. Never claim an account action happened unless an approved backend action confirms it. Account-specific or destructive actions require verified identity. Do not invent outages, account state, releases or policy facts. Official channel: ${env.TELEGRAM_CHANNEL_URL || 'https://t.me/otyaplayer'}. Human support: support@petersmartlink.com.`
   return await runAi(env, [{ role: 'system', content: system }, { role: 'user', content: clean(text, 2000) }], env.OTYA_AI_MODEL || DEFAULT_MODEL)
@@ -26,21 +38,51 @@ async function answerSupport(env, text) {
 
 async function handleTelegram(request, env) {
   const url = new URL(request.url)
-  if (url.pathname.endsWith('/status') && request.method === 'GET') return json({ ok: true, service: 'otya-ai', bot: '@OtyaPlayerBot', channel: env.TELEGRAM_CHANNEL_URL || 'https://t.me/otyaplayer', ai: Boolean(env.AI?.run), token_configured: Boolean(env.TELEGRAM_BOT_TOKEN), webhook_secret_configured: Boolean(env.TELEGRAM_WEBHOOK_SECRET) })
+  if (url.pathname.endsWith('/status') && request.method === 'GET') {
+    return json({ ok: true, service: 'otya-ai', bot: '@OtyaPlayerBot', channel: env.TELEGRAM_CHANNEL_URL || 'https://t.me/otyaplayer', ai: Boolean(env.AI?.run) })
+  }
   if (!url.pathname.endsWith('/webhook')) return json({ error: 'Not found' }, 404)
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   if (!env.TELEGRAM_WEBHOOK_SECRET) return json({ error: 'Telegram webhook is not configured' }, 503)
   if ((request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '') !== env.TELEGRAM_WEBHOOK_SECRET) return json({ error: 'Unauthorized' }, 401)
+
   let update
   try { update = await request.json() } catch { return json({ error: 'Invalid JSON' }, 400) }
-  const chatId = update?.message?.chat?.id
-  const text = clean(update?.message?.text, 2000)
-  if (!chatId || !text) return json({ ok: true })
+
+  const message = update?.message
+  const chatId = message?.chat?.id
+  const chatType = message?.chat?.type
+  const senderId = message?.from?.id ?? chatId
+  const text = clean(message?.text, 2000)
+
+  // OTYA's public Telegram channel is only an entry point. Support and AI
+  // conversations are intentionally private so groups/channels cannot consume
+  // AI quota or expose user support questions to other people.
+  if (!chatId || chatType !== 'private' || !text) return json({ ok: true })
+
+  if (!(await telegramRateAllowed(env, senderId))) {
+    await telegram(env, 'sendMessage', {
+      chat_id: chatId,
+      text: 'You are sending messages too quickly. Please wait a moment and try again.',
+      disable_web_page_preview: true,
+    })
+    return json({ ok: true, rate_limited: true })
+  }
+
   let reply
   if (text === '/start') reply = 'Welcome to OTYA Support. Ask me about OTYA Player, playback, accounts, updates, privacy or troubleshooting. Never send passwords or verification codes here.'
+  else if (text === '/help') reply = 'OTYA Support can help with playback, downloads, account access, email verification, updates, privacy and troubleshooting. Commands: /download, /channel, /privacy. For account-specific help contact support@petersmartlink.com.'
+  else if (text === '/download') reply = 'Download OTYA Player from the official page: https://petersmartlink.com/download/otya-player'
   else if (text === '/privacy') reply = 'Never send passwords, OTPs or secret keys to this bot. For account-specific requests use the OTYA app or support@petersmartlink.com.'
   else if (text === '/channel') reply = `Official OTYA channel: ${env.TELEGRAM_CHANNEL_URL || 'https://t.me/otyaplayer'}`
-  else { try { reply = await answerSupport(env, text) } catch (e) { console.error('[telegram] AI failed:', e?.message); reply = 'I cannot answer that reliably right now. Please contact support@petersmartlink.com.' } }
+  else {
+    try { reply = await answerSupport(env, text) }
+    catch (e) {
+      console.error('[telegram] AI failed:', e?.message)
+      reply = 'I cannot answer that reliably right now. Please contact support@petersmartlink.com.'
+    }
+  }
+
   await telegram(env, 'sendMessage', { chat_id: chatId, text: clean(reply) || 'Please contact support@petersmartlink.com.', disable_web_page_preview: true })
   return json({ ok: true })
 }
