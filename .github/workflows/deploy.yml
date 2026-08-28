@@ -61,9 +61,8 @@ jobs:
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
           npx wrangler deploy
 
-  # otya-store must deploy before otya-ai while moving AI ownership. This
-  # releases the old AI cron schedules and otya-ai-queue consumer first, which
-  # avoids the Workers Free cron limit and duplicate queue-consumer errors.
+  # Deploy the public store first so its current trigger configuration is live
+  # before the dedicated AI worker takes ownership of AI-only triggers.
   deploy-store:
     name: Deploy otya-store
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -109,6 +108,17 @@ jobs:
         with: { node-version: '22' }
       - working-directory: ai-worker
         run: npm install --no-package-lock --ignore-scripts
+      - name: Remove obsolete store AI queue consumer
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Wrangler does not automatically remove a previously-created Queue
+          # consumer when its [[queues.consumers]] block disappears from another
+          # Worker's config. Remove only the obsolete otya-store ownership.
+          # A failure here is tolerated because the following otya-ai deploy is
+          # authoritative and will fail if another conflicting consumer remains.
+          npx wrangler queues consumer remove otya-ai-queue otya-store || true
       - name: Configure and deploy AI
         working-directory: ai-worker
         env:
