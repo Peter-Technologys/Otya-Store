@@ -1,0 +1,48 @@
+name = "otya-ai"
+main = "src/index.mjs"
+compatibility_date = "2026-07-19"
+compatibility_flags = ["nodejs_compat"]
+keep_vars = true
+
+[observability]
+enabled = true
+
+[vars]
+ENVIRONMENT = "production"
+APP_NAME = "OTYA AI"
+WEBSITE_URL = "https://petersmartlink.com"
+TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
+TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
+OTYA_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "otya-store-db"
+database_id = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "3f179286e0fc4dbfa2332884cdf81312"
+
+[[queues.producers]]
+binding = "PUSH_QUEUE"
+queue = "otya-push-queue"
+
+[[queues.consumers]]
+queue = "otya-ai-queue"
+max_batch_size = 5
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "otya-ai-queue-dlq"
+
+# Optional: add [[vectorize]] binding named VECTORIZE after confirming the
+# production index name in Cloudflare. Crash processing safely falls back to
+# deterministic grouping until that binding is configured.
+
+# Required secrets (Cloudflare Worker secrets; never commit values):
+# TELEGRAM_BOT_TOKEN
+# TELEGRAM_WEBHOOK_SECRET
+# INTERNAL_SECRET (for future authenticated service-to-service AI actions)
