@@ -2,7 +2,8 @@
  * OTYA Auth production entrypoint.
  *
  * Production wrapper for Resend, Google verification, Telegram account linking,
- * account profile controls, phone verification, Drive backup and explicit legal/marketing consent.
+ * account profile controls, phone verification, two-step verification, session
+ * controls, Drive backup and explicit legal/marketing consent.
  */
 
 import legacyWorker from './index'
@@ -10,6 +11,17 @@ import { handleBackupRoute } from './backup_route'
 import { handleTelegramLogin } from './telegram-login'
 import { handleAccountProfile } from './account-profile'
 import { handlePhoneVerification } from './phone-verification'
+import {
+  handleSessionRoute,
+  recordSessionFromAuthResponse,
+  removeSessionFromLogout,
+  touchSessionFromRefresh,
+} from './session-manager'
+import {
+  handleTwoFactorRoute,
+  revokeIssuedRefreshToken,
+  verifySecondFactor,
+} from './two-factor'
 import { sendResendEmail, type ResendEmail } from './resend'
 import {
   handleConsentRoute,
@@ -29,6 +41,11 @@ interface KVNamespace {
   get(key: string): Promise<string | null>
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
   delete(key: string): Promise<void>
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
+    keys: { name: string }[]
+    list_complete: boolean
+    cursor?: string
+  }>
 }
 
 interface D1Statement {
@@ -50,6 +67,7 @@ interface ResendEnv extends Record<string, unknown> {
   TELEGRAM_LOGIN_CLIENT_SECRET?: string
   TELEGRAM_LOGIN_REDIRECT_URI?: string
   TELEGRAM_GATEWAY_TOKEN?: string
+  ACCOUNT_ENCRYPTION_KEY?: string
   AUTH_JWT_SECRET: string
   AUTH_KV: KVNamespace
   AUTH_DB: D1Database
@@ -265,6 +283,16 @@ export default {
       if (phoneResponse) return phoneResponse
     }
 
+    if (url.pathname.startsWith('/auth/2fa/') && request.method !== 'OPTIONS') {
+      const twoFactorResponse = await handleTwoFactorRoute(request, env)
+      if (twoFactorResponse) return twoFactorResponse
+    }
+
+    if (url.pathname.startsWith('/auth/sessions') && request.method !== 'OPTIONS') {
+      const sessionResponse = await handleSessionRoute(request, env)
+      if (sessionResponse) return sessionResponse
+    }
+
     if (url.pathname === '/auth/consent' && request.method !== 'OPTIONS') {
       const response = await handleConsentRoute(request, env)
       if (response) return response
@@ -279,6 +307,33 @@ export default {
     let registrationMarketingConsent = false
     let googleNewUser = false
     let googleMarketingConsent = false
+    let loginSecondFactor: { code?: string; recoveryCode?: string } | null = null
+    let refreshTokenForTouch: string | null = null
+    let refreshTokenForLogout: string | null = null
+
+    if (request.method === 'POST' && url.pathname === '/auth/login') {
+      try {
+        const body = await request.clone().json() as Record<string, unknown>
+        loginSecondFactor = {
+          code: typeof body.totp_code === 'string' ? body.totp_code : undefined,
+          recoveryCode: typeof body.recovery_code === 'string' ? body.recovery_code : undefined,
+        }
+      } catch {}
+    }
+
+    if (request.method === 'POST' && url.pathname === '/auth/refresh') {
+      try {
+        const body = await request.clone().json() as { refresh_token?: string }
+        refreshTokenForTouch = body.refresh_token ?? null
+      } catch {}
+    }
+
+    if (request.method === 'POST' && url.pathname === '/auth/logout') {
+      try {
+        const body = await request.clone().json() as { refresh_token?: string }
+        refreshTokenForLogout = body.refresh_token ?? null
+      } catch {}
+    }
 
     if (request.method === 'POST' && url.pathname === '/auth/register') {
       const prepared = await prepareRegistration(request, env)
@@ -300,6 +355,52 @@ export default {
       resendEnv as Parameters<typeof legacyWorker.fetch>[1],
     )
 
+    if (response.ok && request.method === 'POST' && url.pathname === '/auth/login') {
+      try {
+        const data = await response.clone().json() as {
+          refresh_token?: string
+          user?: { id?: string }
+        }
+        const userId = data.user?.id
+        if (userId) {
+          const result = await verifySecondFactor(
+            env,
+            userId,
+            loginSecondFactor?.code,
+            loginSecondFactor?.recoveryCode,
+          )
+          if (result !== 'not-enabled' && result !== 'valid') {
+            await revokeIssuedRefreshToken(env, userId, data.refresh_token)
+            if (result === 'unavailable') {
+              return jsonError(
+                'Two-step verification is temporarily unavailable. Try again later.',
+                503,
+                env,
+                { code: 'TWO_FACTOR_UNAVAILABLE' },
+              )
+            }
+            if (result === 'invalid') {
+              return jsonError(
+                'The authenticator or recovery code is invalid.',
+                401,
+                env,
+                { code: 'TWO_FACTOR_INVALID' },
+              )
+            }
+            return jsonError(
+              'Enter your authenticator code or a recovery code.',
+              401,
+              env,
+              { code: 'TWO_FACTOR_REQUIRED' },
+            )
+          }
+        }
+      } catch (error) {
+        console.error('[auth/2fa] Login post-check failed:', (error as Error)?.message)
+        return jsonError('Could not verify account security settings.', 503, env)
+      }
+    }
+
     if (response.ok && request.method === 'POST' && url.pathname === '/auth/register') {
       try {
         await persistConsentFromResponse(response, env, registrationMarketingConsent)
@@ -314,6 +415,22 @@ export default {
       } catch (error) {
         console.error('[auth/consent] Could not persist Google registration consent:', (error as Error)?.message)
       }
+    }
+
+    if (
+      response.ok
+      && request.method === 'POST'
+      && (url.pathname === '/auth/login' || url.pathname === '/auth/register' || url.pathname === '/auth/google')
+    ) {
+      await recordSessionFromAuthResponse(request, response, env)
+    }
+
+    if (response.ok && refreshTokenForTouch) {
+      await touchSessionFromRefresh(request, refreshTokenForTouch, env)
+    }
+
+    if (refreshTokenForLogout) {
+      await removeSessionFromLogout(refreshTokenForLogout, env)
     }
 
     return response
