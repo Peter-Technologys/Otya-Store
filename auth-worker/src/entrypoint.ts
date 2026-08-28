@@ -1,12 +1,13 @@
 /**
  * OTYA Auth production entrypoint.
  *
- * Production wrapper for Resend, Google verification, Drive backup and
- * explicit legal/marketing consent.
+ * Production wrapper for Resend, Google verification, Telegram account linking,
+ * Drive backup and explicit legal/marketing consent.
  */
 
 import legacyWorker from './index'
 import { handleBackupRoute } from './backup_route'
+import { handleTelegramLogin } from './telegram-login'
 import { sendResendEmail, type ResendEmail } from './resend'
 import {
   handleConsentRoute,
@@ -31,17 +32,21 @@ interface KVNamespace {
 interface D1Statement {
   bind(...values: unknown[]): D1Statement
   first<T = Record<string, unknown>>(): Promise<T | null>
-  run(): Promise<{ meta: { changes: number } }>
+  all<T = Record<string, unknown>>(): Promise<{ results: T[]; meta: { changes: number; last_row_id?: number } }>
+  run(): Promise<{ meta: { changes: number; last_row_id?: number } }>
 }
 
 interface D1Database {
   prepare(query: string): D1Statement
-  exec(query: string): Promise<unknown>
+  exec(query: string): Promise<{ count: number; duration: number }>
 }
 
 interface ResendEnv extends Record<string, unknown> {
   RESEND_API_KEY?: string
   GOOGLE_CLIENT_ID?: string
+  TELEGRAM_LOGIN_CLIENT_ID?: string
+  TELEGRAM_LOGIN_CLIENT_SECRET?: string
+  TELEGRAM_LOGIN_REDIRECT_URI?: string
   AUTH_JWT_SECRET: string
   AUTH_KV: KVNamespace
   AUTH_DB: D1Database
@@ -241,6 +246,11 @@ export default {
   async fetch(request: Request, env: ResendEnv): Promise<Response> {
     const resendEnv = { ...env, EMAIL: createEmailAdapter(env.RESEND_API_KEY) }
     const url = new URL(request.url)
+
+    if (url.pathname.startsWith('/auth/telegram/') && request.method !== 'OPTIONS') {
+      const telegramResponse = await handleTelegramLogin(request, env)
+      if (telegramResponse) return telegramResponse
+    }
 
     if (url.pathname === '/auth/consent' && request.method !== 'OPTIONS') {
       const response = await handleConsentRoute(request, env)
