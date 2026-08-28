@@ -1,27 +1,37 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 
 export function OtyaAssistPrompt() {
   const [query, setQuery] = useState('')
   const [answer, setAnswer] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [guestId, setGuestId] = useState('')
+
+  useEffect(() => {
+    let id = localStorage.getItem('otya_ai_guest') || ''
+    if (!id) {
+      id = crypto.randomUUID() + crypto.randomUUID()
+      localStorage.setItem('otya_ai_guest', id)
+    }
+    setGuestId(id)
+  }, [])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     const q = query.trim()
-    if (!q || loading) return
+    if (!q || !guestId || loading) return
     setLoading(true)
     setAnswer(null)
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: q, surface: 'support-inline' }),
+        body: JSON.stringify({ message: q, guest_id: guestId, surface: 'support-inline' }),
       })
-      if (!response.ok) throw new Error('unavailable')
-      const data = await response.json() as { answer?: string; response?: string; message?: string }
-      setAnswer(data.answer || data.response || data.message || 'OTYA could not answer that yet.')
+      const data = await response.json().catch(() => ({})) as { answer?: string; error?: string }
+      if (!response.ok) throw new Error(data.error || 'unavailable')
+      setAnswer(data.answer || 'OTYA could not answer that yet.')
     } catch {
       setAnswer('Online help is unavailable right now. OTYA support pages and the Android app still work without AI.')
     } finally {
@@ -39,7 +49,7 @@ export function OtyaAssistPrompt() {
         className="min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm outline-none"
         style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)', color: 'var(--cosmos-text-primary)' }}
       />
-      <button disabled={loading || !query.trim()} className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">
+      <button disabled={loading || !query.trim() || !guestId} className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">
         {loading ? 'Checking…' : 'Ask'}
       </button>
     </form>
