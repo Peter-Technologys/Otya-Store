@@ -10,9 +10,11 @@ ENVIRONMENT = "production"
 APP_NAME = "OTYA AI"
 WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
+ADMIN_CRASH_ALERT_THRESHOLD = "5"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
 OTYA_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+OTYA_REPORT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
 GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
 [ai]
 binding = "AI"
@@ -33,7 +35,10 @@ max_batch_timeout = 30
 max_retries = 3
 dead_letter_queue = "otya-ai-queue-dlq"
 [triggers]
-crons = ["0 6 * * 1", "0 9 * * *"]
+# Hourly: lightweight admin-only exception check.
+# 05:00 UTC = 08:00 Africa/Kampala: morning operations brief + churn signals.
+# Monday 06:00 UTC = 09:00 Africa/Kampala: deeper weekly review.
+crons = ["0 * * * *", "0 5 * * *", "0 6 * * 1"]
 # Add the EXISTING production Vectorize index as binding VECTORIZE only after
 # confirming its exact name in Cloudflare. Do not create a duplicate index.
 # Required secrets: RESEND_API_KEY. Optional integrations: TELEGRAM_BOT_TOKEN,
