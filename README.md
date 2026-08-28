@@ -12,6 +12,7 @@ This repository contains production infrastructure for the shared OTYA account, 
 - Product-specific data remains separately scoped
 - Real server-side authentication and session management
 - Server-side Google identity verification
+- Optional verified phone and linked identity support
 - Explicit opt-in recovery backup support
 - Transactional email through Resend
 - Signed application release delivery
@@ -22,13 +23,18 @@ This repository contains production infrastructure for the shared OTYA account, 
 
 ## Public product information
 
-Customer-facing product information, documents, downloads, support and release notices are published through the official OTYA website rather than this private source repository.
+Customer-facing product information, Docs, downloads, support and release notices are published through the official OTYA website rather than this private source repository.
 
 - OTYA: https://petersmartlink.com
-- Documents: https://petersmartlink.com/documents
+- Docs: https://petersmartlink.com/docs
 - OTYA AI: https://petersmartlink.com/ai
+- OTYA Account: https://petersmartlink.com/my-account
 - OTYA Player: https://petersmartlink.com/otya-player
 - OTYA Player download: https://petersmartlink.com/download/otya-player
+
+## Public GitHub
+
+OTYA production source remains private. A separate public OTYA repository should be used for public Docs links, release/checksum information, public issue templates, security reporting guidance and future public examples/SDKs. Starter files are maintained under `public-github-template/` until that public repository is created.
 
 ## Security
 

@@ -7,7 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     // OTYA
     { url: BASE,                           lastModified: NOW, changeFrequency: 'monthly', priority: 1.0 },
-    { url: `${BASE}/documents`,            lastModified: NOW, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/docs`,                 lastModified: NOW, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE}/ai`,                   lastModified: NOW, changeFrequency: 'weekly',  priority: 0.8 },
     { url: `${BASE}/services`,             lastModified: NOW, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE}/contact`,              lastModified: NOW, changeFrequency: 'yearly',  priority: 0.6 },

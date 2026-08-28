@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   baseline-security:
-    name: OTYA system security baseline
+    name: OTYA security baseline
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:

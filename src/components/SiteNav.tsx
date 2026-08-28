@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 const NAV_LINKS = [
   { label: 'Apps', href: '/apps' },
   { label: 'AI', href: '/ai' },
-  { label: 'Documents', href: '/documents' },
+  { label: 'Docs', href: '/docs' },
   { label: 'Support', href: '/apps/otya-player/support' },
 ]
 

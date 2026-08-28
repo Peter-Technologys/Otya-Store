@@ -1,0 +1,60 @@
+name: Bug report
+description: Report a reproducible problem in a public OTYA product or service
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include passwords, OTPs, tokens, private account data or security vulnerabilities. Report security issues privately using SECURITY.md.
+  - type: dropdown
+    id: product
+    attributes:
+      label: OTYA product
+      options:
+        - OTYA Player
+        - OTYA AI
+        - OTYA Account / website
+        - Docs
+        - Other public OTYA service
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / build
+      placeholder: e.g. OTYA Player 1.7.0 (11)
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem without private data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Safe reproduction steps
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device / OS / browser
+      placeholder: Android version, phone model, or browser when relevant
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed private data, credentials, OTPs and secret tokens.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

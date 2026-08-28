@@ -20,9 +20,11 @@ id      = "6b9faff751724fdb86c16452b9c99cf6"
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
 GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
+TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/auth/telegram/callback"
 
 # Secrets are configured through GitHub Actions / Cloudflare, never committed.
-# keep_vars=true preserves live optional secrets/vars such as internal service
-# configuration when Wrangler deploys this Worker.
+# keep_vars=true preserves live optional secrets/vars when Wrangler deploys.
 # Required: AUTH_JWT_SECRET, RESEND_API_KEY
-# Optional live settings preserved by keep_vars: OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET
+# Optional account verification: TELEGRAM_LOGIN_CLIENT_ID,
+# TELEGRAM_LOGIN_CLIENT_SECRET, TELEGRAM_GATEWAY_TOKEN
+# Optional internal service settings: OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET

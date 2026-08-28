@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 const SECTIONS = [
   { title: 'Acceptance of Terms', body: 'By accessing or using OTYA websites, accounts, applications or connected services, you agree to these Terms of Service and applicable product-specific policies.' },
   { title: 'OTYA Account', body: 'One OTYA account may be used across OTYA products. Product-specific data and permissions remain separately scoped even when the same account identity is used.' },
+  { title: 'Optional Verification', body: 'OTYA may offer optional email, phone or linked-identity verification for account security and recovery. Verification methods may rely on third-party providers such as Google or Telegram. A phone number is not required for core local OTYA Player playback.' },
   { title: 'Services', body: 'OTYA includes products and services such as OTYA Player, OTYA AI, support, downloads, account services and future OTYA products made available through official channels.' },
   { title: 'AI Features', body: 'OTYA AI may generate incorrect or incomplete information. Users should verify important information. Customer AI does not receive access to private administrator tools merely because those tools exist in OTYA Console.' },
   { title: 'Prohibited Use', body: 'You may not use OTYA for fraud, abuse, unauthorized access, unlawful content, infringement, interference with service operation, attempts to obtain secrets or other activity that violates applicable law.' },
@@ -50,7 +51,7 @@ export default function TermsPage() {
 
         <div className="mt-8 flex flex-wrap gap-4 text-sm pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
           <a href="/privacy" className="font-semibold" style={{ color: 'var(--purple)' }}>Privacy Policy</a>
-          <a href="/documents" className="font-semibold" style={{ color: 'var(--purple)' }}>Documents</a>
+          <a href="/docs" className="font-semibold" style={{ color: 'var(--purple)' }}>Docs</a>
           <a href="/contact" className="font-semibold" style={{ color: 'var(--purple)' }}>Contact Us</a>
         </div>
       </main>

@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an improvement for OTYA
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: product
+    attributes:
+      label: OTYA area
+      options:
+        - OTYA Player
+        - OTYA AI
+        - OTYA Account
+        - Docs
+        - Public developer resources
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      description: Describe the user need before the proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Suggested experience
+    validations:
+      required: true
+  - type: dropdown
+    id: connectivity
+    attributes:
+      label: Should this work offline?
+      options:
+        - Yes, core behavior should work offline
+        - Online feature is acceptable
+        - Not sure
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
