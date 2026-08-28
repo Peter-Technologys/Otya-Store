@@ -8,7 +8,12 @@
 import legacyWorker from './index'
 import { handleBackupRoute } from './backup_route'
 import { sendResendEmail, type ResendEmail } from './resend'
-import { handleConsentRoute, recordRegistrationConsent } from './consent'
+import {
+  handleConsentRoute,
+  recordRegistrationConsent,
+  TERMS_VERSION,
+  PRIVACY_VERSION,
+} from './consent'
 
 interface LegacyEmailMessage {
   from: { email: string; name?: string }
@@ -49,6 +54,7 @@ const PRIMARY_ORIGIN = 'https://petersmartlink.com'
 const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
 const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
 const OTYA_NOREPLY_FROM = `OTYA Player <${OTYA_NOREPLY_EMAIL}>`
+const LEGAL_ACCEPTANCE_REQUIRED = 428
 
 function normalizeEmailText(text: string): string {
   return text.replace(
@@ -71,8 +77,13 @@ function createEmailAdapter(apiKey: string | undefined) {
   }
 }
 
-function jsonError(message: string, status: number, env: ResendEnv): Response {
-  return new Response(JSON.stringify({ error: message }), {
+function jsonError(
+  message: string,
+  status: number,
+  env: ResendEnv,
+  extra: Record<string, unknown> = {},
+): Response {
+  return new Response(JSON.stringify({ error: message, ...extra }), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
@@ -101,6 +112,26 @@ async function checkGoogleRateLimit(request: Request, env: ResendEnv): Promise<b
   return true
 }
 
+function hasCurrentLegalAcceptance(body: Record<string, unknown>): boolean {
+  return body.terms_accepted === true
+    && body.privacy_accepted === true
+    && body.terms_version === TERMS_VERSION
+    && body.privacy_version === PRIVACY_VERSION
+}
+
+function legalAcceptanceError(env: ResendEnv): Response {
+  return jsonError(
+    'Accept the current Terms of Service and Privacy Policy to create your OTYA account.',
+    LEGAL_ACCEPTANCE_REQUIRED,
+    env,
+    {
+      code: 'LEGAL_ACCEPTANCE_REQUIRED',
+      terms_version: TERMS_VERSION,
+      privacy_version: PRIVACY_VERSION,
+    },
+  )
+}
+
 interface GoogleTokenPayload {
   aud?: string
   iss?: string
@@ -109,10 +140,17 @@ interface GoogleTokenPayload {
   email_verified?: string | boolean
 }
 
+interface PreparedGoogleRequest {
+  request?: Request
+  error?: Response
+  newUser?: boolean
+  marketingConsent?: boolean
+}
+
 async function validateGoogleRequest(
   request: Request,
   env: ResendEnv,
-): Promise<{ request?: Request; error?: Response }> {
+): Promise<PreparedGoogleRequest> {
   if (!env.GOOGLE_CLIENT_ID) return { error: jsonError('Google auth not configured', 503, env) }
   if (!(await checkGoogleRateLimit(request, env))) {
     return { error: jsonError('Too many Google sign-in attempts. Try again later.', 429, env) }
@@ -128,7 +166,9 @@ async function validateGoogleRequest(
   }
 
   const idToken = body.id_token
-  if (typeof idToken !== 'string' || !idToken) return { error: jsonError('id_token is required', 400, env) }
+  if (typeof idToken !== 'string' || !idToken) {
+    return { error: jsonError('id_token is required', 400, env) }
+  }
 
   try {
     const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`)
@@ -138,18 +178,34 @@ async function validateGoogleRequest(
     const issuerOk = payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com'
     const expiry = Number(payload.exp ?? 0)
     const now = Math.floor(Date.now() / 1000)
-    if (payload.aud !== env.GOOGLE_CLIENT_ID || !issuerOk || expiry <= now || !verified) {
+    if (payload.aud !== env.GOOGLE_CLIENT_ID || !issuerOk || expiry <= now || !verified || !payload.email) {
       return { error: jsonError('Google account verification failed', 401, env) }
     }
-  } catch {
+
+    const normalizedEmail = payload.email.toLowerCase().trim()
+    const existing = await env.AUTH_DB.prepare(
+      'SELECT id FROM users WHERE lower(email) = ? LIMIT 1',
+    ).bind(normalizedEmail).first<{ id?: string }>()
+    const newUser = !existing?.id
+
+    if (newUser && !hasCurrentLegalAcceptance(body)) {
+      return { error: legalAcceptanceError(env) }
+    }
+
+    return {
+      request: new Request(request, { body: bodyText }),
+      newUser,
+      marketingConsent: body.marketing_consent === true,
+    }
+  } catch (error) {
+    console.error('[auth/google] Google verification failed:', (error as Error)?.message)
     return { error: jsonError('Google verification service unavailable', 503, env) }
   }
-
-  return { request: new Request(request, { body: bodyText }) }
 }
 
 async function prepareRegistration(
   request: Request,
+  env: ResendEnv,
 ): Promise<{ request?: Request; marketingConsent?: boolean; error?: Response }> {
   let bodyText: string
   let body: Record<string, unknown>
@@ -157,16 +213,28 @@ async function prepareRegistration(
     bodyText = await request.text()
     body = JSON.parse(bodyText) as Record<string, unknown>
   } catch {
-    return { error: new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 }) }
+    return { error: jsonError('Invalid JSON body', 400, env) }
   }
 
-  // v1.7 presents mandatory Terms + Privacy acceptance in the client.
-  // Older installed builds are kept compatible during rollout; once v1.7 is
-  // the minimum supported version this can be tightened server-side.
+  if (!hasCurrentLegalAcceptance(body)) {
+    return { error: legalAcceptanceError(env) }
+  }
+
   return {
     request: new Request(request, { body: bodyText }),
     marketingConsent: body.marketing_consent === true,
   }
+}
+
+async function persistConsentFromResponse(
+  response: Response,
+  env: ResendEnv,
+  marketingConsent: boolean,
+): Promise<void> {
+  const cloned = response.clone()
+  const data = await cloned.json() as { user?: { id?: string } }
+  const userId = data.user?.id
+  if (userId) await recordRegistrationConsent(env, userId, marketingConsent)
 }
 
 export default {
@@ -186,9 +254,11 @@ export default {
 
     let forwardedRequest = request
     let registrationMarketingConsent = false
+    let googleNewUser = false
+    let googleMarketingConsent = false
 
     if (request.method === 'POST' && url.pathname === '/auth/register') {
-      const prepared = await prepareRegistration(request)
+      const prepared = await prepareRegistration(request, env)
       if (prepared.error) return prepared.error
       forwardedRequest = prepared.request ?? request
       registrationMarketingConsent = prepared.marketingConsent === true
@@ -198,6 +268,8 @@ export default {
       const checked = await validateGoogleRequest(request, env)
       if (checked.error) return checked.error
       forwardedRequest = checked.request ?? request
+      googleNewUser = checked.newUser === true
+      googleMarketingConsent = checked.marketingConsent === true
     }
 
     const response = await legacyWorker.fetch(
@@ -205,14 +277,19 @@ export default {
       resendEnv as Parameters<typeof legacyWorker.fetch>[1],
     )
 
-    if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
+    if (response.ok && request.method === 'POST' && url.pathname === '/auth/register') {
       try {
-        const cloned = response.clone()
-        const data = await cloned.json() as { user?: { id?: string } }
-        const userId = data.user?.id
-        if (userId) await recordRegistrationConsent(env, userId, registrationMarketingConsent)
+        await persistConsentFromResponse(response, env, registrationMarketingConsent)
       } catch (error) {
         console.error('[auth/consent] Could not persist registration consent:', (error as Error)?.message)
+      }
+    }
+
+    if (response.ok && request.method === 'POST' && url.pathname === '/auth/google' && googleNewUser) {
+      try {
+        await persistConsentFromResponse(response, env, googleMarketingConsent)
+      } catch (error) {
+        console.error('[auth/consent] Could not persist Google registration consent:', (error as Error)?.message)
       }
     }
 
