@@ -9,9 +9,9 @@ export function SiteFooter() {
           <div className="flex items-center gap-2.5 mb-3"><Image src="/web-app-manifest-192x192.png" alt="OTYA" width={30} height={30} className="rounded-lg"/><span className="font-extrabold">OTYA</span></div>
           <p className="text-xs leading-relaxed max-w-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Apps, AI, one shared account, support and connected services — developed by PeterSmart Link in Uganda.</p>
         </div>
-        <FooterGroup title="OTYA" links={[["Apps","/apps"],["OTYA AI","/ai"],["My Account","/my-account"],["Documents","/documents"]]} />
+        <FooterGroup title="OTYA" links={[["Apps","/apps"],["OTYA AI","/ai"],["My Account","/my-account"],["Docs","/docs"]]} />
         <FooterGroup title="OTYA Player" links={[["Product","/otya-player"],["Download","/download/otya-player"],["Changelog","/apps/otya-player/changelog"],["Support","/apps/otya-player/support"],["Security","/apps/otya-player/security"],["Privacy","/apps/otya-player/privacy"]]} />
-        <FooterGroup title="Legal & Help" links={[["Privacy","/privacy"],["Terms","/terms"],["Documents","/documents"],["Contact","/contact"]]} />
+        <FooterGroup title="Legal & Help" links={[["Privacy","/privacy"],["Terms","/terms"],["Docs","/docs"],["Contact","/contact"]]} />
       </div>
       <div className="border-t pt-5 flex flex-col sm:flex-row justify-between gap-2 text-xs" style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-secondary)' }}><span>© {new Date().getFullYear()} OTYA · Developed by PeterSmart Link</span><span>Built in Uganda 🇺🇬</span></div>
     </div>
