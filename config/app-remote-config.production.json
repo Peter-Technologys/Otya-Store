@@ -1,15 +1,7 @@
 {
-  "revision": 1,
-  "maintenance": {
-    "enabled": false,
-    "message": "",
-    "allowOfflinePlayback": true
-  },
-  "versions": {
-    "minimumBuild": 0,
-    "recommendedBuild": 0,
-    "forceUpdate": false
-  },
+  "revision": 2,
+  "maintenance": { "enabled": false, "message": "", "allowOfflinePlayback": true },
+  "versions": { "minimumBuild": 0, "recommendedBuild": 0, "forceUpdate": false },
   "features": {
     "auth": true,
     "googleSignIn": true,
@@ -21,32 +13,24 @@
     "onlineThemes": true,
     "feedback": true,
     "selfUpdate": true,
-    "aiAssistant": false
+    "aiAssistant": false,
+    "telegramCommunity": true,
+    "telegramSupport": true
   },
   "links": {
     "website": "https://petersmartlink.com",
     "download": "https://petersmartlink.com/download/otya-player",
     "support": "https://petersmartlink.com/contact",
     "privacy": "https://petersmartlink.com/privacy",
-    "terms": "https://petersmartlink.com/terms"
+    "terms": "https://petersmartlink.com/terms",
+    "telegramChannel": "https://t.me/otyaplayer",
+    "telegramSupport": "https://t.me/OtyaPlayerBot"
   },
   "home": {},
-  "announcement": {
-    "enabled": false,
-    "id": "",
-    "title": "",
-    "message": ""
-  },
-  "ai": {
-    "enabled": false
-  },
-  "search": {
-    "enabled": true
-  },
-  "runtime": {
-    "apiTimeoutSeconds": 8,
-    "retryCount": 2
-  },
+  "announcement": { "enabled": false, "id": "", "title": "", "message": "" },
+  "ai": { "enabled": true, "surface": "telegram", "bot": "https://t.me/OtyaPlayerBot" },
+  "search": { "enabled": true },
+  "runtime": { "apiTimeoutSeconds": 8, "retryCount": 2 },
   "experiments": {},
   "campaigns": []
 }
