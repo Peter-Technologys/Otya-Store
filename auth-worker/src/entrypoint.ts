@@ -35,6 +35,9 @@ interface ResendEnv extends Record<string, unknown> {
 const GOOGLE_RATE_LIMIT = 20
 const GOOGLE_RATE_TTL = 15 * 60
 const PRIMARY_ORIGIN = 'https://petersmartlink.com'
+const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
+const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
+const OTYA_NOREPLY_FROM = `OTYA Player <${OTYA_NOREPLY_EMAIL}>`
 
 function normalizeEmailText(text: string): string {
   return text.replace(
@@ -46,14 +49,13 @@ function normalizeEmailText(text: string): string {
 function createEmailAdapter(apiKey: string | undefined) {
   return {
     async send(message: LegacyEmailMessage): Promise<void> {
-      const from = message.from.name
-        ? `${message.from.name} <${message.from.email}>`
-        : message.from.email
       const email: ResendEmail = {
-        from,
+        // All automated account/client mail has one stable sender identity.
+        // support@petersmartlink.com is reserved for human support/contact flows.
+        from: OTYA_NOREPLY_FROM,
         to: message.to.map((recipient) => recipient.email),
         subject: message.subject,
-        text: normalizeEmailText(message.text),
+        text: `${normalizeEmailText(message.text)}\n\nNeed help? Contact ${OTYA_SUPPORT_EMAIL}.`,
       }
       await sendResendEmail(apiKey, email)
     },
