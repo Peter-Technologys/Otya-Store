@@ -3,10 +3,7 @@ name: Security
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
+    paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**']
   pull_request:
     branches: [main]
   schedule:
@@ -16,63 +13,57 @@ on:
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
 
 jobs:
   baseline-security:
-    name: Private repository security baseline
+    name: OTYA system security baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - name: Block tracked secret/signing files
         shell: bash
         run: |
           set -euo pipefail
           forbidden='(^|/)(\.env($|\.)|key\.properties$|keystore\.jks$|.*\.(jks|keystore|p12|pfx|pem|key)$)'
-          if git ls-files | grep -E "$forbidden"; then
-            echo '::error::Potential secret/signing material is tracked by Git.'
-            exit 1
-          fi
-      - name: Block private-key material
+          ! git ls-files | grep -E "$forbidden" || { echo '::error::Potential secret/signing material is tracked.'; exit 1; }
+      - name: Block private keys and Telegram bot tokens
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E -- '^-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----$' -- ':!*.md'; then
-            echo '::error::Private-key material detected in tracked source.'
-            exit 1
+          if git grep -n -I -E -- '^-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----$' -- ':!*.md'; then exit 1; fi
+          if git grep -n -I -E -- '[0-9]{8,12}:[A-Za-z0-9_-]{25,}' -- ':!*.md'; then
+            echo '::error::Possible Telegram bot token committed to source.'; exit 1
           fi
-      - name: Validate backend dependency install and typecheck
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm install --no-package-lock --ignore-scripts
-      - run: npm run typecheck
-      - name: Validate auth-worker dependency install
-        run: npm install --no-package-lock --ignore-scripts
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Validate web/backend
+        run: |
+          npm install --no-package-lock --ignore-scripts
+          npm run typecheck
+      - name: Validate auth worker
         working-directory: auth-worker
-      - name: Typecheck auth-worker
-        run: npx tsc --noEmit
-        working-directory: auth-worker
+        run: |
+          npm install --no-package-lock --ignore-scripts
+          npx tsc --noEmit
+      - name: Validate AI worker
+        working-directory: ai-worker
+        run: |
+          npm install --no-package-lock --ignore-scripts
+          npm run check
 
   dependency-review:
     name: Dependency review (GHAS)
     if: github.event_name == 'pull_request' && vars.GHAS_ENABLED == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    permissions: { contents: read }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with: { fail-on-severity: high }
 
   codeql:
     name: CodeQL JavaScript/TypeScript (GHAS)
@@ -83,22 +74,15 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install backend dependencies
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with: { languages: javascript-typescript }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm install --no-package-lock --ignore-scripts
+      - working-directory: auth-worker
         run: npm install --no-package-lock --ignore-scripts
-      - name: Install auth-worker dependencies
+      - working-directory: ai-worker
         run: npm install --no-package-lock --ignore-scripts
-        working-directory: auth-worker
-      - name: Build backend
-        run: npm run build
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
+      - run: npm run build
+      - uses: github/codeql-action/analyze@v3
