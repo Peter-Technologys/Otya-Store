@@ -9,7 +9,7 @@ export function SiteFooter() {
           <div className="flex items-center gap-2.5 mb-3"><Image src="/web-app-manifest-192x192.png" alt="OTYA" width={30} height={30} className="rounded-lg"/><span className="font-extrabold">OTYA</span></div>
           <p className="text-xs leading-relaxed max-w-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Apps, AI, one shared account, support and connected services — developed by PeterSmart Link in Uganda.</p>
         </div>
-        <FooterGroup title="OTYA" links={[["Apps","/apps"],["OTYA AI","/ai"],["My Account","/my-account"],["Docs","/docs"]]} />
+        <FooterGroup title="OTYA" links={[["Apps","/apps"],["OTYA AI","/ai"],["My Account","/account"],["Docs","/docs"]]} />
         <FooterGroup title="OTYA Player" links={[["Product","/otya-player"],["Download","/download/otya-player"],["Changelog","/apps/otya-player/changelog"],["Support","/apps/otya-player/support"],["Security","/apps/otya-player/security"],["Privacy","/apps/otya-player/privacy"]]} />
         <FooterGroup title="Legal & Help" links={[["Privacy","/privacy"],["Terms","/terms"],["Docs","/docs"],["Contact","/contact"]]} />
       </div>
