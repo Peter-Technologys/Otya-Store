@@ -3,19 +3,57 @@
 @tailwind utilities;
 
 * { box-sizing: border-box; padding: 0; margin: 0; }
-html { scroll-behavior: smooth; color-scheme: dark; }
+html { scroll-behavior: smooth; color-scheme: light dark; }
 
-/*
- * PeterSmart Link / OTYA approved visual system.
- * One production visual language: near-black foundations, layered charcoal
- * surfaces, one purple brand family and restrained depth. Product imagery and
- * screenshots provide most of the page colour.
- *
- * Do not automatically switch this site to a separate light palette based on
- * the visitor's OS preference. The product/brand presentation is intentionally
- * dark and should remain consistent with the OTYA application and download UI.
- */
 :root {
+  --cosmos-primary: #7C3AED;
+  --cosmos-secondary: #6D28D9;
+  --cosmos-scaffold: #F7F7FB;
+  --cosmos-surface: #FFFFFF;
+  --cosmos-accent: #8B5CF6;
+  --cosmos-error: #D92D4B;
+  --cosmos-text-primary: #17151F;
+  --cosmos-text-secondary: #696575;
+  --cosmos-app-bar: #FFFFFF;
+  --cosmos-card: #FFFFFF;
+  --cosmos-nav-selected: #7C3AED;
+  --cosmos-divider: #E4E1EA;
+  --cosmos-icon-tint: #7C3AED;
+  --radius-card: 18px;
+  --bg: var(--cosmos-scaffold);
+  --bg-secondary: var(--cosmos-surface);
+  --text: var(--cosmos-text-primary);
+  --text-sub: var(--cosmos-text-secondary);
+  --text-muted: #8A8593;
+  --border: var(--cosmos-divider);
+  --card: var(--cosmos-card);
+  --card-border: var(--cosmos-divider);
+  --purple: var(--cosmos-primary);
+  --indigo: var(--cosmos-secondary);
+  --nav-bg: rgba(255,255,255,.92);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cosmos-primary: #8B5CF6;
+    --cosmos-secondary: #7C3AED;
+    --cosmos-scaffold: #08080B;
+    --cosmos-surface: #101014;
+    --cosmos-accent: #A855F7;
+    --cosmos-error: #FF5D73;
+    --cosmos-text-primary: #F7F7FB;
+    --cosmos-text-secondary: #A4A4B3;
+    --cosmos-app-bar: #08080B;
+    --cosmos-card: #16161D;
+    --cosmos-nav-selected: #8B5CF6;
+    --cosmos-divider: #2A2A35;
+    --cosmos-icon-tint: #A855F7;
+    --text-muted: #676776;
+    --nav-bg: rgba(8,8,11,.92);
+  }
+}
+
+:root[data-theme='dark'] {
   --cosmos-primary: #8B5CF6;
   --cosmos-secondary: #7C3AED;
   --cosmos-scaffold: #08080B;
@@ -29,21 +67,12 @@ html { scroll-behavior: smooth; color-scheme: dark; }
   --cosmos-nav-selected: #8B5CF6;
   --cosmos-divider: #2A2A35;
   --cosmos-icon-tint: #A855F7;
-  --radius-card: 18px;
-
-  /* Compatibility aliases while older pages are consolidated. */
-  --bg: var(--cosmos-scaffold);
-  --bg-secondary: var(--cosmos-surface);
-  --text: var(--cosmos-text-primary);
-  --text-sub: var(--cosmos-text-secondary);
   --text-muted: #676776;
-  --border: var(--cosmos-divider);
-  --card: var(--cosmos-card);
-  --card-border: var(--cosmos-divider);
-  --purple: var(--cosmos-primary);
-  --indigo: var(--cosmos-secondary);
   --nav-bg: rgba(8,8,11,.92);
 }
+
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
 
 body {
   background: var(--cosmos-scaffold);
@@ -57,10 +86,10 @@ body {
 
 img { max-width: 100%; height: auto; }
 section, div, nav, footer, main { max-width: 100%; }
-::selection { background: rgba(139,92,246,.28); color: var(--cosmos-text-primary); }
+::selection { background: color-mix(in srgb, var(--cosmos-primary) 28%, transparent); color: var(--cosmos-text-primary); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--cosmos-scaffold); }
-::-webkit-scrollbar-thumb { background: #34343D; border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--cosmos-text-secondary) 45%, transparent); border-radius: 999px; }
 a, button { transition: opacity .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease; }
 a:hover, button:hover { opacity: .94; }
 :focus-visible { outline: 2px solid var(--cosmos-primary); outline-offset: 3px; border-radius: 6px; }
@@ -70,25 +99,21 @@ a:hover, button:hover { opacity: .94; }
   border: 1px solid var(--cosmos-divider);
   border-radius: var(--radius-card);
 }
-.modern-card { transition: border-color .2s ease, transform .2s ease; }
-.modern-card:hover { border-color: #3A3A46; transform: translateY(-2px); }
-.cosmos-card { transition: border-color .2s ease, transform .2s ease; }
-.cosmos-card:hover { border-color: #3A3A46; transform: translateY(-2px); }
+.modern-card, .cosmos-card { transition: border-color .2s ease, transform .2s ease; }
+.modern-card:hover, .cosmos-card:hover { border-color: color-mix(in srgb, var(--cosmos-divider) 60%, var(--cosmos-text-primary)); transform: translateY(-2px); }
 .cosmos-pill { border: 1px solid var(--cosmos-divider); background: var(--cosmos-card); color: var(--cosmos-text-secondary); border-radius: 999px; }
 .cosmos-gradient-text {
-  background: linear-gradient(135deg, #8B5CF6, #A855F7);
+  background: linear-gradient(135deg, var(--cosmos-primary), var(--cosmos-accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .cosmos-button {
-  background: #7C3AED;
-  box-shadow: 0 8px 24px rgba(124,58,237,.20);
+  background: var(--cosmos-secondary);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--cosmos-secondary) 20%, transparent);
   color: #fff !important;
 }
-.cosmos-button:hover { background: #8B5CF6; transform: translateY(-1px); box-shadow: 0 10px 28px rgba(124,58,237,.28); }
-
-/* Legacy visual hooks remain non-destructive but intentionally quiet. */
+.cosmos-button:hover { background: var(--cosmos-primary); transform: translateY(-1px); box-shadow: 0 10px 28px color-mix(in srgb, var(--cosmos-secondary) 28%, transparent); }
 .cosmos-stars { display: none; }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-@keyframes cosmos-glow { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 8px 28px rgba(124,58,237,.15); } }
+@keyframes cosmos-glow { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 8px 28px color-mix(in srgb, var(--cosmos-secondary) 15%, transparent); } }
