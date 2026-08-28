@@ -5,7 +5,7 @@ const KEY = 'app:remote-config'
 
 const DEFAULT_CONFIG = {
   schemaVersion: 1,
-  revision: 3,
+  revision: 4,
   maintenance: {
     enabled: false,
     title: 'OTYA is temporarily unavailable',
@@ -40,8 +40,8 @@ const DEFAULT_CONFIG = {
     driveBackup: true,
     feedback: true,
     ratings: true,
-    aiAssistant: false,
-    cloudPush: false,
+    aiAssistant: true,
+    cloudPush: true,
   },
   home: {
     featuredCard: {
@@ -57,14 +57,29 @@ const DEFAULT_CONFIG = {
   links: {
     website: 'https://petersmartlink.com/otya-player',
     download: 'https://petersmartlink.com/download/otya-player',
-    support: 'https://petersmartlink.com/contact',
+    support: 'https://petersmartlink.com/apps/otya-player/support',
     privacy: 'https://petersmartlink.com/privacy',
     terms: 'https://petersmartlink.com/terms',
+    docs: 'https://petersmartlink.com/docs',
+    account: 'https://petersmartlink.com/account',
+    ai: 'https://petersmartlink.com/ai',
   },
   ai: {
-    enabled: false,
-    greeting: 'How can I help with your media?',
-    suggestedPrompts: ['Find my recent videos', 'Help me organize my music'],
+    enabled: true,
+    standaloneService: true,
+    optionalForPlayer: true,
+    greeting: 'What can I help with?',
+    suggestedPrompts: [
+      'Help me organize my music library',
+      'Explain something I am learning',
+      'Help me write a professional message',
+      'How can I fix a video that will not play?',
+    ],
+  },
+  push: {
+    enabled: true,
+    provider: 'fcm',
+    optionalForPlayback: true,
   },
   search: {
     suggestions: [],
