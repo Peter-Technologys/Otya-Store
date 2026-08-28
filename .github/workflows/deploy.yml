@@ -1,5 +1,4 @@
 name: Deploy OTYA System to Cloudflare
-
 on:
   push:
     branches: [main]
@@ -8,13 +7,10 @@ on:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**']
   workflow_dispatch:
-
 concurrency:
   group: cloudflare-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
-permissions:
-  contents: read
-
+permissions: { contents: read }
 jobs:
   validate:
     name: Validate complete OTYA backend
@@ -34,25 +30,23 @@ jobs:
         run: |
           npm install --no-package-lock --ignore-scripts
           npx tsc --noEmit
-      - name: Validate AI worker bundle
+      - name: Validate AI worker
         working-directory: ai-worker
         run: |
           npm install --no-package-lock --ignore-scripts
           npm run check
-
   deploy-auth:
     name: Deploy otya-auth
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - working-directory: auth-worker
         run: npm install --no-package-lock --ignore-scripts
-      - name: Configure auth secrets
+      - name: Configure and deploy auth
         working-directory: auth-worker
         env:
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
@@ -65,31 +59,28 @@ jobs:
           printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
           npx wrangler deploy
-
   deploy-ai:
     name: Deploy otya-ai
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - working-directory: ai-worker
         run: npm install --no-package-lock --ignore-scripts
-      - name: Deploy AI worker
+      - name: Configure and deploy AI
         working-directory: ai-worker
         env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
-          # Runtime secrets are intentionally dashboard-managed and preserved by keep_vars=true.
-          # Required in otya-ai: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
+          test -n "$RESEND_API_KEY" && test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
           npx wrangler deploy
-
   deploy-store:
     name: Deploy otya-store
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -113,7 +104,6 @@ jobs:
           set -e
           if [ "$status" -eq 0 ]; then exit 0; fi
           if ! grep -q 'need to enable Analytics Engine' /tmp/otya-deploy.log; then exit "$status"; fi
-          echo '::warning title=Analytics Engine disabled::Retrying without only OTYA_ANALYTICS.'
           python3 - <<'PYEOF'
           from pathlib import Path
           p=Path('wrangler.toml'); lines=p.read_text().splitlines(); out=[]; skip=False
