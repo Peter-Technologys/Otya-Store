@@ -42,9 +42,9 @@ namespace_id = "1001"
   limit  = 60
   period = 60
 
-[[send_email]]
-name                = "EMAIL"
-destination_address = "petersmartlink@gmail.com"
+# Transactional and operational email is sent through Resend using the
+# dashboard-managed RESEND_API_KEY secret. No Cloudflare Send Email binding is
+# required by the application runtime.
 
 [[queues.producers]]
 binding = "PUSH_QUEUE"
@@ -72,9 +72,9 @@ name = "otya-release-workflow"
 binding = "OTYA_RELEASE_WORKFLOW"
 class_name = "OtyaReleaseWorkflow"
 
-[[analytics_engine_datasets]]
-binding = "OTYA_ANALYTICS"
-dataset = "otya_analytics"
+# Analytics Engine is intentionally omitted on the Cloudflare Free deployment.
+# Runtime analytics writes are optional and already no-op when the binding is
+# absent, so production deployment does not need a fail-first retry.
 
 # Only non-AI operational schedules remain here.
 [triggers]
