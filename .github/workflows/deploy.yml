@@ -52,6 +52,9 @@ jobs:
         env:
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TELEGRAM_LOGIN_CLIENT_ID: ${{ secrets.TELEGRAM_LOGIN_CLIENT_ID }}
+          TELEGRAM_LOGIN_CLIENT_SECRET: ${{ secrets.TELEGRAM_LOGIN_CLIENT_SECRET }}
+          TELEGRAM_GATEWAY_TOKEN: ${{ secrets.TELEGRAM_GATEWAY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -59,6 +62,15 @@ jobs:
           test -n "$AUTH_JWT_SECRET" && test -n "$RESEND_API_KEY" && test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
           printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+          if [ -n "${TELEGRAM_LOGIN_CLIENT_ID:-}" ]; then
+            printf '%s' "$TELEGRAM_LOGIN_CLIENT_ID" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_ID
+          fi
+          if [ -n "${TELEGRAM_LOGIN_CLIENT_SECRET:-}" ]; then
+            printf '%s' "$TELEGRAM_LOGIN_CLIENT_SECRET" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_SECRET
+          fi
+          if [ -n "${TELEGRAM_GATEWAY_TOKEN:-}" ]; then
+            printf '%s' "$TELEGRAM_GATEWAY_TOKEN" | npx wrangler secret put TELEGRAM_GATEWAY_TOKEN
+          fi
           npx wrangler deploy
 
   deploy-store:
