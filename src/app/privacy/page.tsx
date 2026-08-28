@@ -12,12 +12,13 @@ const SECTIONS = [
   { title: 'Who We Are', body: 'OTYA is developed and operated by PeterSmart Link in Uganda. This policy covers the shared OTYA account and connected OTYA services. Privacy questions can be sent to support@petersmartlink.com.' },
   { title: 'One OTYA Account', body: 'Your OTYA account provides one identity across OTYA products. Each product keeps its own product-specific data separately scoped under the same account ID; signing into one product does not automatically give another product access to all of its private data.' },
   { title: 'Local Media and Device Data', body: 'OTYA Player primarily works with media stored on your device. Your local media files are not uploaded simply because you play, browse or organize them. Some technical metadata may be processed when you intentionally use optional online features.' },
-  { title: 'Information We May Collect', body: 'Depending on the feature you use, OTYA may process account details, device and app version information, installation identifiers, update/download telemetry, AI conversation data for signed-in saved chats, feedback, crash diagnostics, support messages and data you intentionally submit to an online service.' },
+  { title: 'Information We May Collect', body: 'Depending on the feature you use, OTYA may process account details, optional verified phone and recovery information, linked identities, device and app version information, installation identifiers, update/download telemetry, AI conversation data for signed-in saved chats, feedback, crash diagnostics, support messages and data you intentionally submit to an online service.' },
+  { title: 'Phone and Linked Identities', body: 'Phone verification is optional. When you choose Telegram verification, OTYA records a phone number as verified only after a server-validated Telegram verification result. Linked identity information is used for account security and sign-in or recovery features and is not a substitute for unrelated product permissions.' },
   { title: 'AI and Support', body: 'Guest AI chats are intended to be temporary. Signed-in AI conversations may be stored so they can be restored to that OTYA account. Private administrator tools such as Gmail, infrastructure and support operations are not exposed to customer AI sessions.' },
   { title: 'How We Use Information', body: 'We use information to provide and secure OTYA, synchronize optional account features, deliver updates, diagnose failures, answer support requests, prevent abuse and improve reliability. We do not sell personal information.' },
   { title: 'Storage and Infrastructure', body: 'OTYA uses cloud infrastructure including Cloudflare services such as Workers, D1, KV, R2 and queues where appropriate. Transactional and support email may use Resend. Data is retained only as needed for the relevant service, security, support or legal purpose.' },
-  { title: 'Third-Party Services', body: 'Optional integrations may involve third-party providers such as Google. When you choose to use those features, the provider may process information under its own privacy terms. OTYA should request only the permissions needed for the selected feature.' },
-  { title: 'Your Choices and Rights', body: 'You may request access, correction, deletion or export of personal information associated with your OTYA account, subject to applicable law and identity/security requirements. Account and document requests can be started from the OTYA Documents page or support.' },
+  { title: 'Third-Party Services', body: 'Optional integrations may involve third-party providers such as Google and Telegram. When you choose to use those features, the provider may process information under its own privacy terms. OTYA should request only the permissions needed for the selected feature.' },
+  { title: 'Your Choices and Rights', body: 'You may request access, correction, deletion or export of personal information associated with your OTYA account, subject to applicable law and identity/security requirements. Account and data requests can be started from OTYA Docs or support.' },
   { title: 'Contact', body: 'For privacy questions or requests, contact support@petersmartlink.com.' },
 ]
 
@@ -50,7 +51,7 @@ export default function PrivacyPage() {
 
         <div className="mt-8 flex flex-wrap gap-4 text-sm pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
           <a href="/terms" className="font-semibold" style={{ color: 'var(--purple)' }}>Terms of Service</a>
-          <a href="/documents" className="font-semibold" style={{ color: 'var(--purple)' }}>Documents</a>
+          <a href="/docs" className="font-semibold" style={{ color: 'var(--purple)' }}>Docs</a>
           <a href="/contact" className="font-semibold" style={{ color: 'var(--purple)' }}>Contact Us</a>
         </div>
       </main>
