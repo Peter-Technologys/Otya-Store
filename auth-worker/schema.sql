@@ -1,4 +1,4 @@
--- OTYA System identity schema
+-- OTYA shared identity schema
 -- One user identity is shared across OTYA products. Product-specific data stays
 -- in each product service and is keyed by users.id.
 
