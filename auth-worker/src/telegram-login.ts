@@ -28,6 +28,8 @@ type TelegramClaims = {
   phone_number_verified?: boolean
 }
 
+type JoseWebKey = JsonWebKey & { kid?: string }
+
 const OIDC_AUTH = 'https://oauth.telegram.org/auth'
 const OIDC_TOKEN = 'https://oauth.telegram.org/token'
 const OIDC_JWKS = 'https://oauth.telegram.org/.well-known/jwks.json'
@@ -92,7 +94,7 @@ async function validateIdToken(idToken: string, clientId: string, nonce: string)
 
   const jwksResponse = await fetch(OIDC_JWKS, { headers: { Accept: 'application/json' } })
   if (!jwksResponse.ok) throw new Error('Telegram keys unavailable')
-  const jwks = await jwksResponse.json() as { keys?: JsonWebKey[] }
+  const jwks = await jwksResponse.json() as { keys?: JoseWebKey[] }
   const jwk = (jwks.keys ?? []).find(key => key.kid === header.kid)
   if (!jwk) throw new Error('Telegram signing key not found')
 
