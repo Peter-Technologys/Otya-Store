@@ -27,9 +27,13 @@ export async function checkEndpointHealth(endpoints: string[]): Promise<Endpoint
       const start = Date.now()
       try {
         const res = await fetch(url, {
-          method: 'HEAD',
+          method: 'GET',
+          redirect: 'follow',
           signal: AbortSignal.timeout(8000),
-          headers: { 'User-Agent': 'OtyaStore-HealthCheck/1.0' },
+          headers: {
+            'User-Agent': 'OTYA-HealthCheck/2.0',
+            Accept: 'application/json,text/plain;q=0.9,*/*;q=0.8',
+          },
         })
         return { url, status: res.status, latency: Date.now() - start, ok: res.ok }
       } catch (e) {
@@ -150,39 +154,28 @@ export async function sendAlertEmail(
   subject: string,
   body: string,
 ): Promise<void> {
-  const to = env.ALERT_EMAIL_TO || 'petersmartlink@gmail.com'
-
-  if (env.RESEND_API_KEY) {
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: env.ALERT_EMAIL_FROM || 'OTYA Backend <notifications@petersmartlink.com>',
-          to: [to],
-          subject,
-          text: body,
-        }),
-      })
-      if (response.ok) return
-      console.error('[monitor] Resend alert failed:', response.status, await response.text())
-    } catch (e) {
-      console.error('[monitor] Resend alert failed:', (e as Error)?.message)
-    }
+  const apiKey = env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured')
   }
 
-  try {
-    if (!env.EMAIL?.send) throw new Error('EMAIL binding unavailable')
-    await env.EMAIL.send({
-      from: { email: 'worker@petersmartlink.com', name: 'OTYA Backend Worker' },
-      to: [{ email: to }],
+  const to = env.ALERT_EMAIL_TO || 'petersmartlink@gmail.com'
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: env.ALERT_EMAIL_FROM || 'OTYA Backend <notifications@petersmartlink.com>',
+      to: [to],
       subject,
       text: body,
-    })
-  } catch (e) {
-    console.error('[monitor] fallback alert email failed:', (e as Error)?.message)
+    }),
+  })
+
+  if (!response.ok) {
+    const reason = await response.text().catch(() => '')
+    throw new Error(`Resend alert failed: HTTP ${response.status}${reason ? ` — ${reason}` : ''}`)
   }
 }
