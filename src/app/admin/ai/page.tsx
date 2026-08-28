@@ -2,250 +2,58 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-type InboxEmail = {
-  id: string
-  from: string
-  from_email: string
-  subject: string
-  created_at: string
-  attachments: { id: string; filename: string; content_type: string; size?: number | null }[]
-}
+type InboxEmail={id:string;from:string;from_email:string;subject:string;created_at:string;attachments:{id:string;filename:string;content_type:string;size?:number|null}[]}
+type EmailDetail=InboxEmail&{text:string;message_id:string;reply_to:string[]}
+type Draft={reply:string;risk:'low'|'medium'|'high';reason:string;category:string;requires_human:boolean}
+type AuditRow={id:number;received_email_id:string|null;sender_email:string|null;subject:string|null;action:string;risk:string|null;resend_email_id:string|null;created_at:string}
+type Plugin={id:string;name:string;category:string;status:string;capabilities:string[];write:boolean;setup_hint?:string}
+type ConsoleResult={title:string;data:unknown}
 
-type EmailDetail = InboxEmail & {
-  text: string
-  message_id: string
-  reply_to: string[]
-}
+const fmt=(v:string)=>{try{return new Date(v).toLocaleString()}catch{return v}}
+const pretty=(v:unknown)=>typeof v==='string'?v:JSON.stringify(v,null,2)
 
-type Draft = {
-  reply: string
-  risk: 'low' | 'medium' | 'high'
-  reason: string
-  category: string
-  requires_human: boolean
-}
+export default function OtyaAiAdminPage(){
+  const[token,setToken]=useState('');const[tokenInput,setTokenInput]=useState('')
+  const[inbox,setInbox]=useState<InboxEmail[]>([]);const[selected,setSelected]=useState<EmailDetail|null>(null)
+  const[draft,setDraft]=useState<Draft|null>(null);const[reply,setReply]=useState('');const[instruction,setInstruction]=useState('')
+  const[summary,setSummary]=useState('');const[audit,setAudit]=useState<AuditRow[]>([]);const[plugins,setPlugins]=useState<Plugin[]>([])
+  const[command,setCommand]=useState('');const[consoleResult,setConsoleResult]=useState<ConsoleResult|null>(null)
+  const[busy,setBusy]=useState(false);const[message,setMessage]=useState('')
 
-type AuditRow = {
-  id: number
-  received_email_id: string | null
-  sender_email: string | null
-  subject: string | null
-  action: string
-  risk: string | null
-  resend_email_id: string | null
-  created_at: string
-}
+  useEffect(()=>{const saved=sessionStorage.getItem('otya_admin_token')||'';if(saved){setToken(saved);setTokenInput(saved)}},[])
+  const headers=useMemo(()=>({Authorization:`Bearer ${token}`,'Content-Type':'application/json'}),[token])
+  const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,headers:{...headers,...(init?.headers||{})}});const data=await response.json().catch(()=>({}));if(response.status===401){sessionStorage.removeItem('otya_admin_token');setToken('');throw new Error('Admin session rejected. Enter the admin token again.')}if(!response.ok)throw new Error(data.detail||data.error||`HTTP ${response.status}`);return data},[headers])
 
-function fmt(value: string) {
-  try { return new Date(value).toLocaleString() } catch { return value }
-}
+  const loadConsole=useCallback(async()=>{if(!token)return;try{const data=await request('/api/admin/ai/console/plugins');setPlugins(data.plugins||[])}catch(error){setMessage((error as Error).message)}},[request,token])
+  const loadInbox=useCallback(async()=>{if(!token)return;setBusy(true);setMessage('');try{const data=await request('/api/admin/ai/support/inbox?limit=30');setInbox(data.emails||[]);const log=await request('/api/admin/ai/support/audit?limit=30');setAudit(log.audit||[]);await loadConsole()}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}},[request,token,loadConsole])
+  useEffect(()=>{if(token)loadInbox()},[token,loadInbox])
 
-export default function OtyaAiAdminPage() {
-  const [token, setToken] = useState('')
-  const [tokenInput, setTokenInput] = useState('')
-  const [inbox, setInbox] = useState<InboxEmail[]>([])
-  const [selected, setSelected] = useState<EmailDetail | null>(null)
-  const [draft, setDraft] = useState<Draft | null>(null)
-  const [reply, setReply] = useState('')
-  const [instruction, setInstruction] = useState('')
-  const [summary, setSummary] = useState('')
-  const [audit, setAudit] = useState<AuditRow[]>([])
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
+  function login(e:React.FormEvent){e.preventDefault();const value=tokenInput.trim();if(!value)return;sessionStorage.setItem('otya_admin_token',value);setToken(value)}
+  async function runCommand(){if(!command.trim())return;setBusy(true);setMessage('');try{const data=await request('/api/admin/ai/console/command',{method:'POST',body:JSON.stringify({command:command.trim()})});setConsoleResult(data.result);setMessage(`OTYA AI used: ${data.route?.tool||'safe tool'}`)}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
+  async function openEmail(id:string){setBusy(true);setMessage('');setDraft(null);setReply('');setInstruction('');try{const data=await request(`/api/admin/ai/support/email?id=${encodeURIComponent(id)}`);setSelected(data.email)}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
+  async function summarize(){setBusy(true);setMessage('');try{const data=await request('/api/admin/ai/support/summary?limit=10');setSummary(data.summary||'No summary available.')}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
+  async function loadAuditOnly(){try{const log=await request('/api/admin/ai/support/audit?limit=30');setAudit(log.audit||[])}catch{}}
+  async function makeDraft(){if(!selected)return;setBusy(true);setMessage('');try{const data=await request('/api/admin/ai/support/draft',{method:'POST',body:JSON.stringify({email_id:selected.id,instruction:instruction.trim()||undefined})});setDraft(data.draft);setReply(data.draft.reply||'');setMessage('AI draft ready. Review it before sending.');await loadAuditOnly()}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
+  async function sendReply(){if(!selected||!reply.trim())return;if(!window.confirm(`Send this reply from support@petersmartlink.com to ${selected.from_email}?`))return;setBusy(true);setMessage('');try{const data=await request('/api/admin/ai/support/send',{method:'POST',body:JSON.stringify({email_id:selected.id,reply:reply.trim(),risk:draft?.risk||'manual'})});setMessage(`Reply sent to ${data.to}.`);await loadAuditOnly()}catch(error){setMessage((error as Error).message)}finally{setBusy(false)}}
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('otya_admin_token') || ''
-    if (saved) { setToken(saved); setTokenInput(saved) }
-  }, [])
+  if(!token)return <main className="min-h-screen flex items-center justify-center px-4" style={{background:'var(--cosmos-scaffold)'}}><form onSubmit={login} className="w-full max-w-sm rounded-2xl border p-7" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><p className="text-xs font-bold tracking-widest" style={{color:'#7b61ff'}}>PETERSMART LINK</p><h1 className="text-2xl font-black mt-1" style={{color:'var(--cosmos-text-primary)'}}>OTYA Console</h1><p className="text-sm mt-2 mb-5" style={{color:'var(--cosmos-text-secondary)'}}>Private AI command center. Enter your existing admin token.</p><input type="password" value={tokenInput} onChange={e=>setTokenInput(e.target.value)} placeholder="Admin token" className="w-full rounded-xl border px-4 py-3" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)',color:'var(--cosmos-text-primary)'}}/><button className="cosmos-button w-full rounded-xl py-3 font-bold mt-4">Open Console</button></form></main>
 
-  const headers = useMemo(() => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), [token])
+  return <main className="min-h-screen px-4 py-6 md:px-8" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}><div className="max-w-7xl mx-auto space-y-6">
+    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><p className="text-xs font-bold tracking-widest" style={{color:'#7b61ff'}}>PETERSMART LINK</p><h1 className="text-3xl font-black">OTYA Console</h1><p className="text-sm mt-1" style={{color:'var(--cosmos-text-secondary)'}}>One private interface for AI, support, system intelligence and connected tools.</p></div><div className="flex gap-2"><button onClick={loadInbox} disabled={busy} className="cosmos-button rounded-xl px-4 py-2 text-sm font-bold">Refresh</button><button onClick={()=>{sessionStorage.removeItem('otya_admin_token');setToken('')}} className="rounded-xl border px-4 py-2 text-sm" style={{borderColor:'var(--cosmos-divider)'}}>Lock</button></div></header>
 
-  const request = useCallback(async (url: string, init?: RequestInit) => {
-    const response = await fetch(url, { ...init, headers: { ...headers, ...(init?.headers || {}) } })
-    const data = await response.json().catch(() => ({}))
-    if (response.status === 401) {
-      sessionStorage.removeItem('otya_admin_token')
-      setToken('')
-      throw new Error('Admin session rejected. Enter the admin token again.')
-    }
-    if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`)
-    return data
-  }, [headers])
+    {message&&<div className="rounded-xl border px-4 py-3 text-sm" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}>{message}</div>}
 
-  const loadInbox = useCallback(async () => {
-    if (!token) return
-    setBusy(true); setMessage('')
-    try {
-      const data = await request('/api/admin/ai/support/inbox?limit=30')
-      setInbox(data.emails || [])
-      const log = await request('/api/admin/ai/support/audit?limit=30')
-      setAudit(log.audit || [])
-    } catch (error) {
-      setMessage((error as Error).message)
-    } finally { setBusy(false) }
-  }, [request, token])
+    <section className="rounded-2xl border p-5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="text-xl font-black">Ask OTYA AI</h2><p className="text-xs mt-1" style={{color:'var(--cosmos-text-secondary)'}}>Read-only commands are available now. Write actions use separate approval flows.</p></div><span className="text-xs rounded-full px-3 py-1" style={{background:'rgba(123,97,255,.14)',color:'#a99cff'}}>ADMIN</span></div><div className="flex flex-col md:flex-row gap-3"><input value={command} onChange={e=>setCommand(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')runCommand()}} placeholder="Example: What crashes should I fix first?" className="flex-1 rounded-xl border px-4 py-3 text-sm" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)',color:'var(--cosmos-text-primary)'}}/><button onClick={runCommand} disabled={busy||!command.trim()} className="cosmos-button rounded-xl px-6 py-3 font-black text-sm">Run command</button></div><div className="flex flex-wrap gap-2 mt-3">{['Show system status','What plugins are connected?','Summarize recent feedback','What crashes should I fix first?','Show recent releases','Open support inbox'].map(x=><button key={x} onClick={()=>setCommand(x)} className="text-xs rounded-full border px-3 py-1.5" style={{borderColor:'var(--cosmos-divider)'}}>{x}</button>)}</div>{consoleResult&&<div className="mt-4 rounded-xl border p-4" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}><h3 className="font-black mb-2">{consoleResult.title}</h3><pre className="whitespace-pre-wrap text-xs overflow-auto" style={{color:'var(--cosmos-text-secondary)'}}>{pretty(consoleResult.data)}</pre></div>}</section>
 
-  useEffect(() => { if (token) loadInbox() }, [token, loadInbox])
+    <section className="rounded-2xl border p-5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><div className="flex items-center justify-between mb-4"><div><h2 className="font-black">Plugins & connections</h2><p className="text-xs mt-1" style={{color:'var(--cosmos-text-secondary)'}}>OTYA AI only sees tools explicitly connected to it.</p></div><span className="text-xs" style={{color:'var(--cosmos-text-secondary)'}}>{plugins.filter(p=>p.status==='connected').length} connected</span></div><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{plugins.map(p=><div key={p.id} className="rounded-xl border p-4" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-surface)'}}><div className="flex items-center justify-between"><strong>{p.name}</strong><span className="text-[11px] font-bold rounded-full px-2 py-1" style={{background:p.status==='connected'?'rgba(16,185,129,.15)':p.status==='setup_required'?'rgba(245,158,11,.15)':'rgba(123,97,255,.15)',color:p.status==='connected'?'#34d399':p.status==='setup_required'?'#fbbf24':'#a99cff'}}>{p.status.replaceAll('_',' ')}</span></div><p className="text-xs mt-2" style={{color:'var(--cosmos-text-secondary)'}}>{p.capabilities.join(' · ')}</p>{p.setup_hint&&<p className="text-[11px] mt-3" style={{color:'var(--cosmos-text-secondary)'}}>{p.setup_hint}</p>}</div>)}</div></section>
 
-  function login(event: React.FormEvent) {
-    event.preventDefault()
-    const value = tokenInput.trim()
-    if (!value) return
-    sessionStorage.setItem('otya_admin_token', value)
-    setToken(value)
-  }
+    {summary&&<section className="rounded-2xl border p-5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><h2 className="font-black mb-2">AI inbox briefing</h2><p className="whitespace-pre-wrap text-sm" style={{color:'var(--cosmos-text-secondary)'}}>{summary}</p></section>}
 
-  async function openEmail(id: string) {
-    setBusy(true); setMessage(''); setDraft(null); setReply(''); setInstruction('')
-    try {
-      const data = await request(`/api/admin/ai/support/email?id=${encodeURIComponent(id)}`)
-      setSelected(data.email)
-    } catch (error) { setMessage((error as Error).message) }
-    finally { setBusy(false) }
-  }
+    <section><div className="flex items-center justify-between mb-3"><div><h2 className="text-xl font-black">Support workspace</h2><p className="text-xs mt-1" style={{color:'var(--cosmos-text-secondary)'}}>Resend Receiving → AI draft → your approval → support@petersmartlink.com</p></div><button onClick={summarize} disabled={busy} className="rounded-xl border px-4 py-2 text-sm font-bold" style={{borderColor:'var(--cosmos-divider)'}}>Summarize inbox</button></div><div className="grid lg:grid-cols-[360px_1fr] gap-5">
+      <div className="rounded-2xl border overflow-hidden" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><div className="px-4 py-3 border-b flex justify-between" style={{borderColor:'var(--cosmos-divider)'}}><strong>Support inbox</strong><span className="text-xs" style={{color:'var(--cosmos-text-secondary)'}}>{inbox.length} recent</span></div><div className="max-h-[68vh] overflow-auto">{inbox.length===0&&<p className="p-5 text-sm" style={{color:'var(--cosmos-text-secondary)'}}>{busy?'Loading…':'No inbound emails found.'}</p>}{inbox.map(email=><button key={email.id} onClick={()=>openEmail(email.id)} className="w-full text-left px-4 py-4 border-b" style={{borderColor:'var(--cosmos-divider)',background:selected?.id===email.id?'rgba(123,97,255,.12)':'transparent'}}><div className="text-sm font-bold truncate">{email.from||email.from_email}</div><div className="text-sm truncate mt-1">{email.subject||'(no subject)'}</div><div className="text-xs mt-1" style={{color:'var(--cosmos-text-secondary)'}}>{fmt(email.created_at)}{email.attachments?.length?` · ${email.attachments.length} attachment(s)`:''}</div></button>)}</div></div>
+      <div className="rounded-2xl border p-5 min-h-[520px]" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}>{!selected?<div className="h-full flex items-center justify-center text-sm" style={{color:'var(--cosmos-text-secondary)'}}>Select a support email to begin.</div>:<div className="space-y-5"><div><div className="text-xs font-bold" style={{color:'var(--cosmos-text-secondary)'}}>FROM</div><div className="font-bold mt-1">{selected.from}</div><h3 className="text-xl font-black mt-3">{selected.subject||'(no subject)'}</h3><div className="text-xs mt-1" style={{color:'var(--cosmos-text-secondary)'}}>{fmt(selected.created_at)}</div></div><div className="rounded-xl border p-4 max-h-64 overflow-auto whitespace-pre-wrap text-sm" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}>{selected.text||'(No readable body)'}</div><div><label className="text-xs font-bold" style={{color:'var(--cosmos-text-secondary)'}}>OPTIONAL INSTRUCTION</label><input value={instruction} onChange={e=>setInstruction(e.target.value)} placeholder="Explain how to update OTYA and keep it short" className="w-full mt-2 rounded-xl border px-4 py-3 text-sm" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)',color:'var(--cosmos-text-primary)'}}/><button onClick={makeDraft} disabled={busy} className="cosmos-button rounded-xl px-4 py-2 font-bold text-sm mt-3">Draft personal reply</button></div>{draft&&<div className="rounded-xl border p-4" style={{borderColor:draft.risk==='high'?'#ef4444':draft.risk==='medium'?'#f59e0b':'#10b981'}}><div className="text-xs font-bold">AI risk: {draft.risk.toUpperCase()} · {draft.category}{draft.requires_human?' · HUMAN REVIEW REQUIRED':''}</div>{draft.reason&&<p className="text-xs mt-2" style={{color:'var(--cosmos-text-secondary)'}}>{draft.reason}</p>}</div>}{(draft||reply)&&<div><label className="text-xs font-bold" style={{color:'var(--cosmos-text-secondary)'}}>REPLY — EDIT BEFORE SENDING</label><textarea value={reply} onChange={e=>setReply(e.target.value)} rows={12} className="w-full mt-2 rounded-xl border px-4 py-3 text-sm" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)',color:'var(--cosmos-text-primary)'}}/><div className="flex items-center justify-between gap-3 mt-3"><p className="text-xs" style={{color:'var(--cosmos-text-secondary)'}}>Sends through Resend as OTYA Support.</p><button onClick={sendReply} disabled={busy||!reply.trim()} className="rounded-xl px-5 py-2 text-sm font-black bg-emerald-600 text-white disabled:opacity-50">Approve & send</button></div></div>}</div>}</div>
+    </div></section>
 
-  async function summarize() {
-    setBusy(true); setMessage('')
-    try {
-      const data = await request('/api/admin/ai/support/summary?limit=10')
-      setSummary(data.summary || 'No summary available.')
-    } catch (error) { setMessage((error as Error).message) }
-    finally { setBusy(false) }
-  }
-
-  async function makeDraft() {
-    if (!selected) return
-    setBusy(true); setMessage('')
-    try {
-      const data = await request('/api/admin/ai/support/draft', {
-        method: 'POST',
-        body: JSON.stringify({ email_id: selected.id, instruction: instruction.trim() || undefined }),
-      })
-      setDraft(data.draft)
-      setReply(data.draft.reply || '')
-      setMessage('AI draft ready. Review it before sending.')
-      await loadAuditOnly()
-    } catch (error) { setMessage((error as Error).message) }
-    finally { setBusy(false) }
-  }
-
-  async function loadAuditOnly() {
-    try {
-      const log = await request('/api/admin/ai/support/audit?limit=30')
-      setAudit(log.audit || [])
-    } catch { /* non-fatal */ }
-  }
-
-  async function sendReply() {
-    if (!selected || !reply.trim()) return
-    const ok = window.confirm(`Send this reply from support@petersmartlink.com to ${selected.from_email}?`)
-    if (!ok) return
-    setBusy(true); setMessage('')
-    try {
-      const data = await request('/api/admin/ai/support/send', {
-        method: 'POST',
-        body: JSON.stringify({ email_id: selected.id, reply: reply.trim(), risk: draft?.risk || 'manual' }),
-      })
-      setMessage(`Reply sent to ${data.to}.`)
-      await loadAuditOnly()
-    } catch (error) { setMessage((error as Error).message) }
-    finally { setBusy(false) }
-  }
-
-  if (!token) {
-    return (
-      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--cosmos-scaffold)' }}>
-        <form onSubmit={login} className="w-full max-w-sm rounded-2xl border p-7" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-          <h1 className="text-2xl font-black" style={{ color: 'var(--cosmos-text-primary)' }}>OTYA AI Console</h1>
-          <p className="text-sm mt-2 mb-5" style={{ color: 'var(--cosmos-text-secondary)' }}>Private support assistant. Enter your existing admin token.</p>
-          <input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Admin token" className="w-full rounded-xl border px-4 py-3" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} />
-          <button className="cosmos-button w-full rounded-xl py-3 font-bold mt-4" type="submit">Open AI Console</button>
-        </form>
-      </main>
-    )
-  }
-
-  return (
-    <main className="min-h-screen px-4 py-6 md:px-8" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
-      <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <p className="text-xs font-bold tracking-widest" style={{ color: '#7b61ff' }}>PETERSMART LINK</p>
-            <h1 className="text-3xl font-black">OTYA AI Support Console</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--cosmos-text-secondary)' }}>Read support mail, summarize issues, draft personal replies, and send only after approval.</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={summarize} disabled={busy} className="rounded-xl border px-4 py-2 text-sm font-bold" style={{ borderColor: 'var(--cosmos-divider)' }}>Summarize inbox</button>
-            <button onClick={loadInbox} disabled={busy} className="cosmos-button rounded-xl px-4 py-2 text-sm font-bold">Refresh</button>
-            <button onClick={() => { sessionStorage.removeItem('otya_admin_token'); setToken('') }} className="rounded-xl border px-4 py-2 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Lock</button>
-          </div>
-        </header>
-
-        {message && <div className="mb-4 rounded-xl border px-4 py-3 text-sm" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>{message}</div>}
-        {summary && <section className="mb-6 rounded-2xl border p-5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}><h2 className="font-black mb-2">AI inbox briefing</h2><p className="whitespace-pre-wrap text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>{summary}</p></section>}
-
-        <div className="grid lg:grid-cols-[360px_1fr] gap-5">
-          <section className="rounded-2xl border overflow-hidden" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--cosmos-divider)' }}><h2 className="font-black">Support inbox</h2><span className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{inbox.length} recent</span></div>
-            <div className="max-h-[68vh] overflow-auto">
-              {inbox.length === 0 && <p className="p-5 text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>{busy ? 'Loading…' : 'No inbound emails found.'}</p>}
-              {inbox.map((email) => (
-                <button key={email.id} onClick={() => openEmail(email.id)} className="w-full text-left px-4 py-4 border-b hover:opacity-80" style={{ borderColor: 'var(--cosmos-divider)', background: selected?.id === email.id ? 'rgba(123,97,255,.12)' : 'transparent' }}>
-                  <div className="text-sm font-bold truncate">{email.from || email.from_email}</div>
-                  <div className="text-sm truncate mt-1">{email.subject || '(no subject)'}</div>
-                  <div className="text-xs mt-1" style={{ color: 'var(--cosmos-text-secondary)' }}>{fmt(email.created_at)}{email.attachments?.length ? ` · ${email.attachments.length} attachment(s)` : ''}</div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border p-5 min-h-[520px]" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-            {!selected ? <div className="h-full flex items-center justify-center text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Select a support email to begin.</div> : (
-              <div className="space-y-5">
-                <div>
-                  <div className="text-xs font-bold" style={{ color: 'var(--cosmos-text-secondary)' }}>FROM</div>
-                  <div className="font-bold mt-1">{selected.from}</div>
-                  <h2 className="text-xl font-black mt-3">{selected.subject || '(no subject)'}</h2>
-                  <div className="text-xs mt-1" style={{ color: 'var(--cosmos-text-secondary)' }}>{fmt(selected.created_at)}</div>
-                </div>
-
-                <div className="rounded-xl border p-4 max-h-64 overflow-auto whitespace-pre-wrap text-sm" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)' }}>{selected.text || '(No readable plain-text body)'}</div>
-
-                <div>
-                  <label className="text-xs font-bold" style={{ color: 'var(--cosmos-text-secondary)' }}>OPTIONAL INSTRUCTION TO AI</label>
-                  <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Example: Explain how to update OTYA and keep the reply short" className="w-full mt-2 rounded-xl border px-4 py-3 text-sm" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} />
-                  <button onClick={makeDraft} disabled={busy} className="cosmos-button rounded-xl px-4 py-2 font-bold text-sm mt-3">Draft personal reply</button>
-                </div>
-
-                {draft && (
-                  <div className="rounded-xl border p-4" style={{ borderColor: draft.risk === 'high' ? '#ef4444' : draft.risk === 'medium' ? '#f59e0b' : '#10b981' }}>
-                    <div className="flex flex-wrap gap-2 items-center text-xs mb-2"><strong>AI risk: {draft.risk.toUpperCase()}</strong><span>·</span><span>{draft.category}</span>{draft.requires_human && <span>· HUMAN REVIEW REQUIRED</span>}</div>
-                    {draft.reason && <p className="text-xs mb-3" style={{ color: 'var(--cosmos-text-secondary)' }}>{draft.reason}</p>}
-                  </div>
-                )}
-
-                {(draft || reply) && (
-                  <div>
-                    <label className="text-xs font-bold" style={{ color: 'var(--cosmos-text-secondary)' }}>REPLY — EDIT BEFORE SENDING</label>
-                    <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={12} className="w-full mt-2 rounded-xl border px-4 py-3 text-sm" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} />
-                    <div className="flex items-center justify-between gap-3 mt-3">
-                      <p className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Sends as OTYA Support &lt;support@petersmartlink.com&gt; through Resend.</p>
-                      <button onClick={sendReply} disabled={busy || !reply.trim()} className="rounded-xl px-5 py-2 text-sm font-black bg-emerald-600 text-white disabled:opacity-50">Approve & send</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <section className="mt-6 rounded-2xl border p-5" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-          <h2 className="font-black mb-3">Support AI audit</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm"><thead><tr className="text-left" style={{ color: 'var(--cosmos-text-secondary)' }}><th className="py-2 pr-4">Time</th><th className="py-2 pr-4">Action</th><th className="py-2 pr-4">Recipient</th><th className="py-2 pr-4">Subject</th><th className="py-2">Risk</th></tr></thead><tbody>{audit.map((row) => <tr key={row.id} className="border-t" style={{ borderColor: 'var(--cosmos-divider)' }}><td className="py-2 pr-4 whitespace-nowrap">{fmt(row.created_at)}</td><td className="py-2 pr-4 font-bold">{row.action}</td><td className="py-2 pr-4">{row.sender_email || '—'}</td><td className="py-2 pr-4">{row.subject || '—'}</td><td className="py-2">{row.risk || '—'}</td></tr>)}</tbody></table>
-          </div>
-        </section>
-      </div>
-    </main>
-  )
+    <section className="rounded-2xl border p-5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><h2 className="font-black mb-3">AI audit</h2><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left" style={{color:'var(--cosmos-text-secondary)'}}><th className="py-2 pr-4">Time</th><th className="py-2 pr-4">Action</th><th className="py-2 pr-4">Recipient</th><th className="py-2 pr-4">Subject</th><th className="py-2">Risk</th></tr></thead><tbody>{audit.map(row=><tr key={row.id} className="border-t" style={{borderColor:'var(--cosmos-divider)'}}><td className="py-2 pr-4 whitespace-nowrap">{fmt(row.created_at)}</td><td className="py-2 pr-4 font-bold">{row.action}</td><td className="py-2 pr-4">{row.sender_email||'—'}</td><td className="py-2 pr-4">{row.subject||'—'}</td><td className="py-2">{row.risk||'—'}</td></tr>)}</tbody></table></div></section>
+  </div></main>
 }
