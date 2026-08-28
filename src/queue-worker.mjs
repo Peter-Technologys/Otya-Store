@@ -75,25 +75,40 @@ async function runAbuseDetection(env) {
 
 async function sendDailyAbuseReport(env) {
   try {
+    if (!env.RESEND_API_KEY) {
+      console.warn('[CRON] Daily abuse report skipped: RESEND_API_KEY is not configured.')
+      return
+    }
     const { keys = [] } = await env.KV.list({ prefix: 'blocked:', limit: 1000 })
     const row = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM downloads WHERE created_at >= datetime('now', '-1 day')",
     ).first()
+    const text = [
+      'OTYA Backend Daily Abuse Report',
+      '',
+      `Currently blocked IPs: ${keys.length}`,
+      `Downloads (last 24h): ${row?.count ?? 0}`,
+      '',
+      `Generated: ${new Date().toISOString()}`,
+    ].join('\n')
 
-    await env.EMAIL.send({
-      from: { email: 'noreply@petersmartlink.com', name: 'OTYA Backend' },
-      to: [{ email: env.ADMIN_REPORT_EMAIL || 'petersmartlink@gmail.com' }],
-      subject: `[OTYA Backend] Daily Abuse Report — ${new Date().toDateString()}`,
-      text: [
-        'OTYA Backend Daily Abuse Report',
-        '',
-        `Currently blocked IPs: ${keys.length}`,
-        `Downloads (last 24h): ${row?.count ?? 0}`,
-        '',
-        `Generated: ${new Date().toISOString()}`,
-      ].join('\n'),
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'OTYA Backend <noreply@petersmartlink.com>',
+        to: [env.ADMIN_REPORT_EMAIL || 'petersmartlink@gmail.com'],
+        subject: `[OTYA Backend] Daily Abuse Report — ${new Date().toDateString()}`,
+        text,
+      }),
     })
-    console.log('[CRON] Daily abuse report sent.')
+    if (!response.ok) {
+      throw new Error(`Resend abuse report failed: HTTP ${response.status}`)
+    }
+    console.log('[CRON] Daily abuse report sent through Resend.')
   } catch (error) {
     console.error('[CRON] sendDailyAbuseReport failed:', error?.message)
   }
@@ -120,6 +135,14 @@ async function handlePushMessage(msg, env) {
   const accessToken = await getFcmAccessToken(serviceAccountJson)
   const fcmEndpoint = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`
   const link = url ?? env.WEBSITE_URL ?? 'https://petersmartlink.com/download/otya-player'
+
+  const data = { url: String(link) }
+  for (const [key, value] of Object.entries(msg?.data ?? {})) {
+    if (value !== undefined && value !== null) data[String(key)] = String(value)
+  }
+  for (const key of ['type', 'version', 'download_url', 'release_notes']) {
+    if (msg?.[key] !== undefined && msg?.[key] !== null) data[key] = String(msg[key])
+  }
 
   let tokens = []
   if (deviceId) {
@@ -153,6 +176,7 @@ async function handlePushMessage(msg, env) {
 
   let sent = 0
   let failed = 0
+  let removed = 0
   for (const token of tokens) {
     const response = await fetch(fcmEndpoint, {
       method: 'POST',
@@ -164,17 +188,39 @@ async function handlePushMessage(msg, env) {
         message: {
           token,
           notification: { title, body },
-          data: { url: link },
-          android: { priority: 'high' },
+          data,
+          android: {
+            priority: 'high',
+            notification: { channel_id: 'otya_updates' },
+          },
         },
       }),
     })
-    if (response.ok) sent++
-    else failed++
+    if (response.ok) {
+      sent++
+      continue
+    }
+
+    failed++
+    const errorBody = await response.json().catch(() => null)
+    const details = errorBody?.error?.details ?? []
+    const unregistered = details.some((item) => item?.errorCode === 'UNREGISTERED')
+    if (unregistered) {
+      try {
+        await env.DB.prepare(
+          'UPDATE devices SET fcm_token = NULL WHERE fcm_token = ?',
+        ).bind(token).run()
+        removed++
+      } catch (cleanupError) {
+        console.error('[PUSH_QUEUE] Failed to clear unregistered token:', cleanupError?.message)
+      }
+    } else {
+      console.warn('[PUSH_QUEUE] FCM send failed:', response.status, errorBody?.error?.status ?? 'unknown')
+    }
   }
 
   const scope = deviceId ? `device:${deviceId}` : userId ? `user:${userId}` : 'broadcast'
-  console.log(`[PUSH_QUEUE] Scope=${scope}, Sent=${sent}, Failed=${failed}, Total=${tokens.length}`)
+  console.log(`[PUSH_QUEUE] Scope=${scope}, Sent=${sent}, Failed=${failed}, Removed=${removed}, Total=${tokens.length}`)
 }
 
 function base64urlEncode(buf) {
@@ -238,7 +284,7 @@ async function getFcmAccessToken(serviceAccountJson) {
     throw new Error(`OAuth2 token exchange failed: ${tokenRes.status}`)
   }
 
-  const data = await tokenRes.json()
-  if (!data.access_token) throw new Error('OAuth2 token exchange returned no access token')
-  return data.access_token
+  const tokenData = await tokenRes.json()
+  if (!tokenData.access_token) throw new Error('OAuth2 token exchange returned no access token')
+  return tokenData.access_token
 }
