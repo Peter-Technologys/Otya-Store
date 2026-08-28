@@ -1,0 +1,104 @@
+const DEFAULT_MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
+const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
+const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
+const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
+const parse=s=>{try{const m=String(s||'').match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null}catch{return null}}
+
+function internalAuthorized(request,env){
+  if(!env.INTERNAL_SECRET)return false
+  return (request.headers.get('X-OTYA-Internal-Secret')||'')===env.INTERNAL_SECRET
+}
+
+async function runAi(env,messages){
+  if(!env.AI?.run)throw new Error('AI binding unavailable')
+  return clean(aiText(await env.AI.run(env.OTYA_AI_MODEL||DEFAULT_MODEL,{messages})),10000)
+}
+
+function pluginRegistry(env){
+  return [
+    {id:'resend',name:'Resend',category:'email',status:env.RESEND_API_KEY?'connected':'setup_required',capabilities:['support inbox','personal replies','transactional email'],write:true},
+    {id:'telegram',name:'Telegram',category:'messaging',status:env.TELEGRAM_BOT_TOKEN&&env.TELEGRAM_WEBHOOK_SECRET?'connected':'setup_required',capabilities:['private AI support','commands','channel links'],write:true},
+    {id:'otya',name:'OTYA System',category:'system',status:env.DB&&env.KV?'connected':'degraded',capabilities:['feedback','crashes','releases','usage signals','AI queue'],write:false},
+    {id:'gmail',name:'Gmail',category:'email',status:env.GMAIL_REFRESH_TOKEN&&env.GOOGLE_OAUTH_CLIENT_ID&&env.GOOGLE_OAUTH_CLIENT_SECRET?'connected':'setup_required',capabilities:['read mailbox','search threads','draft replies','send mail'],write:true,setup_hint:'Requires a Google OAuth Web client, consent redirect, encrypted refresh-token storage, and Gmail scopes.'},
+    {id:'github',name:'GitHub',category:'developer',status:'available_next',capabilities:['issues','pull requests','workflow status','release context'],write:true,setup_hint:'Use a dedicated GitHub App/token with least-privilege repository permissions.'},
+    {id:'cloudflare',name:'Cloudflare',category:'infrastructure',status:'available_next',capabilities:['Worker health','queues','D1/KV/R2 status','deployment checks'],write:true,setup_hint:'Use a scoped Cloudflare API token; destructive actions must require explicit approval.'},
+  ]
+}
+
+async function systemSnapshot(env){
+  const out={generated_at:new Date().toISOString(),database:Boolean(env.DB),kv:Boolean(env.KV),ai:Boolean(env.AI?.run),push:Boolean(env.PUSH_QUEUE?.send)}
+  if(env.DB?.prepare){
+    try{out.feedback_7d=(await env.DB.prepare("SELECT COUNT(*) count FROM feedback WHERE created_at>=datetime('now','-7 days')").first())?.count||0}catch{}
+    try{out.crashes_7d=(await env.DB.prepare("SELECT COUNT(*) count FROM crash_reports WHERE created_at>=datetime('now','-7 days')").first())?.count||0}catch{}
+    try{out.downloads_7d=(await env.DB.prepare("SELECT COUNT(*) count FROM downloads WHERE created_at>=datetime('now','-7 days')").first())?.count||0}catch{}
+    try{out.latest_release=await env.DB.prepare('SELECT tag,version,released_at FROM releases ORDER BY released_at DESC LIMIT 1').first()}catch{}
+  }
+  return out
+}
+
+async function recentFeedback(env){
+  if(!env.DB?.prepare)return []
+  const {results=[]}=await env.DB.prepare("SELECT id,category,sentiment,description,created_at FROM feedback ORDER BY created_at DESC LIMIT 20").all()
+  return results.map(x=>({...x,description:clean(x.description,700)}))
+}
+
+async function recentCrashes(env){
+  if(!env.DB?.prepare)return []
+  const {results=[]}=await env.DB.prepare("SELECT group_id,error_type,COUNT(*) count,MAX(created_at) latest FROM crash_reports WHERE created_at>=datetime('now','-14 days') GROUP BY group_id,error_type ORDER BY count DESC LIMIT 15").all()
+  return results
+}
+
+async function recentReleases(env){
+  if(!env.DB?.prepare)return []
+  const {results=[]}=await env.DB.prepare('SELECT tag,version,version_code,changelog,released_at FROM releases ORDER BY released_at DESC LIMIT 8').all()
+  return results.map(x=>({...x,changelog:clean(x.changelog,1000)}))
+}
+
+async function routeCommand(env,command){
+  const tools=['system_status','plugins','feedback_summary','crash_summary','release_summary','support_inbox','help']
+  const prompt=`You route private OTYA administrator commands to one safe tool. Choose only one of: ${tools.join(', ')}. Never choose a write/destructive action. Return JSON only: {"tool":"name","reason":"brief"}.\nCommand: ${clean(command,1500)}`
+  const routed=parse(await runAi(env,[{role:'system',content:'You are a conservative admin-command router. Prefer help when intent is unclear.'},{role:'user',content:prompt}]))||{}
+  return tools.includes(routed.tool)?routed:{tool:'help',reason:'Command was not clear enough for a safe read-only tool.'}
+}
+
+async function executeTool(env,tool){
+  if(tool==='plugins')return {title:'Connections',data:pluginRegistry(env)}
+  if(tool==='system_status')return {title:'System status',data:await systemSnapshot(env)}
+  if(tool==='feedback_summary'){
+    const rows=await recentFeedback(env)
+    const answer=rows.length?await runAi(env,[{role:'system',content:'Summarize OTYA feedback into concise themes, user impact and next actions. Do not invent facts.'},{role:'user',content:JSON.stringify(rows)}]):'No recent feedback found.'
+    return {title:'Feedback briefing',data:{count:rows.length,answer}}
+  }
+  if(tool==='crash_summary'){
+    const rows=await recentCrashes(env)
+    const answer=rows.length?await runAi(env,[{role:'system',content:'Summarize these OTYA crash groups by priority and likely user impact. Do not invent root causes.'},{role:'user',content:JSON.stringify(rows)}]):'No recent crashes found.'
+    return {title:'Crash briefing',data:{groups:rows,answer}}
+  }
+  if(tool==='release_summary'){
+    const rows=await recentReleases(env)
+    return {title:'Release briefing',data:{releases:rows}}
+  }
+  if(tool==='support_inbox')return {title:'Support inbox',data:{open:'/admin/ai',note:'Use the Support workspace below the command bar to read, draft and approve replies.'}}
+  return {title:'OTYA Console help',data:{examples:['Show system status','What plugins are connected?','Summarize recent feedback','What crashes should I fix first?','Show recent releases','Open support inbox'],note:'Write actions such as sending email, push notifications, release actions, GitHub changes or Cloudflare changes require a dedicated approval flow.'}}
+}
+
+export async function handleConsoleAdmin(request,env){
+  if(!internalAuthorized(request,env))return json({error:'Unauthorized'},401)
+  const url=new URL(request.url)
+  try{
+    if(url.pathname.endsWith('/plugins')&&request.method==='GET')return json({ok:true,plugins:pluginRegistry(env)})
+    if(url.pathname.endsWith('/status')&&request.method==='GET')return json({ok:true,status:await systemSnapshot(env)})
+    if(url.pathname.endsWith('/command')&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}))
+      const command=clean(body.command,1500)
+      if(!command)return json({error:'command is required'},400)
+      const route=await routeCommand(env,command)
+      const result=await executeTool(env,route.tool)
+      return json({ok:true,command,route,result})
+    }
+    return json({error:'Not found'},404)
+  }catch(error){
+    console.error('[ai-console]',error?.message)
+    return json({error:'Console tool failed',detail:clean(error?.message,400)},500)
+  }
+}
