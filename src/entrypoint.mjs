@@ -59,6 +59,16 @@ export default {
   ...worker,
   async fetch(request, env, ctx) {
     const runtimeEnv = withProductionAdapters(env); const startedAt = Date.now(); const url = new URL(request.url); let response
+    if (url.pathname === '/api/ai/oauth/google/callback') {
+      if (!runtimeEnv.AI_SUPPORT?.fetch) response = json({ error: 'AI support service unavailable' }, 503)
+      else if (!runtimeEnv.INTERNAL_SECRET) response = json({ error: 'AI connector channel is not configured' }, 503)
+      else {
+        const headers = new Headers(request.headers)
+        headers.set('X-OTYA-Internal-Secret', runtimeEnv.INTERNAL_SECRET)
+        response = await runtimeEnv.AI_SUPPORT.fetch(new Request(request, { headers }))
+      }
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt); return response
+    }
     if (url.pathname.startsWith('/api/admin/ai/')) {
       if (!isAdmin(request, runtimeEnv)) response = json({ error: 'Unauthorized' }, 401)
       else if (!runtimeEnv.AI_SUPPORT?.fetch) response = json({ error: 'AI support service unavailable' }, 503)
