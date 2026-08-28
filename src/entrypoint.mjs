@@ -59,6 +59,18 @@ export default {
   ...worker,
   async fetch(request, env, ctx) {
     const runtimeEnv = withProductionAdapters(env); const startedAt = Date.now(); const url = new URL(request.url); let response
+    if (url.pathname.startsWith('/api/admin/ai/support/')) {
+      if (!isAdmin(request, runtimeEnv)) response = json({ error: 'Unauthorized' }, 401)
+      else if (!runtimeEnv.AI_SUPPORT?.fetch) response = json({ error: 'AI support service unavailable' }, 503)
+      else if (!runtimeEnv.INTERNAL_SECRET) response = json({ error: 'AI admin channel is not configured' }, 503)
+      else {
+        const headers = new Headers(request.headers)
+        headers.set('X-OTYA-Internal-Secret', runtimeEnv.INTERNAL_SECRET)
+        const forwarded = new Request(request, { headers })
+        response = await runtimeEnv.AI_SUPPORT.fetch(forwarded)
+      }
+      writeRequestAnalytics(runtimeEnv, request, response, startedAt); return response
+    }
     if (url.pathname.startsWith('/api/telegram/')) {
       if (!runtimeEnv.AI_SUPPORT?.fetch) response = json({ error: 'AI support service unavailable' }, 503)
       else response = await runtimeEnv.AI_SUPPORT.fetch(request)
