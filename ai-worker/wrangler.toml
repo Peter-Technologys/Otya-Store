@@ -13,6 +13,7 @@ ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
 OTYA_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
+GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
 [ai]
 binding = "AI"
 [[d1_databases]]
@@ -36,4 +37,5 @@ crons = ["0 6 * * 1", "0 9 * * *"]
 # Add the EXISTING production Vectorize index as binding VECTORIZE only after
 # confirming its exact name in Cloudflare. Do not create a duplicate index.
 # Required secrets: RESEND_API_KEY. Optional integrations: TELEGRAM_BOT_TOKEN,
-# TELEGRAM_WEBHOOK_SECRET, INTERNAL_SECRET. Never commit secret values.
+# TELEGRAM_WEBHOOK_SECRET, INTERNAL_SECRET, GMAIL_GOOGLE_CLIENT_SECRET,
+# CONNECTOR_ENCRYPTION_KEY. Never commit secret values.
