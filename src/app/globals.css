@@ -137,8 +137,38 @@ a:hover, button:hover { opacity: .88; }
 .otya-divider { border-color: var(--cosmos-divider); }
 .cosmos-stars { display: none; }
 
+/* OTYA Account: flatten the old nested-card dashboard into an account document. */
+#home, #personal, #security, #sessions, #privacy, #connected, #products, #ai {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--cosmos-divider) !important;
+  border-radius: 0 !important;
+  padding: 26px 0 !important;
+  scroll-margin-top: 72px;
+}
+#home { border-top: 0 !important; padding-top: 2px !important; }
+#personal > h2, #security > h2, #sessions > h2, #privacy > h2, #connected > h2, #products > h2, #ai > h2 {
+  font-size: 17px !important;
+  font-weight: 650 !important;
+  margin-bottom: 12px !important;
+}
+#security > div, #connected > div {
+  background: transparent !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 14px 0 !important;
+}
+#security > div + div, #connected > div + div { border-top: 1px solid var(--cosmos-divider) !important; }
+#sessions .rounded-xl, #products .rounded-xl, #privacy .rounded-xl, #ai .rounded-xl {
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 640px) {
   body { font-size: 14px; }
   .otya-shell, .otya-reading { width: min(100% - 24px, var(--content-max)); }
   .otya-page-title { font-size: clamp(28px, 10vw, 38px); }
+  #home, #personal, #security, #sessions, #privacy, #connected, #products, #ai { padding-block: 22px !important; }
 }
