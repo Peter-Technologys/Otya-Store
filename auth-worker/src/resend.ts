@@ -1,5 +1,5 @@
 /**
- * Server-side Resend transport for OTYA System authentication emails.
+ * Server-side Resend transport for OTYA authentication emails.
  *
  * The API key must be provided as the Cloudflare Worker secret
  * RESEND_API_KEY. It must never be embedded in source or sent to clients.
@@ -53,14 +53,14 @@ function renderEmailHtml(subject: string, text: string): string {
     <tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d1026;border:1px solid #25294b;border-radius:22px;overflow:hidden">
         <tr><td style="padding:26px 28px;background:linear-gradient(135deg,#16c8ff 0%,#7b2cff 52%,#ff19ae 100%)">
-          <div style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:.3px">OTYA System</div>
-          <div style="margin-top:5px;font-size:13px;color:#f4edff">One account for OTYA products.</div>
+          <div style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:.3px">OTYA</div>
+          <div style="margin-top:5px;font-size:13px;color:#f4edff">One account across OTYA products.</div>
         </td></tr>
         <tr><td style="padding:28px">
           <h1 style="margin:0 0 22px;font-size:22px;line-height:1.3;color:#ffffff">${escapeHtml(subject)}</h1>
           ${body}
           <div style="margin-top:26px;padding-top:20px;border-top:1px solid #272b4d;color:#8f92aa;font-size:12px;line-height:1.6">
-            This is an automated OTYA System account message. For help, contact
+            This is an automated OTYA account message. For help, contact
             <a href="mailto:${OTYA_SUPPORT_EMAIL}" style="color:#a56cff;text-decoration:none">${OTYA_SUPPORT_EMAIL}</a>.
           </div>
         </td></tr>
