@@ -1,6 +1,15 @@
 # OTYA Auth — Cloudflare Worker
 
-Authentication service for **OTYA System**. It powers account registration, login, Google sign-in, email verification, password recovery, JWT issuance, and account lifecycle operations for OTYA products such as OTYA Player.
+Authentication service for **OTYA**. It powers one shared OTYA account for registration, login, Google sign-in, email verification, password recovery, JWT issuance, consent and account lifecycle operations across OTYA products such as OTYA Player and future OTYA apps.
+
+## Architecture
+
+OTYA Auth owns identity and security only. Product-specific data stays in each product backend and is keyed by the same stable OTYA `user_id`.
+
+- One OTYA account can be reused across OTYA products.
+- Products must not automatically receive one another's private data.
+- New products should verify the OTYA JWT and use `sub` as the shared account ID.
+- Product permissions and product data remain separately scoped.
 
 ## Setup
 
@@ -32,11 +41,11 @@ wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put RESEND_API_KEY
 ```
 
-`RESEND_API_KEY` is a server-side secret. Never place it in Flutter, source code, GitHub, Wrangler `vars`, or client-visible configuration. Cloudflare recommends Worker secrets for sensitive API keys: https://developers.cloudflare.com/workers/configuration/secrets/
+`RESEND_API_KEY` is a server-side secret. Never place it in Flutter, source code, GitHub, Wrangler `vars`, or client-visible configuration.
 
 ### 5. Email provider
 
-OTYA System uses **Resend** for transactional email. The migration away from the legacy Cloudflare `EMAIL` binding must be completed and tested before the old binding is removed from the Worker.
+OTYA uses **Resend** for transactional account email.
 
 Required transactional flows:
 
@@ -54,7 +63,7 @@ npm run deploy
 
 ### 7. Add Service Binding in the OTYA Backend
 
-The main OTYA Backend Worker calls `otya-auth` through a Service Binding:
+The OTYA Backend calls `otya-auth` through a Service Binding:
 
 ```toml
 [[services]]
@@ -78,8 +87,8 @@ All endpoints return `{ error: string }` on failure.
 | POST | `/auth/send-verification` | Bearer JWT | Send email verification OTP |
 | POST | `/auth/verify-email` | Bearer JWT | Verify email using OTP |
 | POST | `/auth/delete-account` | Bearer JWT | Delete account and revoke tokens |
-| GET | `/auth/verify` | Bearer JWT | Validate JWT for OTYA Backend |
-| GET | `/auth/me` | Bearer JWT | Return current user |
+| GET | `/auth/verify` | Bearer JWT | Validate JWT for OTYA services |
+| GET | `/auth/me` | Bearer JWT | Return current OTYA account |
 | PATCH | `/auth/me` | Bearer JWT | Update profile |
 | POST | `/auth/backup` | Bearer JWT | Write Google Drive backup |
 | GET | `/auth/backup` | Bearer JWT | Read Google Drive backup |
@@ -95,11 +104,13 @@ All endpoints return `{ error: string }` on failure.
 
 ## Branding
 
-Product-facing identity is **OTYA System**.
+Product-facing umbrella identity is **OTYA**.
 
-- Platform: **OTYA System**
+- Umbrella: **OTYA**
 - Media product: **OTYA Player**
+- AI: **OTYA AI**
 - Authentication service: **OTYA Auth**
+- Admin interface: **OTYA Console**
 - Backend service: **OTYA Backend**
 
-`PeterSmart`/`PeterSmart Link` may remain where required for legal ownership, business contact, or domain ownership, but should not replace the OTYA product identity in user-facing authentication flows.
+`PeterSmart Link` remains the legal/business/developer identity where required for ownership, contact, billing and legal disclosures.

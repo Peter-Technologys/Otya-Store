@@ -53,8 +53,8 @@ function renderEmailHtml(subject: string, text: string): string {
     <tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d1026;border:1px solid #25294b;border-radius:22px;overflow:hidden">
         <tr><td style="padding:26px 28px;background:linear-gradient(135deg,#16c8ff 0%,#7b2cff 52%,#ff19ae 100%)">
-          <div style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:.3px">OTYA Player</div>
-          <div style="margin-top:5px;font-size:13px;color:#f4edff">Private. Reliable. Yours.</div>
+          <div style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:.3px">OTYA</div>
+          <div style="margin-top:5px;font-size:13px;color:#f4edff">One account across OTYA products.</div>
         </td></tr>
         <tr><td style="padding:28px">
           <h1 style="margin:0 0 22px;font-size:22px;line-height:1.3;color:#ffffff">${escapeHtml(subject)}</h1>

@@ -1,11 +1,11 @@
 {
-  "name": "OTYA System",
+  "name": "OTYA",
   "short_name": "OTYA",
-  "description": "OTYA System — OTYA Player and platform services.",
+  "description": "OTYA — OTYA Player, OTYA AI, shared account and connected services.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a1a",
-  "theme_color": "#050510",
+  "background_color": "#F7F7FB",
+  "theme_color": "#7C3AED",
   "orientation": "portrait",
   "icons": [
     {
