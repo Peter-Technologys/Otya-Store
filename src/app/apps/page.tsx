@@ -4,8 +4,8 @@ import type { Metadata } from 'next'
 import { SiteNav } from '@/components/ui'
 
 export const metadata: Metadata = {
-  title: 'Apps | PeterSmart Link',
-  description: 'Apps from PeterSmart Link, including OTYA Player for private, reliable Android media playback and management.',
+  title: 'Apps | OTYA',
+  description: 'Official OTYA apps, starting with OTYA Player for private, reliable Android media playback and management.',
 }
 
 export default function AppsPage() {
@@ -16,11 +16,11 @@ export default function AppsPage() {
       <main className="max-w-5xl mx-auto px-5 sm:px-6 py-12 sm:py-16">
         <header className="mb-10 max-w-2xl">
           <div className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold mb-4" style={{ borderColor: 'var(--border)', color: 'var(--text-sub)', background: 'var(--card)' }}>
-            PeterSmart Link Apps
+            OTYA Apps
           </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-3">Useful software, built to feel simple.</h1>
           <p className="text-sm sm:text-base leading-relaxed" style={{ color: 'var(--text-sub)' }}>
-            Discover PeterSmart Link applications. Each product has a focused job, a consistent design system and a direct support path.
+            Discover OTYA products. One OTYA account can be reused across products while each app keeps its own product-specific data separately scoped.
           </p>
         </header>
 
@@ -49,20 +49,26 @@ export default function AppsPage() {
 
                 <div className="flex flex-wrap gap-3">
                   <Link href="/download/otya-player" className="cosmos-button inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold">
-                    Download OTYA
+                    Download OTYA Player
                   </Link>
                   <Link
                     href="/otya-player"
                     className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border hover:bg-white/5"
                     style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
                   >
-                    Explore OTYA
+                    Explore OTYA Player
                   </Link>
                 </div>
               </div>
             </div>
           </div>
         </section>
+
+        <div className="mt-6 flex flex-wrap gap-3 text-sm">
+          <Link href="/ai" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>OTYA AI</Link>
+          <Link href="/documents" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>Documents</Link>
+          <Link href="/my-account" className="font-semibold" style={{ color: 'var(--cosmos-primary)' }}>My OTYA account</Link>
+        </div>
       </main>
     </div>
   )
