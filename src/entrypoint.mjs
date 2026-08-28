@@ -59,7 +59,7 @@ export default {
   ...worker,
   async fetch(request, env, ctx) {
     const runtimeEnv = withProductionAdapters(env); const startedAt = Date.now(); const url = new URL(request.url); let response
-    if (url.pathname.startsWith('/api/admin/ai/support/')) {
+    if (url.pathname.startsWith('/api/admin/ai/')) {
       if (!isAdmin(request, runtimeEnv)) response = json({ error: 'Unauthorized' }, 401)
       else if (!runtimeEnv.AI_SUPPORT?.fetch) response = json({ error: 'AI support service unavailable' }, 503)
       else if (!runtimeEnv.INTERNAL_SECRET) response = json({ error: 'AI admin channel is not configured' }, 503)
