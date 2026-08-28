@@ -53,7 +53,7 @@ const GOOGLE_RATE_TTL = 15 * 60
 const PRIMARY_ORIGIN = 'https://petersmartlink.com'
 const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
 const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
-const OTYA_NOREPLY_FROM = `OTYA Player <${OTYA_NOREPLY_EMAIL}>`
+const OTYA_NOREPLY_FROM = `OTYA <${OTYA_NOREPLY_EMAIL}>`
 const LEGAL_ACCEPTANCE_REQUIRED = 428
 
 function normalizeEmailText(text: string): string {
