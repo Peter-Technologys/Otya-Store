@@ -12,7 +12,7 @@ WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
-OTYA_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
+OTYA_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
 [ai]
 binding = "AI"
