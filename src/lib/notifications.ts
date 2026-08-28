@@ -1,13 +1,12 @@
 /**
  * Smart notification helpers.
- * Queues FCM pushes via PUSH_QUEUE and sends emails via EMAIL binding.
- * All functions are fire-and-forget safe — errors are logged, never thrown.
+ * Queues FCM pushes via PUSH_QUEUE and sends operational email through the
+ * backend's Resend transport. All functions are fire-and-forget safe — errors
+ * are logged, never thrown.
  */
 
 import { D1 } from '@/lib/d1'
 import { sendAlertEmail } from '@/lib/monitor'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ReleaseInfo {
   version:   string
@@ -15,11 +14,10 @@ export interface ReleaseInfo {
   tag:       string
 }
 
-// ── Push queue helpers ────────────────────────────────────────────────────────
-
 /**
- * Queue an FCM push notification to all devices (or a specific device)
- * announcing a new release. Uses PUSH_QUEUE so the queue-worker handles delivery.
+ * Queue an FCM push notification to all devices announcing a new release.
+ * Metadata is carried through the queue so the Flutter foreground handler can
+ * render the richer update notification and start the correct download flow.
  */
 export async function sendUpdateNotification(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,11 +29,16 @@ export async function sendUpdateNotification(
     const body  = release.changelog
       ? release.changelog.replace(/[#*`]/g, '').split('\n').find(l => l.trim()) ?? 'New update available.'
       : 'A new version of OTYA Player is ready to download.'
+    const downloadUrl = 'https://petersmartlink.com/download/otya-player'
 
     await env.PUSH_QUEUE.send({
       title,
       body,
-      url: `https://petersmartlink.com/download`,
+      url: downloadUrl,
+      type: 'update',
+      version: release.version,
+      download_url: downloadUrl,
+      release_notes: body,
     })
     console.log(`[notifications] Queued update notification for ${release.version}`)
   } catch (e) {
@@ -43,9 +46,7 @@ export async function sendUpdateNotification(
   }
 }
 
-/**
- * Find devices with last_seen_at older than 30 days and queue a re-engagement push.
- */
+/** Find devices inactive for more than 30 days and send a targeted reminder. */
 export async function sendReengagementNotifications(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -73,8 +74,9 @@ export async function sendReengagementNotifications(
         await env.PUSH_QUEUE.send({
           title:    '👋 We miss you!',
           body:     `It's been ${daysSince} days. Come back and enjoy OTYA Player!`,
-          url:      'https://petersmartlink.com/download',
+          url:      'https://petersmartlink.com/download/otya-player',
           deviceId: device.device_id,
+          type:     'reengagement',
         })
       } catch (e) {
         console.error('[notifications] re-engagement push failed for', device.device_id, (e as Error)?.message)
@@ -87,9 +89,7 @@ export async function sendReengagementNotifications(
   }
 }
 
-/**
- * Find pro_status rows expiring within 3 days and queue a warning push per device.
- */
+/** Find Pro subscriptions expiring within three days and warn their devices. */
 export async function sendProExpiryWarnings(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -97,8 +97,6 @@ export async function sendProExpiryWarnings(
 ): Promise<void> {
   try {
     const threeDaysMs = Date.now() + 3 * 86_400_000
-
-    // Join pro_status with devices to get fcm_token
     const { results } = await db.prepare(`
       SELECT p.user_id, p.expiry_ms, d.device_id
       FROM pro_status p
@@ -122,6 +120,7 @@ export async function sendProExpiryWarnings(
           body:     `Your OTYA Player Pro access expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Renew to keep premium features.`,
           url:      'https://petersmartlink.com',
           deviceId: row.device_id,
+          type:     'pro_expiry',
         })
       } catch (e) {
         console.error('[notifications] pro expiry push failed for', row.user_id, (e as Error)?.message)
@@ -134,9 +133,7 @@ export async function sendProExpiryWarnings(
   }
 }
 
-/**
- * Queue a welcome-back FCM push for a specific device.
- */
+/** Queue a welcome-back push for one device. */
 export async function sendWelcomeBack(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -147,8 +144,9 @@ export async function sendWelcomeBack(
     await env.PUSH_QUEUE.send({
       title:    '👋 Welcome back!',
       body:     `Great to see you again after ${daysSinceLastSeen} days. Check out what's new in OTYA Player!`,
-      url:      'https://petersmartlink.com/download',
+      url:      'https://petersmartlink.com/download/otya-player',
       deviceId,
+      type:     'welcome_back',
     })
     console.log(`[notifications] Queued welcome-back for device ${deviceId}`)
   } catch (e) {
@@ -156,9 +154,7 @@ export async function sendWelcomeBack(
   }
 }
 
-/**
- * Send an EMAIL notification about a new release using the EMAIL binding.
- */
+/** Send an operational email about a new release using the Resend-backed helper. */
 export async function notifyNewRelease(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: any,
@@ -171,7 +167,7 @@ export async function notifyNewRelease(
     'Changelog:',
     release.changelog || 'No changelog provided.',
     '',
-    'Download: https://petersmartlink.com/download',
+    'Download: https://petersmartlink.com/download/otya-player',
     `Tag: ${release.tag}`,
     '',
     `Released: ${new Date().toISOString()}`,
