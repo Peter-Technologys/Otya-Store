@@ -1,5 +1,5 @@
 /**
- * D1 schema and typed helpers for the OTYA System identity service.
+ * D1 schema and typed helpers for the OTYA identity service.
  *
  * Identity is shared across every OTYA product. Product-specific data stays in
  * each product service and is keyed by the stable users.id value.
@@ -18,28 +18,44 @@ export interface D1Database {
 }
 
 export interface UserRow {
-  id:            string
-  email:         string
-  password_hash: string | null
-  google_id:     string | null
-  name:          string | null
-  avatar_url:    string | null
-  is_verified:   number
-  created_at:    string
-  updated_at:    string
+  id:                         string
+  email:                      string
+  password_hash:              string | null
+  google_id:                  string | null
+  name:                       string | null
+  avatar_url:                 string | null
+  is_verified:                number
+  phone_number:               string | null
+  phone_verified_at:          string | null
+  phone_verification_method:  string | null
+  recovery_email:             string | null
+  recovery_email_verified_at: string | null
+  country_code:               string | null
+  locale:                     string | null
+  timezone:                   string | null
+  created_at:                 string
+  updated_at:                 string
 }
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
-  id            TEXT PRIMARY KEY,
-  email         TEXT UNIQUE NOT NULL,
-  password_hash TEXT,
-  google_id     TEXT UNIQUE,
-  name          TEXT,
-  avatar_url    TEXT,
-  is_verified   INTEGER DEFAULT 0,
-  created_at    TEXT DEFAULT (datetime('now')),
-  updated_at    TEXT DEFAULT (datetime('now'))
+  id                         TEXT PRIMARY KEY,
+  email                      TEXT UNIQUE NOT NULL,
+  password_hash              TEXT,
+  google_id                  TEXT UNIQUE,
+  name                       TEXT,
+  avatar_url                 TEXT,
+  is_verified                INTEGER DEFAULT 0,
+  phone_number               TEXT,
+  phone_verified_at          TEXT,
+  phone_verification_method  TEXT,
+  recovery_email             TEXT,
+  recovery_email_verified_at TEXT,
+  country_code               TEXT,
+  locale                     TEXT,
+  timezone                   TEXT,
+  created_at                 TEXT DEFAULT (datetime('now')),
+  updated_at                 TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_users_email  ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
@@ -54,10 +70,47 @@ CREATE TABLE IF NOT EXISTS user_products (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_user_products_product ON user_products(product_id, last_seen_at DESC);
+
+CREATE TABLE IF NOT EXISTS linked_identities (
+  user_id            TEXT NOT NULL,
+  provider           TEXT NOT NULL,
+  provider_subject   TEXT NOT NULL,
+  provider_username  TEXT,
+  provider_email     TEXT,
+  linked_at          TEXT DEFAULT (datetime('now')),
+  last_used_at       TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (provider, provider_subject),
+  UNIQUE (user_id, provider),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_linked_identities_user ON linked_identities(user_id, provider);
 `.trim()
+
+const USER_COLUMN_DEFS: Record<string, string> = {
+  phone_number: 'TEXT',
+  phone_verified_at: 'TEXT',
+  phone_verification_method: 'TEXT',
+  recovery_email: 'TEXT',
+  recovery_email_verified_at: 'TEXT',
+  country_code: 'TEXT',
+  locale: 'TEXT',
+  timezone: 'TEXT',
+}
+
+async function ensureUserColumns(db: D1Database): Promise<void> {
+  const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
+  const existing = new Set(results.map(row => row.name))
+  for (const [name, type] of Object.entries(USER_COLUMN_DEFS)) {
+    if (!existing.has(name)) {
+      await db.prepare(`ALTER TABLE users ADD COLUMN ${name} ${type}`).run()
+    }
+  }
+  await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE phone_number IS NOT NULL').run()
+}
 
 export async function ensureSchema(db: D1Database): Promise<void> {
   await db.exec(SCHEMA_SQL)
+  await ensureUserColumns(db)
 }
 
 export async function getUserByEmail(db: D1Database, email: string): Promise<UserRow | null> {
@@ -112,7 +165,7 @@ export async function upsertGoogleUser(
   return getUserByEmail(db, user.email)
 }
 
-/** Record that a shared OTYA System account has used a product. */
+/** Record that a shared OTYA account has used a product. */
 export async function touchUserProduct(
   db: D1Database,
   userId: string,
