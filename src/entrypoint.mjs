@@ -26,7 +26,7 @@ function adminEmails(env){
 }
 function isAdminUser(user,env){return Boolean(user?.email)&&adminEmails(env).has(user.email.toLowerCase())}
 
-function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA Player <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`}`)}}}
+function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`)}}}
 function withProductionAdapters(env){return{...env,EMAIL:createResendEmailAdapter(env)}}
 function analyticsPath(pathname){if(pathname.startsWith('/auth/'))return'/auth/*';if(pathname.startsWith('/apk/'))return'/apk/*';if(pathname.startsWith('/api/admin/'))return'/api/admin/*';if(pathname.startsWith('/api/telegram/'))return'/api/telegram/*';if(pathname.startsWith('/api/ai/'))return'/api/ai/*';if(pathname.startsWith('/api/'))return'/api/*';return pathname==='/'?'/':'/other'}
 function writeRequestAnalytics(env,request,response,startedAt){if(!env.OTYA_ANALYTICS?.writeDataPoint)return;try{const url=new URL(request.url);env.OTYA_ANALYTICS.writeDataPoint({blobs:['request',request.method,analyticsPath(url.pathname),request.cf?.colo??'unknown'],doubles:[response.status,Date.now()-startedAt],indexes:[analyticsPath(url.pathname)]})}catch{}}
@@ -44,7 +44,11 @@ async function forwardClientAi(request,env){
   headers.delete('X-OTYA-User-ID')
   headers.delete('X-OTYA-User-Email')
   headers.delete('X-OTYA-Persist-Chat')
-  if(user){
+  if(user&&env.INTERNAL_SECRET){
+    // Identity was verified by otya-auth through the AUTH service binding.
+    // The AI worker trusts account headers only when this internal service
+    // marker is also present, so direct workers.dev requests remain guest-only.
+    headers.set('X-OTYA-Internal-Secret',env.INTERNAL_SECRET)
     headers.set('X-OTYA-User-ID',user.id)
     headers.set('X-OTYA-User-Email',user.email)
     headers.set('X-OTYA-Persist-Chat','1')
