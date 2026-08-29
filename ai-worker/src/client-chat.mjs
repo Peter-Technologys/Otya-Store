@@ -4,23 +4,23 @@ const TELEGRAM_API='https://api.telegram.org'
 const GUEST_MODEL='llama-fast'
 const SIGNED_DEFAULT='otya-smart'
 const MODELS={
-  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast OTYA help.'},
-  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Detailed OTYA help.'},
-  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large OTYA support model.'},
-  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',description:'Reasoning model for OTYA support.'},
-  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',description:'Large reasoning model for OTYA support.'},
-  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Multilingual OTYA support.'},
-  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',description:'Large support model.'},
-  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',description:'Modern OTYA support model.'},
-  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',description:'Multilingual reasoning for OTYA support.'},
-  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact OTYA support model.'},
-  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',description:'Multilingual OTYA support model.'},
+  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast answers for everyday questions.',freePlanSafe:true},
+  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Balanced general assistant with strong multilingual and tool-use ability.',freePlanSafe:true},
+  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large general-purpose model for detailed answers.',freePlanSafe:true},
+  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',description:'Reasoning model for harder questions.',freePlanSafe:true},
+  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',description:'Large reasoning model for complex questions.',freePlanSafe:true},
+  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Modern multilingual reasoning model.',freePlanSafe:true},
+  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',description:'Strong reasoning and agentic model.',freePlanSafe:true},
+  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',description:'Modern multimodal-capable general assistant model.',freePlanSafe:true},
+  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',description:'Multilingual reasoning and instruction following.',freePlanSafe:true},
+  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact fast model for everyday questions.',freePlanSafe:true},
+  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',description:'Regional multilingual model for Southeast Asian languages.',freePlanSafe:true},
 }
 
 const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
 const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
-const publicModels=()=>Object.entries(MODELS).map(([id,m])=>({id,name:m.name,provider:m.provider,tier:m.tier,description:m.description,guest:id===GUEST_MODEL}))
+const publicModels=()=>Object.entries(MODELS).map(([id,m])=>({id,name:m.name,provider:m.provider,tier:m.tier,description:m.description,guest:id===GUEST_MODEL,free_plan_safe:m.freePlanSafe===true}))
 function resolveModel(requested,signedIn){if(!signedIn)return{id:GUEST_MODEL,...MODELS[GUEST_MODEL]};const id=MODELS[requested]?requested:SIGNED_DEFAULT;return{id,...MODELS[id]}}
 async function runAi(env,messages,selection){if(!env.AI?.run)throw new Error('AI unavailable');return clean(aiText(await env.AI.run(selection.model,{messages})),9000)}
 
@@ -28,7 +28,7 @@ async function publicOtyaContext(env){
   const base=(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')
   const facts=[
     'OTYA is an offline-first Android music and video player by PeterSmart Link.',
-    'Ask OTYA is product help inside OTYA and its website. It is not a general-purpose public assistant.',
+    'Ask OTYA is a friendly general assistant inside OTYA. It can answer ordinary questions and has extra OTYA product context when needed.',
     `Official website: ${base}.`,
     `Official download page: ${base}/download/otya-player.`,
     `Official support page: ${base}/apps/otya-player/support.`,
@@ -38,7 +38,7 @@ async function publicOtyaContext(env){
   ]
   try{
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500)
-    const r=await fetch(`${base}/api/version`,{headers:{Accept:'application/json'},signal:controller.signal})
+    const r=await fetch(`${base}/latest`,{headers:{Accept:'application/json'},signal:controller.signal})
     clearTimeout(timeout)
     if(r.ok){
       const v=await r.json().catch(()=>null)
@@ -54,15 +54,15 @@ async function publicOtyaContext(env){
 
 async function system(env){
   const live=await publicOtyaContext(env)
-  return `You are Ask OTYA, the product assistant for the OTYA Android media player and the official OTYA website.
+  return `You are Ask OTYA, a friendly general-purpose AI assistant built into OTYA.
 
-SCOPE: Answer only questions that are meaningfully about OTYA, OTYA Player, its music/video playback, media library, files, transfer, converter, private/vault features, tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, release information, or troubleshooting.
+GENERAL BEHAVIOR: Answer the user's question directly, whether it is about OTYA or a general topic. Be conversational, useful and concise by default. Explain more when the question needs it. Do not pretend you have live web access, current news, private account access, device access, or external tools unless the backend has explicitly supplied that information in the conversation or live context. For time-sensitive facts you cannot verify, say that they may have changed instead of inventing an answer.
 
-If the request is not about OTYA, do not answer the unrelated question. Reply with exactly this prefix on the first line: [HANDOFF]\nThen briefly say that Ask OTYA is for OTYA help and offer to connect the person with PeterSmart Link support. Do not claim a person has been notified until the backend confirms a handoff request.
+OTYA EXPERTISE: When the request concerns OTYA, OTYA Player, music/video playback, media library, files, Transfer, Converter, Private/vault, Tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, or release information, use the live OTYA facts below and give product-specific guidance. Never invent an OTYA feature or claim an OTYA action happened unless the backend confirms it.
 
-If the question is about OTYA, answer directly in simple language. Use the live facts below when relevant. Do not invent features or claim an action happened unless the backend confirms it.
+HUMAN SUPPORT: Use the exact prefix [HANDOFF] on the first line only when the user explicitly asks for a human/support agent, or when an OTYA account/support problem genuinely requires a human to continue. Do not use [HANDOFF] merely because a question is unrelated to OTYA. Do not claim support has been notified until the backend confirms a handoff request.
 
-Privacy: never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data.
+SAFETY & PRIVACY: Never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data. Refuse unsafe requests when necessary and offer a safer direction when useful.
 
 LIVE OTYA CONTEXT:\n${live}`
 }
@@ -153,13 +153,13 @@ export async function handleSharedTelegram(request,env){
   if(!(await rate(env,key,45,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'Too many messages at once. Please wait a moment.'});return json({ok:true,rate_limited:true})}
   const selection=resolveModel(null,false)
   let answer
-  if(text==='/start')answer='Welcome to Ask OTYA. I can help with OTYA Player, playback, files, transfer, account, updates and troubleshooting.'
+  if(text==='/start')answer='Welcome to Ask OTYA. Ask me a general question or ask about OTYA Player, playback, files, Transfer, account, updates and troubleshooting.'
   else if(text==='/download')answer=`Official OTYA download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
   else if(text==='/privacy')answer='Never send passwords, OTPs, payment details or secret keys here.'
   else{
     try{
       const result=await temporaryReply(env,{message:text,selection})
-      answer=result.handoff_available?`${result.answer}\n\nFor human help, use the official support page: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/apps/otya-player/support`:result.answer
+      answer=result.handoff_available?`${result.answer}\n\nFor human OTYA help, use the official support page: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/apps/otya-player/support`:result.answer
     }catch(e){console.error('[telegram-shared]',e?.message);answer='Ask OTYA is unavailable right now. Please try again shortly.'}
   }
   await telegram(env,'sendMessage',{chat_id:chatId,text:clean(answer,3500),disable_web_page_preview:true})
@@ -210,7 +210,7 @@ export async function handlePublicChat(request,env){
     const result=signedIn
       ?await persistentReply(env,{userId,message,channel:clean(body.channel,20)||'web',conversationId:clean(body.conversation_id,80),selection,forceNew:body.new_chat===true})
       :await temporaryReply(env,{message,history:body.history,selection})
-    return json({ok:true,...result,quota:unlimitedStatus()})
+    return json({ok:true,...result,scope:'general',quota:unlimitedStatus()})
   }catch(e){
     console.error('[public-ai]',selection.id,e?.message)
     return json({error:'Ask OTYA is unavailable right now. Please try again shortly.'},503)
