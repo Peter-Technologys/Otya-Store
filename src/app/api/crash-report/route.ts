@@ -4,20 +4,20 @@
 // AI processing (grouping via Vectorize) via AI_QUEUE.
 //
 // Crash capture runs before login, so anonymous telemetry is supported.
-// A verified JWT may associate a report with its user; anonymous requests can
-// never supply or spoof a trusted user identity.
+// App Check attests the app installation independently of user authentication.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
 import { dualAuth } from '@/lib/auth-service'
+import { appCheckEnforced, verifyFirebaseAppCheck } from '@/lib/firebase_app_check'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Firebase-AppCheck, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 function text(value: unknown, max: number): string | null {
@@ -34,9 +34,12 @@ function integer(value: unknown): number | null {
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+  const appCheck = await verifyFirebaseAppCheck(req, recordEnv)
+  if (appCheckEnforced(recordEnv) && !appCheck.valid) {
+    return errorJson('App attestation required', 401)
+  }
 
-  // JWT/HMAC are used when available, but crash capture must also work before
-  // sign-in. Never trust a body user_id; only a verified JWT establishes it.
   const auth = await dualAuth(req, env, verifyRequest)
 
   let body: Record<string, unknown>
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = auth.mode === 'jwt' ? auth.user_id : null
-  const db = getDB(env as Record<string, unknown>)
+  const db = getDB(recordEnv)
 
   try {
     await db.prepare(`
@@ -103,16 +106,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (crashId !== null) {
-    const aiQueue = (env as Record<string, unknown>).AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
+    const aiQueue = recordEnv.AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
     if (aiQueue) {
       try {
-        await aiQueue.send({
-          type:        'process_crash',
-          crashId,
-          errorType,
-          stackTrace,
-          description,
-        })
+        await aiQueue.send({ type: 'process_crash', crashId, errorType, stackTrace, description })
       } catch (e) {
         console.error('[crash-report] Failed to queue AI processing:', (e as Error)?.message)
       }
@@ -122,6 +119,7 @@ export async function POST(req: NextRequest) {
   return secureJson({
     ok: true,
     authenticated: auth.mode !== 'none',
+    app_check: appCheck.valid ? 'valid' : appCheck.configured ? 'unverified' : 'not-configured',
     ts: Date.now(),
   })
 }
