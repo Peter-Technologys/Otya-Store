@@ -17,10 +17,14 @@ export type AppCheckResult = {
   reason?: string
 }
 
-function decodeBase64Url(value: string): Uint8Array {
+function decodeBase64Url(value: string): ArrayBuffer {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
     .padEnd(Math.ceil(value.length / 4) * 4, '=')
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
+  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer
 }
 
 function decodeJson(value: string): Record<string, unknown> | null {
@@ -95,7 +99,6 @@ export async function verifyFirebaseAppCheck(
   }
   const jwk = jwks.keys?.find((key) => key.kid === header.kid)
   if (!jwk) {
-    // Key rotation may have happened while KV still holds an older cache.
     if (kv) await kv.put(JWKS_CACHE_KEY, JSON.stringify({ keys: [] }), { expirationTtl: 1 }).catch(() => {})
     return { configured: true, present: true, valid: false, reason: 'unknown-key' }
   }
@@ -112,7 +115,7 @@ export async function verifyFirebaseAppCheck(
       'RSASSA-PKCS1-v1_5',
       publicKey,
       decodeBase64Url(parts[2]),
-      new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+      new TextEncoder().encode(`${parts[0]}.${parts[1]}`).buffer as ArrayBuffer,
     )
     if (!verified) {
       return { configured: true, present: true, valid: false, reason: 'bad-signature' }
