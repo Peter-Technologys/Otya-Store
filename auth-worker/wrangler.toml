@@ -1,5 +1,5 @@
 name = "otya-auth"
-main = "src/entrypoint.ts"
+main = "src/production-entrypoint.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
@@ -26,22 +26,22 @@ id      = "6b9faff751724fdb86c16452b9c99cf6"
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
 GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
+GOOGLE_WEB_CLIENT_ID = "82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com"
+FIREBASE_PROJECT_ID = "otya-player"
 TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/auth/telegram/callback"
 
 # Firebase bridge (free-tier safe):
-# - FIREBASE_PROJECT_ID and FIREBASE_API_KEY are deployment vars supplied by
-#   GitHub/Cloudflare. They are intentionally not hard-coded here.
+# - FIREBASE_PROJECT_ID is safe public configuration and is pinned above to the
+#   verified production project. FIREBASE_API_KEY remains deployment-managed.
 # - Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
 #   session authority and email/password + OTP remain in this Worker.
 # - FCM service-account credentials belong only on the server-side push path;
 #   never put a service-account private key in the Flutter app.
-# keep_vars=true preserves the currently configured live values during deploys.
+# keep_vars=true preserves currently configured live values during deploys.
 
 # Secrets are configured through GitHub Actions / Cloudflare, never committed.
 # Required: AUTH_JWT_SECRET, RESEND_API_KEY
-# Firebase identity vars: FIREBASE_PROJECT_ID, FIREBASE_API_KEY
-# Optional Firebase/FCM server secret (only where FCM sending is configured):
-# FIREBASE_SERVICE_ACCOUNT_JSON
+# Firebase identity setting: FIREBASE_API_KEY
 # Optional account verification: TELEGRAM_LOGIN_CLIENT_ID,
 # TELEGRAM_LOGIN_CLIENT_SECRET, TELEGRAM_GATEWAY_TOKEN
 # Optional internal service settings: OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET
