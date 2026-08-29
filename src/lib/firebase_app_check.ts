@@ -35,10 +35,16 @@ function decodeJson(value: string): Record<string, unknown> | null {
   }
 }
 
-async function fetchJwks(kv?: KvLike): Promise<Jwks> {
-  if (kv) {
+function validJwks(value: unknown): value is Jwks {
+  if (!value || typeof value !== 'object') return false
+  const keys = (value as Jwks).keys
+  return Array.isArray(keys) && keys.some((key) => key && typeof key === 'object' && typeof key.kid === 'string')
+}
+
+async function fetchJwks(kv?: KvLike, forceRefresh = false): Promise<Jwks> {
+  if (kv && !forceRefresh) {
     const cached = await kv.get(JWKS_CACHE_KEY, 'json').catch(() => null)
-    if (cached && typeof cached === 'object') return cached as Jwks
+    if (validJwks(cached)) return cached
   }
 
   const controller = new AbortController()
@@ -47,11 +53,11 @@ async function fetchJwks(kv?: KvLike): Promise<Jwks> {
     const response = await fetch(JWKS_URL, { signal: controller.signal })
     if (!response.ok) throw new Error(`JWKS HTTP ${response.status}`)
     const jwks = await response.json() as Jwks
-    if (!Array.isArray(jwks.keys) || jwks.keys.length === 0) {
-      throw new Error('Firebase App Check JWKS is empty')
+    if (!validJwks(jwks)) {
+      throw new Error('Firebase App Check JWKS is empty or malformed')
     }
     if (kv) {
-      kv.put(JWKS_CACHE_KEY, JSON.stringify(jwks), {
+      await kv.put(JWKS_CACHE_KEY, JSON.stringify(jwks), {
         expirationTtl: JWKS_CACHE_TTL_SECS,
       }).catch(() => {})
     }
@@ -97,9 +103,17 @@ export async function verifyFirebaseAppCheck(
   } catch {
     return { configured: true, present: true, valid: false, reason: 'jwks-unavailable' }
   }
-  const jwk = jwks.keys?.find((key) => key.kid === header.kid)
+
+  let jwk = jwks.keys?.find((key) => key.kid === header.kid)
   if (!jwk) {
-    if (kv) await kv.put(JWKS_CACHE_KEY, JSON.stringify({ keys: [] }), { expirationTtl: 1 }).catch(() => {})
+    try {
+      jwks = await fetchJwks(kv, true)
+      jwk = jwks.keys?.find((key) => key.kid === header.kid)
+    } catch {
+      return { configured: true, present: true, valid: false, reason: 'jwks-unavailable' }
+    }
+  }
+  if (!jwk) {
     return { configured: true, present: true, valid: false, reason: 'unknown-key' }
   }
 
@@ -128,6 +142,10 @@ export async function verifyFirebaseAppCheck(
   const exp = typeof payload.exp === 'number' ? payload.exp : Number(payload.exp)
   if (!Number.isFinite(exp) || exp <= now) {
     return { configured: true, present: true, valid: false, reason: 'expired' }
+  }
+  const iat = typeof payload.iat === 'number' ? payload.iat : Number(payload.iat)
+  if (Number.isFinite(iat) && iat > now + 120) {
+    return { configured: true, present: true, valid: false, reason: 'issued-in-future' }
   }
   if (payload.iss !== `https://firebaseappcheck.googleapis.com/${projectNumber}`) {
     return { configured: true, present: true, valid: false, reason: 'wrong-issuer' }
