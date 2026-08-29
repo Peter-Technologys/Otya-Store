@@ -21,6 +21,7 @@ const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().s
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
 const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
 const parseIds=v=>String(v??'').split(',').map(x=>clean(x,60)).filter(Boolean)
+const trustedStoreRequest=(request,env)=>Boolean(env.INTERNAL_SECRET)&&request.headers.get('X-OTYA-Internal-Secret')===env.INTERNAL_SECRET
 
 function configuredPolicy(env){
   const configured=parseIds(env.AI_PUBLIC_MODELS)
@@ -207,8 +208,9 @@ export async function handleSharedTelegram(request,env){
 
 export async function handlePublicChat(request,env){
   const url=new URL(request.url)
-  const userId=clean(request.headers.get('X-OTYA-User-ID'),120)
-  const signedIn=request.headers.get('X-OTYA-Persist-Chat')==='1'&&Boolean(userId)
+  const trusted=trustedStoreRequest(request,env)
+  const userId=trusted?clean(request.headers.get('X-OTYA-User-ID'),120):''
+  const signedIn=trusted&&request.headers.get('X-OTYA-Persist-Chat')==='1'&&Boolean(userId)
   const ownerKey=signedIn?await hashIdentity(env,`user:${userId}`):null
   const policy=configuredPolicy(env)
 
