@@ -23,6 +23,7 @@ jobs:
       - name: Validate store/web
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm run validate:config
           npm test
           npm run build
           npm run typecheck
@@ -101,15 +102,13 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
-          FIREBASE_PROJECT_NUMBER: ${{ vars.FIREBASE_PROJECT_NUMBER }}
-          FIREBASE_ANDROID_APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
-          FIREBASE_APP_CHECK_MODE: ${{ vars.FIREBASE_APP_CHECK_MODE }}
-          FIREBASE_APP_DISTRIBUTION_TESTERS: ${{ vars.FIREBASE_APP_DISTRIBUTION_TESTERS }}
+          FIREBASE_APP_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_APP_DISTRIBUTION_TESTERS }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          npm run validate:config
           if [ -n "${FCM_SERVICE_ACCOUNT_JSON:-}" ]; then
             printf '%s' "$FCM_SERVICE_ACCOUNT_JSON" | npx wrangler secret put FCM_SERVICE_ACCOUNT_JSON
           fi
@@ -124,15 +123,6 @@ jobs:
           fi
           if [ -n "${ADMIN_SESSION_SECRET:-}" ]; then
             printf '%s' "$ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET
-          fi
-          if [ -n "${FIREBASE_PROJECT_NUMBER:-}" ]; then
-            printf '%s' "$FIREBASE_PROJECT_NUMBER" | npx wrangler secret put FIREBASE_PROJECT_NUMBER
-          fi
-          if [ -n "${FIREBASE_ANDROID_APP_ID:-}" ]; then
-            printf '%s' "$FIREBASE_ANDROID_APP_ID" | npx wrangler secret put FIREBASE_ANDROID_APP_ID
-          fi
-          if [ -n "${FIREBASE_APP_CHECK_MODE:-}" ]; then
-            printf '%s' "$FIREBASE_APP_CHECK_MODE" | npx wrangler secret put FIREBASE_APP_CHECK_MODE
           fi
           if [ -n "${FIREBASE_APP_DISTRIBUTION_TESTERS:-}" ]; then
             printf '%s' "$FIREBASE_APP_DISTRIBUTION_TESTERS" | npx wrangler secret put FIREBASE_APP_DISTRIBUTION_TESTERS
