@@ -1,10 +1,14 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, ReactNode, useEffect, useState } from 'react'
 import Link from 'next/link'
+
+import { SiteFooter } from '@/components/SiteFooter'
+import { SiteNav } from '@/components/SiteNav'
 
 const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
+const API = '/api/account-session'
 
 type User = {
   id: string
@@ -14,7 +18,6 @@ type User = {
   is_verified?: boolean | number
   phone_number?: string | null
   phone_verified_at?: string | null
-  phone_verification_method?: string | null
   recovery_email?: string | null
   country_code?: string | null
   locale?: string | null
@@ -22,13 +25,42 @@ type User = {
 }
 
 type Identity = { provider: string; provider_username?: string | null }
-type Session = { id: string; created_at: string; last_used_at: string; ip?: string | null; user_agent?: string | null }
-type TwoFactorStatus = { enabled: boolean; recovery_codes_remaining: number; available: boolean }
+type Session = {
+  id: string
+  created_at: string
+  last_used_at: string
+  ip?: string | null
+  user_agent?: string | null
+}
+type TwoFactorStatus = {
+  enabled: boolean
+  recovery_codes_remaining: number
+  available: boolean
+}
 type TwoFactorSetup = { secret: string; otpauth_uri: string }
-type Consent = { terms_accepted?: number; privacy_accepted?: number; marketing_consent?: number }
+type Consent = {
+  terms_accepted?: number
+  privacy_accepted?: number
+  marketing_consent?: number
+}
+type Json = Record<string, any>
+
+async function accountFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  return fetch(`${API}/${path}`, {
+    ...init,
+    headers,
+    cache: 'no-store',
+    credentials: 'same-origin',
+  })
+}
 
 export default function AccountPage() {
-  const [token, setToken] = useState('')
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [authenticated, setAuthenticated] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [identities, setIdentities] = useState<Identity[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
@@ -65,330 +97,549 @@ export default function AccountPage() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('otya_access_token') || ''
-    setToken(stored)
     setLocale(navigator.language || '')
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
+    void restoreSession()
   }, [])
 
-  useEffect(() => {
-    if (token) void refreshAll(token)
-  }, [token])
-
-  function headers(t = token) {
-    return { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
-  }
-
-  function saveAuth(data: Record<string, any>) {
-    sessionStorage.setItem('otya_access_token', data.access_token || '')
-    sessionStorage.setItem('otya_refresh_token', data.refresh_token || '')
-    // Keep the old session key for compatibility with clients that may still
-    // read it during the transition. It is not shown as a separate AI account.
-    sessionStorage.setItem('otya_ai_user', JSON.stringify(data.user || {}))
-    setToken(data.access_token || '')
-    setUser(data.user || null)
-    setPassword('')
-    setChallenge(false)
-    setSecondFactor('')
-  }
-
-  async function refreshAll(t: string) {
-    await Promise.all([
-      loadAccount(t), loadTwoFactor(t), loadSessions(t), loadConsent(t),
-    ])
-  }
-
-  async function loadAccount(t: string) {
+  async function restoreSession() {
+    setCheckingSession(true)
     try {
-      const r = await fetch('/auth/account', { headers: headers(t), cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (r.status === 401) { await signOut(); return }
-      if (!r.ok) throw new Error(d.error || 'Could not load your OTYA account.')
-      const u = d.user as User
-      setUser(u)
-      setIdentities(d.identities || [])
-      setEditName(u.name || '')
-      setRecoveryEmail(u.recovery_email || '')
-      setCountry(u.country_code || '')
-      setLocale(u.locale || navigator.language || '')
-      setTimezone(u.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || '')
-      setPhone(u.phone_number || '')
-    } catch (e) { setError((e as Error).message) }
+      const response = await accountFetch('session')
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok || data.authenticated !== true) {
+        setAuthenticated(false)
+        setUser(null)
+        return
+      }
+      setAuthenticated(true)
+      hydrateAccount(data)
+      await refreshSecondary()
+    } catch {
+      setAuthenticated(false)
+    } finally {
+      setCheckingSession(false)
+    }
   }
 
-  async function loadTwoFactor(t: string) {
+  function hydrateAccount(data: Json) {
+    const nextUser = data.user as User | undefined
+    if (!nextUser) return
+    setUser(nextUser)
+    setIdentities(Array.isArray(data.identities) ? data.identities : [])
+    setEditName(nextUser.name || '')
+    setRecoveryEmail(nextUser.recovery_email || '')
+    setCountry(nextUser.country_code || '')
+    setLocale(nextUser.locale || navigator.language || '')
+    setTimezone(nextUser.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || '')
+    setPhone(nextUser.phone_number || '')
+  }
+
+  async function refreshSecondary() {
+    await Promise.all([loadTwoFactor(), loadSessions(), loadConsent()])
+  }
+
+  async function loadAccount() {
+    const response = await accountFetch('account')
+    const data = await response.json().catch(() => ({})) as Json
+    if (response.status === 401) {
+      setAuthenticated(false)
+      setUser(null)
+      return
+    }
+    if (!response.ok) throw new Error(data.error || 'Could not load your OTYA account.')
+    hydrateAccount(data)
+  }
+
+  async function loadTwoFactor() {
     try {
-      const r = await fetch('/auth/2fa/status', { headers: headers(t), cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (r.ok) setTwoFactor(d)
+      const response = await accountFetch('2fa/status')
+      const data = await response.json().catch(() => ({})) as Json
+      if (response.ok) setTwoFactor(data as unknown as TwoFactorStatus)
     } catch {}
   }
 
-  async function loadSessions(t: string) {
+  async function loadSessions() {
     try {
-      const r = await fetch('/auth/sessions', { headers: headers(t), cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (r.ok) setSessions(d.sessions || [])
+      const response = await accountFetch('sessions')
+      const data = await response.json().catch(() => ({})) as Json
+      if (response.ok) setSessions(Array.isArray(data.sessions) ? data.sessions : [])
     } catch {}
   }
 
-  async function loadConsent(t: string) {
+  async function loadConsent() {
     try {
-      const r = await fetch('/auth/consent', { headers: headers(t), cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (r.ok) setConsent(d.consent || null)
+      const response = await accountFetch('consent')
+      const data = await response.json().catch(() => ({})) as Json
+      if (response.ok) setConsent((data.consent || null) as Consent | null)
     } catch {}
   }
 
-  async function submitAuth(e: FormEvent) {
-    e.preventDefault()
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault()
     if (!email.trim() || !password) return
     if (registering && (!terms || !privacy)) {
       setError('Accept the OTYA Terms and Privacy Policy to create your account.')
       return
     }
     if (challenge && !secondFactor.trim()) {
-      setError(useRecovery ? 'Enter a recovery code.' : 'Enter your 6-digit authenticator code.')
+      setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
       return
     }
-    setBusy(true); setError(''); setNotice('')
+
+    setBusy(true)
+    setError('')
+    setNotice('')
     try {
-      const endpoint = registering ? '/auth/register' : '/auth/login'
-      const payload = registering ? {
-        email: email.trim(), password, name: name.trim() || undefined,
-        terms_accepted: true, terms_version: TERMS_VERSION,
-        privacy_accepted: true, privacy_version: PRIVACY_VERSION,
-        marketing_consent: marketing,
-      } : {
-        email: email.trim(), password,
-        ...(challenge && !useRecovery ? { totp_code: secondFactor.trim() } : {}),
-        ...(challenge && useRecovery ? { recovery_code: secondFactor.trim() } : {}),
-      }
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        if (d.code === 'TWO_FACTOR_REQUIRED' || d.code === 'TWO_FACTOR_INVALID') {
+      const endpoint = registering ? 'register' : 'login'
+      const payload = registering
+        ? {
+            email: email.trim(),
+            password,
+            name: name.trim() || undefined,
+            terms_accepted: true,
+            terms_version: TERMS_VERSION,
+            privacy_accepted: true,
+            privacy_version: PRIVACY_VERSION,
+            marketing_consent: marketing,
+          }
+        : {
+            email: email.trim(),
+            password,
+            ...(challenge && !useRecovery ? { totp_code: secondFactor.trim() } : {}),
+            ...(challenge && useRecovery ? { recovery_code: secondFactor.trim() } : {}),
+          }
+      const response = await accountFetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) {
+        if (data.code === 'TWO_FACTOR_REQUIRED' || data.code === 'TWO_FACTOR_INVALID') {
           setChallenge(true)
           setSecondFactor('')
-          setError(d.error || 'Two-step verification is required.')
-          return
+          throw new Error(data.error || 'Two-step verification is required.')
         }
-        throw new Error(d.error || (registering ? 'Account creation failed.' : 'Sign in failed.'))
+        throw new Error(data.error || (registering ? 'Account creation failed.' : 'Sign in failed.'))
       }
-      saveAuth(d)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+
+      setPassword('')
+      setChallenge(false)
+      setSecondFactor('')
+      setAuthenticated(true)
+      hydrateAccount(data)
+      await loadAccount()
+      await refreshSecondary()
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function signOut() {
-    const refresh = sessionStorage.getItem('otya_refresh_token') || ''
+    setBusy(true)
     try {
-      if (refresh) await fetch('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refresh }) })
+      await accountFetch('logout', { method: 'POST' })
     } catch {}
-    sessionStorage.removeItem('otya_access_token')
-    sessionStorage.removeItem('otya_refresh_token')
-    sessionStorage.removeItem('otya_ai_user')
-    setToken(''); setUser(null); setSessions([]); setTwoFactor(null); setConsent(null)
+    setAuthenticated(false)
+    setUser(null)
+    setSessions([])
+    setTwoFactor(null)
+    setConsent(null)
+    setBusy(false)
   }
 
   async function saveProfile() {
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/account', { method: 'PATCH', headers: headers(), body: JSON.stringify({ name: editName || null, recovery_email: recoveryEmail || null, country_code: country || null, locale: locale || null, timezone: timezone || null }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not save personal info.')
-      setNotice('Personal info saved.')
-      await loadAccount(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('account', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editName.trim() || null,
+          recovery_email: recoveryEmail.trim() || null,
+          country_code: country.trim() || null,
+          locale: locale.trim() || null,
+          timezone: timezone.trim() || null,
+        }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not save personal info.')
+      await loadAccount()
+      return 'Personal info saved.'
+    })
   }
 
   async function sendEmailVerification() {
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/send-verification', { method: 'POST', headers: headers() })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not send email verification code.')
-      setNotice('Email verification code sent.')
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('send-verification', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not send an email verification code.')
+      return 'Email verification code sent.'
+    })
   }
 
   async function verifyEmail() {
     if (!emailCode.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/verify-email', { method: 'POST', headers: headers(), body: JSON.stringify({ otp: emailCode.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not verify email.')
-      setEmailCode(''); setNotice('Email verified.')
-      await loadAccount(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ otp: emailCode.trim() }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not verify email.')
+      setEmailCode('')
+      await loadAccount()
+      return 'Email verified.'
+    })
   }
 
   async function connectTelegram() {
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/telegram/start', { method: 'POST', headers: headers() })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Telegram linking is unavailable.')
-      window.location.assign(d.authorization_url)
-    } catch (e) { setError((e as Error).message); setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('telegram/start', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok || typeof data.authorization_url !== 'string') {
+        throw new Error(data.error || 'Telegram linking is unavailable.')
+      }
+      window.location.assign(data.authorization_url)
+      return ''
+    })
   }
 
   async function requestPhoneCode() {
     if (!phone.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/phone/request', { method: 'POST', headers: headers(), body: JSON.stringify({ phone_number: phone.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not send a verification code.')
-      setPhoneCodeSent(true); setNotice(d.message || 'Verification code sent.')
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('phone/request', {
+        method: 'POST',
+        body: JSON.stringify({ phone_number: phone.trim() }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not send a verification code.')
+      setPhoneCodeSent(true)
+      return data.message || 'Verification code sent.'
+    })
   }
 
   async function verifyPhoneCode() {
     if (!phoneCode.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/phone/verify', { method: 'POST', headers: headers(), body: JSON.stringify({ code: phoneCode.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not verify phone.')
-      setPhoneCode(''); setPhoneCodeSent(false); setNotice('Phone number verified.')
-      await loadAccount(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('phone/verify', {
+        method: 'POST',
+        body: JSON.stringify({ code: phoneCode.trim() }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not verify phone.')
+      setPhoneCode('')
+      setPhoneCodeSent(false)
+      await loadAccount()
+      return 'Phone number verified.'
+    })
   }
 
   async function startTwoFactorSetup() {
-    setBusy(true); setError(''); setNotice(''); setRecoveryCodes([])
-    try {
-      const r = await fetch('/auth/2fa/setup', { method: 'POST', headers: headers() })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not start two-step verification setup.')
-      setSetup(d)
-      setNotice('Add the secret to your authenticator app, then verify a current code.')
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      setRecoveryCodes([])
+      const response = await accountFetch('2fa/setup', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not start two-step verification setup.')
+      setSetup(data as unknown as TwoFactorSetup)
+      return 'Add the secret to your authenticator, then enter its current code.'
+    })
   }
 
   async function enableTwoFactor() {
     if (!totpCode.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/2fa/enable', { method: 'POST', headers: headers(), body: JSON.stringify({ code: totpCode.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not enable two-step verification.')
-      setRecoveryCodes(d.recovery_codes || [])
-      setSetup(null); setTotpCode('')
-      setNotice('Two-step verification is enabled. Save the recovery codes below before leaving this page.')
-      await loadTwoFactor(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('2fa/enable', {
+        method: 'POST',
+        body: JSON.stringify({ code: totpCode.trim() }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not enable two-step verification.')
+      setRecoveryCodes(Array.isArray(data.recovery_codes) ? data.recovery_codes : [])
+      setSetup(null)
+      setTotpCode('')
+      await loadTwoFactor()
+      return 'Two-step verification is enabled. Save your recovery codes now.'
+    })
   }
 
   async function disableTwoFactor() {
     if (!disableCode.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/2fa/disable', { method: 'POST', headers: headers(), body: JSON.stringify(disableCode.replace(/\D/g, '').length === 6 ? { code: disableCode.trim() } : { recovery_code: disableCode.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not disable two-step verification.')
-      setDisableCode(''); setRecoveryCodes([]); setNotice('Two-step verification disabled.')
-      await loadTwoFactor(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const digits = disableCode.replace(/\D/g, '')
+      const response = await accountFetch('2fa/disable', {
+        method: 'POST',
+        body: JSON.stringify(
+          digits.length === 6
+            ? { code: disableCode.trim() }
+            : { recovery_code: disableCode.trim() },
+        ),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not disable two-step verification.')
+      setDisableCode('')
+      setRecoveryCodes([])
+      await loadTwoFactor()
+      return 'Two-step verification disabled.'
+    })
   }
 
   async function regenerateRecoveryCodes() {
     if (!totpCode.trim()) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      const r = await fetch('/auth/2fa/recovery-codes', { method: 'POST', headers: headers(), body: JSON.stringify({ code: totpCode.trim() }) })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || 'Could not regenerate recovery codes.')
-      setRecoveryCodes(d.recovery_codes || []); setTotpCode('')
-      setNotice('New recovery codes generated. Previous recovery codes no longer work.')
-      await loadTwoFactor(token)
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    await runAction(async () => {
+      const response = await accountFetch('2fa/recovery-codes', {
+        method: 'POST',
+        body: JSON.stringify({ code: totpCode.trim() }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not generate new recovery codes.')
+      setRecoveryCodes(Array.isArray(data.recovery_codes) ? data.recovery_codes : [])
+      setTotpCode('')
+      await loadTwoFactor()
+      return 'New recovery codes generated. Previous recovery codes no longer work.'
+    })
   }
 
   async function revokeSession(id: string) {
-    if (!confirm('Sign this session out?')) return
-    try {
-      const r = await fetch('/auth/sessions', { method: 'DELETE', headers: headers(), body: JSON.stringify({ session_id: id }) })
-      if (r.ok) await loadSessions(token)
-    } catch {}
+    if (!window.confirm('Sign this session out?')) return
+    await runAction(async () => {
+      const response = await accountFetch('sessions', {
+        method: 'DELETE',
+        body: JSON.stringify({ session_id: id }),
+      })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not revoke that session.')
+      await loadSessions()
+      return 'Session signed out.'
+    })
   }
 
   async function revokeAllSessions() {
-    if (!confirm('Sign out all recorded OTYA sessions? You may need to sign in again.')) return
-    try {
-      const r = await fetch('/auth/sessions/revoke-all', { method: 'POST', headers: headers() })
-      if (r.ok) { setNotice('Recorded sessions revoked.'); await loadSessions(token) }
-    } catch {}
+    if (!window.confirm('Sign out all recorded OTYA sessions?')) return
+    await runAction(async () => {
+      const response = await accountFetch('sessions/revoke-all', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not revoke sessions.')
+      await loadSessions()
+      return 'Recorded sessions revoked.'
+    })
   }
 
-  if (!token) return <main className="min-h-[100dvh] grid place-items-center p-4" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
-    <form onSubmit={submitAuth} className="w-full max-w-md rounded-3xl border p-6 sm:p-8" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
-      <div className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>OTYA</div>
-      <h1 className="text-3xl font-bold mt-1">{challenge ? 'Two-step verification' : registering ? 'Create your OTYA account' : 'Sign in to OTYA'}</h1>
-      <p className="text-sm opacity-65 mt-2 mb-6">{challenge ? 'Confirm this sign-in with your authenticator or a recovery code.' : 'Your OTYA account is for security, recovery, backup and connected features. Local playback does not require sign-in.'}</p>
-      {error && <div className="mb-3 text-sm text-red-500">{error}</div>}
-      {!challenge && registering && <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (optional)" autoComplete="name" className="input" />}
-      <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" autoComplete="email" disabled={challenge} className="input" />
-      <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password" autoComplete={registering ? 'new-password' : 'current-password'} disabled={challenge} className="input" />
-      {challenge && <><input value={secondFactor} onChange={e => setSecondFactor(e.target.value)} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} inputMode={useRecovery ? undefined : 'numeric'} autoFocus className="input" /><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full text-sm font-semibold opacity-70 mt-1">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
-      {!challenge && registering && <div className="mt-3 space-y-2 text-sm"><label className="flex gap-2"><input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} /><span>I accept the <Link href="/terms" className="font-semibold">OTYA Terms</Link>.</span></label><label className="flex gap-2"><input type="checkbox" checked={privacy} onChange={e => setPrivacy(e.target.checked)} /><span>I accept the <Link href="/privacy" className="font-semibold">OTYA Privacy Policy</Link>.</span></label><label className="flex gap-2"><input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} /><span>Send me optional OTYA news.</span></label></div>}
-      <button disabled={busy} className="cosmos-button w-full rounded-xl py-3 mt-4 font-semibold">{busy ? 'Please wait…' : challenge ? 'Verify and sign in' : registering ? 'Create OTYA account' : 'Sign in'}</button>
-      {!challenge && <button type="button" onClick={() => { setRegistering(v => !v); setError('') }} className="w-full mt-3 text-sm font-semibold opacity-70">{registering ? 'Already have an account? Sign in' : 'New to OTYA? Create an account'}</button>}
-      {challenge && <button type="button" onClick={() => { setChallenge(false); setSecondFactor(''); setError('') }} className="w-full mt-3 text-sm font-semibold opacity-70">Use another account</button>}
-      <div className="flex justify-center gap-4 mt-5 text-sm"><Link href="/apps/otya-player/support">Support</Link><Link href="/docs">Docs</Link></div>
-      <style jsx>{`.input{width:100%;border:1px solid var(--cosmos-divider);background:transparent;border-radius:12px;padding:12px 14px;margin-bottom:12px;outline:none}`}</style>
-    </form>
-  </main>
+  async function deleteAccount() {
+    if (!window.confirm('Permanently delete your OTYA cloud account? Local media on your devices is not deleted.')) return
+    if (!window.confirm('This cannot be undone. Delete the OTYA account permanently?')) return
+    await runAction(async () => {
+      const response = await accountFetch('delete-account', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Account deletion was not confirmed.')
+      await accountFetch('logout', { method: 'POST' }).catch(() => undefined)
+      setAuthenticated(false)
+      setUser(null)
+      return 'Account deleted.'
+    })
+  }
 
-  const telegram = identities.find(i => i.provider === 'telegram')
-  return <main className="min-h-[100dvh] p-4 sm:p-6" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}><div className="max-w-6xl mx-auto">
-    <header className="flex items-start justify-between gap-4 mb-7"><div><div className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>OTYA ACCOUNT</div><h1 className="text-3xl sm:text-4xl font-bold mt-1">Your OTYA Account</h1><p className="text-sm opacity-60 mt-1">Identity, security, privacy and connected features.</p></div><button onClick={() => void signOut()} className="rounded-xl border px-4 py-2 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Sign out</button></header>
-    {(error || notice) && <div className={`mb-5 rounded-xl border p-3 text-sm ${error ? 'text-red-500' : ''}`} style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>{error || notice}</div>}
+  async function runAction(action: () => Promise<string>) {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const message = await action()
+      if (message) setNotice(message)
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
-    <div className="grid md:grid-cols-[220px_1fr] gap-5">
-      <aside className="md:sticky md:top-20 md:self-start rounded-2xl border p-2" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>{[['Home','#home'],['Personal info','#personal'],['Security','#security'],['Sessions','#sessions'],['Data & privacy','#privacy'],['Connected accounts','#connected'],['Support','#support'],['Docs','/docs']].map(([label, href]) => <a key={label} href={href} className="block rounded-xl px-3 py-2.5 text-sm">{label}</a>)}</aside>
-      <div className="space-y-5">
-        <Card id="home" title={`Welcome${user?.name ? `, ${user.name}` : ''}`}><p>Your account supports OTYA security, recovery, backup and connected features. Video and music on your device stay available without an account.</p><p className="mt-2 text-sm opacity-60">{user?.email} · Account {user?.id?.slice(0,8)}…</p></Card>
+  if (checkingSession) {
+    return <AccountShell><div className="min-h-[70dvh] grid place-items-center"><div className="text-center"><div className="w-9 h-9 rounded-xl mx-auto mb-3 animate-pulse" style={{ background: 'var(--cosmos-primary)' }} /><p className="text-sm otya-muted">Checking your OTYA session…</p></div></div></AccountShell>
+  }
 
-        <Card id="personal" title="Personal info"><p className="text-sm opacity-60 mb-4">Keep signup simple. Add recovery and regional preferences only when useful.</p><div className="grid sm:grid-cols-2 gap-3"><Field label="Name" value={editName} setValue={setEditName}/><Field label="Recovery email" value={recoveryEmail} setValue={setRecoveryEmail}/><Field label="Country / region" value={country} setValue={setCountry} placeholder="UG"/><Field label="Language" value={locale} setValue={setLocale} placeholder="en-UG"/><Field label="Timezone" value={timezone} setValue={setTimezone} placeholder="Africa/Kampala"/></div><button onClick={() => void saveProfile()} disabled={busy} className="cosmos-button rounded-xl px-4 py-2.5 mt-4 text-sm font-semibold">Save personal info</button></Card>
+  if (!authenticated || !user) {
+    return <AccountShell>
+      <main className="min-h-[72dvh] grid place-items-center px-4 py-10">
+        <form onSubmit={submitAuth} className="w-full max-w-md modern-card p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-7">
+            <img src="/web-app-manifest-192x192.png" alt="OTYA" className="w-12 h-12 rounded-2xl" />
+            <div><div className="otya-kicker">OTYA account</div><div className="font-black text-lg">PeterSmart Link</div></div>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-[-.04em]">
+            {challenge ? 'Confirm it’s you' : registering ? 'Create your account' : 'Welcome back'}
+          </h1>
+          <p className="text-sm otya-muted mt-3 mb-6">
+            {challenge
+              ? 'Use your authenticator or a recovery code.'
+              : 'An account adds recovery, security, backup and connected features. Local music and video never require sign-in.'}
+          </p>
+          {error && <Notice tone="error">{error}</Notice>}
+          {!challenge && registering && <Input value={name} onChange={setName} placeholder="Name (optional)" autoComplete="name" />}
+          <Input value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={challenge} />
+          <Input value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registering ? 'new-password' : 'current-password'} disabled={challenge} />
+          {challenge && <>
+            <Input value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus />
+            <button type="button" onClick={() => { setUseRecovery(value => !value); setSecondFactor(''); setError('') }} className="w-full text-sm font-semibold otya-muted py-2">
+              {useRecovery ? 'Use authenticator code' : 'Use a recovery code'}
+            </button>
+          </>}
+          {!challenge && registering && <div className="space-y-3 text-sm my-4">
+            <Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-semibold">OTYA Terms</Link>.</Check>
+            <Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-semibold">Privacy Policy</Link>.</Check>
+            <Check checked={marketing} onChange={setMarketing}>Send me optional OTYA product news.</Check>
+          </div>}
+          <button disabled={busy} className="cosmos-button w-full rounded-xl min-h-12 px-5 mt-2 font-bold disabled:opacity-55">
+            {busy ? 'Please wait…' : challenge ? 'Verify and sign in' : registering ? 'Create account' : 'Sign in'}
+          </button>
+          <button type="button" onClick={() => { challenge ? setChallenge(false) : setRegistering(value => !value); setSecondFactor(''); setError('') }} className="w-full text-sm font-semibold otya-muted py-3 mt-1">
+            {challenge ? 'Use another account' : registering ? 'Already have an account? Sign in' : 'New to OTYA? Create an account'}
+          </button>
+          <div className="flex justify-center gap-5 text-sm mt-3"><Link href="/apps/otya-player/support">Support</Link><Link href="/docs">Docs</Link></div>
+          <p className="text-[11px] leading-relaxed text-center otya-muted mt-6">Browser credentials are kept in Secure, HttpOnly cookies and are not exposed to page JavaScript.</p>
+        </form>
+      </main>
+    </AccountShell>
+  }
 
-        <Card id="security" title="Security">
-          <SecurityBox title="Primary email" subtitle={user?.is_verified ? 'Verified' : 'Verification required'}>{!user?.is_verified && <div className="flex flex-wrap gap-2 mt-3"><button onClick={() => void sendEmailVerification()} className="button">Send code</button><input value={emailCode} onChange={e => setEmailCode(e.target.value)} placeholder="A1234" className="smallInput"/><button onClick={() => void verifyEmail()} className="button">Verify</button></div>}</SecurityBox>
-          <SecurityBox title="Phone number" subtitle={user?.phone_verified_at ? `Verified · ${user.phone_number}` : 'Optional recovery/verification method'}><div className="flex flex-wrap gap-2 mt-3"><button onClick={() => void connectTelegram()} className="cosmos-button rounded-xl px-3 py-2 text-sm font-semibold">Verify with Telegram</button><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+256…" className="smallInput"/><button onClick={() => void requestPhoneCode()} className="button">Send Telegram code</button>{phoneCodeSent && <><input value={phoneCode} onChange={e => setPhoneCode(e.target.value)} placeholder="6 digits" className="smallInput"/><button onClick={() => void verifyPhoneCode()} className="button">Verify</button></>}</div></SecurityBox>
-          <SecurityBox title="Two-step verification" subtitle={twoFactor?.enabled ? `On · ${twoFactor.recovery_codes_remaining} recovery codes left` : twoFactor?.available ? 'Off · authenticator available' : 'Authenticator setup is not configured on the server yet'}>
-            {!twoFactor?.enabled && twoFactor?.available && !setup && <button onClick={() => void startTwoFactorSetup()} className="cosmos-button rounded-xl px-4 py-2 mt-3 text-sm font-semibold">Set up authenticator</button>}
-            {setup && <div className="mt-3 space-y-3"><div className="rounded-xl border p-3 break-all" style={{ borderColor:'var(--cosmos-divider)' }}><div className="text-xs opacity-50">Authenticator secret</div><code>{setup.secret}</code><div className="text-xs opacity-50 mt-2">You can also copy the standard otpauth URI into a compatible authenticator.</div></div><div className="flex gap-2"><input value={totpCode} onChange={e => setTotpCode(e.target.value)} placeholder="6-digit code" className="smallInput"/><button onClick={() => void enableTwoFactor()} className="cosmos-button rounded-xl px-4 text-sm font-semibold">Enable</button></div></div>}
-            {twoFactor?.enabled && <div className="mt-3 space-y-3"><div className="flex flex-wrap gap-2"><input value={totpCode} onChange={e => setTotpCode(e.target.value)} placeholder="Current authenticator code" className="smallInput"/><button onClick={() => void regenerateRecoveryCodes()} className="button">New recovery codes</button></div><div className="flex flex-wrap gap-2"><input value={disableCode} onChange={e => setDisableCode(e.target.value)} placeholder="Authenticator or recovery code" className="smallInput"/><button onClick={() => void disableTwoFactor()} className="button">Disable 2FA</button></div></div>}
-            {recoveryCodes.length > 0 && <div className="mt-4 rounded-xl border p-4" style={{ borderColor:'var(--cosmos-divider)' }}><strong>Save these recovery codes now</strong><p className="text-xs opacity-60 mt-1">Each works once. They will not be shown again.</p><div className="grid sm:grid-cols-2 gap-2 mt-3 font-mono text-sm">{recoveryCodes.map(code => <code key={code}>{code}</code>)}</div></div>}
-          </SecurityBox>
-        </Card>
+  const telegram = identities.find(identity => identity.provider === 'telegram')
+  return <AccountShell>
+    <main className="otya-shell py-8 sm:py-12">
+      <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-9">
+        <div>
+          <div className="otya-kicker">OTYA account</div>
+          <h1 className="otya-page-title mt-2">{user.name ? `Hi, ${user.name}` : 'Your account'}</h1>
+          <p className="otya-muted mt-2">Identity, security, recovery and connected OTYA services.</p>
+        </div>
+        <button onClick={() => void signOut()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-4 text-sm font-semibold self-start">Sign out</button>
+      </header>
 
-        <Card id="sessions" title="Your sessions"><div className="flex justify-between gap-3 mb-4"><p className="text-sm opacity-60">New OTYA sign-ins appear here with recent device/network metadata.</p><button onClick={() => void revokeAllSessions()} className="button shrink-0">Sign out all</button></div>{sessions.length === 0 ? <p className="text-sm opacity-60">No recorded sessions yet. Existing sessions gain metadata after the next sign-in.</p> : <div className="space-y-2">{sessions.map(s => <div key={s.id} className="rounded-xl border p-3 flex items-start justify-between gap-3" style={{borderColor:'var(--cosmos-divider)'}}><div className="min-w-0"><div className="text-sm font-semibold truncate">{friendlyAgent(s.user_agent)}</div><div className="text-xs opacity-55 mt-1">Last used {formatTime(s.last_used_at)}{s.ip ? ` · ${s.ip}` : ''}</div></div><button onClick={() => void revokeSession(s.id)} className="text-sm font-semibold">Sign out</button></div>)}</div>}</Card>
+      {(error || notice) && <div className="mb-6"><Notice tone={error ? 'error' : 'success'}>{error || notice}</Notice></div>}
 
-        <Card id="privacy" title="Data & privacy"><div className="grid sm:grid-cols-3 gap-3"><Status label="Terms" value={consent?.terms_accepted ? 'Accepted' : 'Review needed'}/><Status label="Privacy" value={consent?.privacy_accepted ? 'Accepted' : 'Review needed'}/><Status label="Marketing" value={consent?.marketing_consent ? 'On' : 'Off'}/></div><div className="flex flex-wrap gap-3 mt-4"><Link href="/docs" className="button">Open Docs</Link><a href="mailto:support@petersmartlink.com?subject=OTYA%20Account%20Data%20Request" className="button">Request my data</a></div></Card>
+      <div className="grid lg:grid-cols-[210px_minmax(0,1fr)] gap-8">
+        <nav className="lg:sticky lg:top-20 lg:self-start flex lg:block gap-2 overflow-x-auto pb-2 lg:pb-0" aria-label="Account sections">
+          {[
+            ['Overview', '#overview'], ['Personal', '#personal'], ['Security', '#security'], ['Sessions', '#sessions'], ['Connected', '#connected'], ['Privacy', '#privacy'],
+          ].map(([label, href]) => <a key={href} href={href} className="block whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold otya-muted hover:opacity-100">{label}</a>)}
+        </nav>
 
-        <Card id="connected" title="Connected accounts"><div className="space-y-2"><SecurityBox title="Telegram" subtitle={telegram ? `Connected${telegram.provider_username ? ` as @${telegram.provider_username}` : ''}` : 'Not connected'}><button onClick={() => void connectTelegram()} className="button mt-2">{telegram ? 'Reconnect' : 'Connect'}</button></SecurityBox><SecurityBox title="Google" subtitle="Google Sign-In remains a server-verified OTYA authentication method." /></div></Card>
+        <div className="min-w-0">
+          <Section id="overview" title="Overview" subtitle="Your OTYA identity and verification state.">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Info label="Email" value={user.email} />
+              <Info label="Email status" value={user.is_verified ? 'Verified' : 'Verification required'} />
+              <Info label="Account ID" value={user.id} mono />
+              <Info label="Two-step verification" value={twoFactor?.enabled ? 'On' : 'Off'} />
+            </div>
+          </Section>
 
-        <Card id="support" title="Help with OTYA"><p className="text-sm opacity-60">Ask OTYA for product help, read the guides, or contact support when a person needs to look at the issue.</p><div className="flex flex-wrap gap-3 mt-4"><Link href="/apps/otya-player/support" className="cosmos-button rounded-xl px-4 py-2.5 text-sm font-semibold">Ask OTYA</Link><Link href="/docs" className="button">Open Docs</Link><Link href="/contact" className="button">Contact support</Link></div></Card>
+          <Section id="personal" title="Personal info" subtitle="Only add details that help account recovery or regional defaults.">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input label="Name" value={editName} onChange={setEditName} />
+              <Input label="Recovery email" value={recoveryEmail} onChange={setRecoveryEmail} type="email" />
+              <Input label="Country / region" value={country} onChange={setCountry} placeholder="UG" />
+              <Input label="Language" value={locale} onChange={setLocale} placeholder="en-UG" />
+              <Input label="Timezone" value={timezone} onChange={setTimezone} placeholder="Africa/Kampala" />
+            </div>
+            <button onClick={() => void saveProfile()} disabled={busy} className="cosmos-button rounded-xl min-h-11 px-4 mt-4 text-sm font-bold">Save changes</button>
+          </Section>
+
+          <Section id="security" title="Security" subtitle="Verification and account-recovery controls.">
+            <SecurityRow title="Primary email" detail={user.is_verified ? 'Verified' : 'Verification required'}>
+              {!user.is_verified && <div className="flex flex-wrap gap-2 mt-3">
+                <button onClick={() => void sendEmailVerification()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">Send code</button>
+                <input value={emailCode} onChange={event => setEmailCode(event.target.value)} placeholder="A1234" className="compact-input" />
+                <button onClick={() => void verifyEmail()} disabled={busy} className="cosmos-button rounded-xl min-h-11 px-3 text-sm font-semibold">Verify</button>
+              </div>}
+            </SecurityRow>
+
+            <SecurityRow title="Phone / Telegram verification" detail={user.phone_verified_at ? `Verified · ${user.phone_number || ''}` : 'Optional account verification method'}>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button onClick={() => void connectTelegram()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">Connect Telegram</button>
+                <input value={phone} onChange={event => setPhone(event.target.value)} placeholder="+256…" className="compact-input" />
+                <button onClick={() => void requestPhoneCode()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">Send code</button>
+                {phoneCodeSent && <><input value={phoneCode} onChange={event => setPhoneCode(event.target.value)} placeholder="Code" className="compact-input" /><button onClick={() => void verifyPhoneCode()} disabled={busy} className="cosmos-button rounded-xl min-h-11 px-3 text-sm font-semibold">Verify</button></>}
+              </div>
+            </SecurityRow>
+
+            <SecurityRow title="Two-step verification" detail={twoFactor?.enabled ? `On · ${twoFactor.recovery_codes_remaining} recovery codes remaining` : twoFactor?.available ? 'Off · authenticator available' : 'Authenticator setup unavailable'}>
+              {!twoFactor?.enabled && twoFactor?.available && !setup && <button onClick={() => void startTwoFactorSetup()} disabled={busy} className="cosmos-button rounded-xl min-h-11 px-4 mt-3 text-sm font-bold">Set up authenticator</button>}
+              {setup && <div className="mt-4 space-y-3">
+                <div className="modern-card p-4 break-all"><div className="otya-kicker mb-2">Authenticator secret</div><code className="text-sm">{setup.secret}</code><p className="text-xs otya-muted mt-3">You can also use the standard otpauth URI with a compatible authenticator.</p></div>
+                <div className="flex flex-wrap gap-2"><input value={totpCode} onChange={event => setTotpCode(event.target.value)} placeholder="6-digit code" className="compact-input" /><button onClick={() => void enableTwoFactor()} disabled={busy} className="cosmos-button rounded-xl min-h-11 px-4 text-sm font-bold">Enable</button></div>
+              </div>}
+              {twoFactor?.enabled && <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap gap-2"><input value={totpCode} onChange={event => setTotpCode(event.target.value)} placeholder="Current authenticator code" className="compact-input" /><button onClick={() => void regenerateRecoveryCodes()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">New recovery codes</button></div>
+                <div className="flex flex-wrap gap-2"><input value={disableCode} onChange={event => setDisableCode(event.target.value)} placeholder="Authenticator or recovery code" className="compact-input" /><button onClick={() => void disableTwoFactor()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">Disable 2FA</button></div>
+              </div>}
+              {recoveryCodes.length > 0 && <div className="modern-card p-4 mt-4"><strong>Save these recovery codes now</strong><p className="text-xs otya-muted mt-1">Each code works once. Store them somewhere private.</p><div className="grid sm:grid-cols-2 gap-2 mt-3 font-mono text-sm">{recoveryCodes.map(code => <code key={code}>{code}</code>)}</div></div>}
+            </SecurityRow>
+          </Section>
+
+          <Section id="sessions" title="Sessions" subtitle="Review and revoke recorded OTYA sign-ins.">
+            <div className="flex justify-end mb-3"><button onClick={() => void revokeAllSessions()} disabled={busy || sessions.length === 0} className="otya-quiet-button rounded-xl min-h-11 px-3 text-sm font-semibold">Sign out all</button></div>
+            {sessions.length === 0 ? <Empty text="No recorded sessions yet." /> : <div className="space-y-2">{sessions.map(session => <div key={session.id} className="modern-card p-4 flex items-start justify-between gap-4"><div className="min-w-0"><div className="font-semibold text-sm truncate">{session.user_agent || 'OTYA session'}</div><div className="text-xs otya-muted mt-1">Last used {formatDate(session.last_used_at)}{session.ip ? ` · ${session.ip}` : ''}</div></div><button onClick={() => void revokeSession(session.id)} disabled={busy} className="text-sm font-semibold shrink-0">Sign out</button></div>)}</div>}
+          </Section>
+
+          <Section id="connected" title="Connected accounts" subtitle="External identities linked to the same OTYA account.">
+            {identities.length === 0 ? <Empty text="No external accounts are connected." /> : <div className="grid sm:grid-cols-2 gap-3">{identities.map((identity, index) => <Info key={`${identity.provider}-${index}`} label={identity.provider} value={identity.provider_username || 'Connected'} />)}</div>}
+            {!telegram && <button onClick={() => void connectTelegram()} disabled={busy} className="otya-quiet-button rounded-xl min-h-11 px-4 mt-4 text-sm font-semibold">Connect Telegram</button>}
+          </Section>
+
+          <Section id="privacy" title="Data & privacy" subtitle="Legal consent and destructive account controls.">
+            <div className="grid sm:grid-cols-3 gap-3 mb-6">
+              <Info label="Terms" value={consent?.terms_accepted ? 'Accepted' : 'Not recorded'} />
+              <Info label="Privacy policy" value={consent?.privacy_accepted ? 'Accepted' : 'Not recorded'} />
+              <Info label="Marketing" value={consent?.marketing_consent ? 'Allowed' : 'Off'} />
+            </div>
+            <div className="rounded-2xl border p-5" style={{ borderColor: 'color-mix(in srgb, var(--cosmos-error) 45%, var(--cosmos-divider))' }}>
+              <h3 className="font-bold">Delete OTYA account</h3>
+              <p className="text-sm otya-muted mt-2">Deletes your OTYA cloud account and server sessions. It does not delete music or video stored locally on your device.</p>
+              <button onClick={() => void deleteAccount()} disabled={busy} className="mt-4 rounded-xl min-h-11 px-4 text-sm font-bold border" style={{ color: 'var(--cosmos-error)', borderColor: 'var(--cosmos-error)' }}>Delete account</button>
+            </div>
+          </Section>
+        </div>
       </div>
-    </div>
-  </div><style jsx global>{`.button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--cosmos-divider);border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600}.smallInput{min-width:180px;flex:1;border:1px solid var(--cosmos-divider);background:transparent;border-radius:12px;padding:9px 12px;outline:none}`}</style></main>
+
+      <style jsx global>{`
+        .account-input,.compact-input{border:1px solid var(--cosmos-divider);background:var(--cosmos-card);color:var(--cosmos-text-primary);border-radius:12px;min-height:48px;padding:11px 13px;outline:none;width:100%}.compact-input{width:min(240px,100%)}.account-input:focus,.compact-input:focus{border-color:var(--cosmos-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--cosmos-primary) 12%,transparent)}
+      `}</style>
+    </main>
+  </AccountShell>
 }
 
-function Card({ id, title, children }: { id: string; title: string; children: React.ReactNode }) { return <section id={id} className="rounded-3xl border p-5 sm:p-6" style={{ background:'var(--cosmos-card)', borderColor:'var(--cosmos-divider)' }}><h2 className="text-xl font-bold mb-3">{title}</h2>{children}</section> }
-function SecurityBox({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) { return <div className="rounded-2xl border p-4 mb-3" style={{borderColor:'var(--cosmos-divider)'}}><strong>{title}</strong><div className="text-sm opacity-55 mt-1">{subtitle}</div>{children}</div> }
-function Field({ label, value, setValue, placeholder }: { label: string; value: string; setValue: (v: string) => void; placeholder?: string }) { return <label className="rounded-xl border p-3 block" style={{borderColor:'var(--cosmos-divider)'}}><div className="text-xs opacity-50 mb-1">{label}</div><input value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} className="w-full bg-transparent outline-none text-sm" /></label> }
-function Status({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border p-4" style={{borderColor:'var(--cosmos-divider)'}}><div className="text-xs opacity-50">{label}</div><div className="font-semibold mt-1">{value}</div></div> }
-function friendlyAgent(value?: string | null) { if (!value) return 'OTYA session'; if (/Android/i.test(value)) return 'Android device'; if (/iPhone|iPad/i.test(value)) return 'Apple device'; if (/Chrome/i.test(value)) return 'Chrome browser'; if (/Firefox/i.test(value)) return 'Firefox browser'; if (/Safari/i.test(value)) return 'Safari browser'; return value.slice(0, 60) }
-function formatTime(value: string) { try { return new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) } catch { return value } }
+function AccountShell({ children }: { children: ReactNode }) {
+  return <div className="min-h-screen flex flex-col" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}><SiteNav /><div className="flex-1">{children}</div><SiteFooter /></div>
+}
+
+function Section({ id, title, subtitle, children }: { id: string; title: string; subtitle: string; children: ReactNode }) {
+  return <section id={id} className="py-7 border-t first:border-t-0" style={{ borderColor: 'var(--cosmos-divider)', scrollMarginTop: 72 }}><div className="mb-5"><h2 className="text-xl font-black">{title}</h2><p className="text-sm otya-muted mt-1">{subtitle}</p></div>{children}</section>
+}
+
+function SecurityRow({ title, detail, children }: { title: string; detail: string; children?: ReactNode }) {
+  return <div className="py-5 border-t first:border-t-0" style={{ borderColor: 'var(--cosmos-divider)' }}><div className="font-bold">{title}</div><div className="text-sm otya-muted mt-1">{detail}</div>{children}</div>
+}
+
+function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return <div className="modern-card p-4 min-w-0"><div className="otya-kicker mb-2">{label}</div><div className={`text-sm break-words ${mono ? 'font-mono' : 'font-semibold'}`}>{value || '—'}</div></div>
+}
+
+function Input({ label, value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { label?: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string; autoComplete?: string; disabled?: boolean; autoFocus?: boolean }) {
+  return <label className="block">{label && <span className="block text-xs font-semibold mb-1.5 otya-muted">{label}</span>}<input className="account-input" value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} type={type} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} /></label>
+}
+
+function Check({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: ReactNode }) {
+  return <label className="flex items-start gap-2.5"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1" /><span>{children}</span></label>
+}
+
+function Notice({ tone, children }: { tone: 'error' | 'success'; children: ReactNode }) {
+  return <div className="rounded-xl border p-3 text-sm mb-3" style={{ borderColor: tone === 'error' ? 'var(--cosmos-error)' : 'var(--cosmos-divider)', color: tone === 'error' ? 'var(--cosmos-error)' : 'var(--cosmos-text-primary)', background: 'var(--cosmos-card)' }}>{children}</div>
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="modern-card p-5 text-sm otya-muted">{text}</div>
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
