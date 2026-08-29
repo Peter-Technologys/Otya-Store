@@ -83,6 +83,26 @@ export async function verifyAdminSession(request: Request, env: AdminEnv): Promi
   }
 }
 
+function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
+  const expected = text(env.ADMIN_TOKEN)
+  if (!expected) return false
+  const actual = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim() ?? ''
+  return Boolean(actual) && timingSafeEqual(actual, expected)
+}
+
+/**
+ * Canonical authorization for OTYA Admin HTTP routes.
+ *
+ * Browser/admin UI uses the signed HttpOnly session cookie. A bearer ADMIN_TOKEN
+ * is retained temporarily for trusted automation that has not migrated yet.
+ * Query-string tokens are intentionally never accepted because URLs leak into
+ * browser history, logs and referrers.
+ */
+export async function isAdminAuthorized(request: Request, env: AdminEnv): Promise<boolean> {
+  if (await verifyAdminSession(request, env)) return true
+  return legacyAdminTokenAuthorized(request, env)
+}
+
 export function adminSessionCookie(session: string): string {
   return `${COOKIE_NAME}=${session}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_TTL_SECONDS}`
 }
