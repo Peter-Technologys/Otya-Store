@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyRequest } from '@/lib/auth'
 import { dualAuth } from '@/lib/auth-service'
+import { appCheckEnforced, verifyFirebaseAppCheck } from '@/lib/firebase_app_check'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Firebase-AppCheck, X-Otya-Device-Id',
 }
 
 function cleanText(value: unknown, max: number): string | null {
@@ -18,10 +19,16 @@ function cleanText(value: unknown, max: number): string | null {
 }
 
 // POST /api/ratings — anonymous ratings are allowed because the in-app prompt
-// can be shown before sign-in. A verified JWT may associate the rating with a
-// user; body data can never choose a trusted user identity.
+// can be shown before sign-in. App Check attests the app installation while a
+// verified JWT may separately associate the rating with an OTYA account.
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+  const appCheck = await verifyFirebaseAppCheck(req, recordEnv)
+  if (appCheckEnforced(recordEnv) && !appCheck.valid) {
+    return errorJson('App attestation required', 401)
+  }
+
   const auth = await dualAuth(req, env, verifyRequest)
 
   let body: Record<string, unknown>
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
     : null
 
   const userId = auth.mode === 'jwt' ? auth.user_id : null
-  const db = getDB(env as Record<string, unknown>)
+  const db = getDB(recordEnv)
   await db.prepare(`
     INSERT INTO ratings (device_id, user_id, app_version, version_code, stars, comment)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest) {
   return secureJson({
     ok: true,
     authenticated: auth.mode !== 'none',
+    app_check: appCheck.valid ? 'valid' : appCheck.configured ? 'unverified' : 'not-configured',
     ts: Date.now(),
   })
 }
