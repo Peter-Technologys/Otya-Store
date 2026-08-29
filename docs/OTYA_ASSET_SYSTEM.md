@@ -2,9 +2,18 @@
 
 This document is the single source of truth for OTYA website, app-store, social, APK-release and future marketing assets.
 
+## Non-negotiable OTYA identity
+
+- The canonical symbol is the approved **twisted O** supplied in the OTYA brand pack. Do not redraw it as a plain ring and do not substitute a play triangle.
+- The official color flow is **cyan/electric blue → violet/magenta → orange/yellow** on deep navy/black surfaces.
+- When the symbol and product name appear on the same line, render **symbol + TYA**, never **symbol + OTYA**. The symbol itself is the O.
+- Keep the symbol geometry unchanged across Android launcher/adaptive/themed icons, Flutter UI, website/favicon/PWA, Admin, Developer surfaces, emails, store assets and marketing art.
+- Single-color/monochrome variants may change color only; the geometry must remain the same.
+- User-facing screenshots and mockups must use the real current OTYA UI. Do not invent a second app interface inside a phone mockup and present it as the shipped product.
+
 ## Already wired assets
 
-- `public/otya-icon.svg` — canonical OTYA symbol.
+- `public/otya-icon.svg` — canonical OTYA twisted-O symbol.
 - `public/android-chrome-192x192.png` — PWA icon.
 - `public/android-chrome-512x512.png` — PWA/app icon.
 - `public/apple-touch-icon.png` — Apple/iOS browser icon.
@@ -73,20 +82,13 @@ This document is the single source of truth for OTYA website, app-store, social,
 
 ## Real screenshots policy
 
-Do not fake final app screenshots. Use `public/brand/otya-screenshot-frame.svg` as a template only. Final screenshots should be captured from the real APK after the Debug APK workflow produces a working artifact.
-
-## Recommended missing tool integrations
-
-- Direct Cloudflare account tool/MCP for Workers, DNS, D1, KV, R2, routes and logs.
-- Google Play Console access for app listing, APK/AAB tracks, screenshots and policy checks.
-- Firebase or Google Cloud access if FCM/push notifications are used.
-- Sentry or another crash-reporting dashboard if production error reports need inspection.
-- Browser/device testing service for real screenshots across screen sizes.
-- Design/image generation workflow for high-polish marketing art.
+Do not fake final app screenshots. Use `public/brand/otya-screenshot-frame.svg` as a template only. Final screenshots should be captured from the real signed APK after the source, crash and physical-device gates pass.
 
 ## Production verification checklist
 
-- GitHub `main` is green.
+- App uses one canonical OTYA twisted-O geometry on every surface.
+- No old play-logo or generic-ring asset remains reachable in app or website UI.
+- GitHub `main` is green before release.
 - Cloudflare Worker deploy is green.
 - Auth Worker deploy is green.
 - D1/KV bindings are connected.
