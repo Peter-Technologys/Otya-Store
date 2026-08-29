@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "test": "node --test test/*.test.mjs",
     "check": "wrangler deploy --dry-run --outdir .wrangler-dry-run",
     "deploy": "wrangler deploy"
   },
