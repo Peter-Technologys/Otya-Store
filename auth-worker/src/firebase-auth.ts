@@ -14,7 +14,6 @@ export interface FirebaseAuthEnv {
   AUTH_KV: KVNamespaceLike
   AUTH_JWT_SECRET: string
   FIREBASE_API_KEY?: string
-  FIREBASE_PROJECT_ID?: string
   ACCOUNT_ENCRYPTION_KEY?: string
   CORS_ORIGIN?: string
 }
@@ -81,16 +80,16 @@ async function verifyFirebaseIdToken(
 ): Promise<FirebaseAccount | null> {
   if (!env.FIREBASE_API_KEY) return null
 
-  // Firebase Authentication's accounts:lookup endpoint verifies the Firebase
-  // ID token and returns the canonical account record. The Web API key is a
-  // project identifier, not a server secret; OTYA still keeps its own session
-  // signing secret and all privileged credentials server-side.
+  // accounts:lookup verifies the Firebase ID token against the project selected
+  // by this API key and returns the canonical Firebase account. The API key is
+  // a project identifier, not OTYA's session authority or a privileged admin key.
   const response = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_API_KEY)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
+      signal: AbortSignal.timeout(8000),
     },
   )
   if (!response.ok) return null
@@ -144,7 +143,7 @@ export async function handleFirebaseLogin(
     return new Response(null, { status: 204, headers: headers(env) })
   }
   if (request.method !== 'POST') return json(env, { error: 'Method not allowed' }, 405)
-  if (!env.FIREBASE_API_KEY || !env.FIREBASE_PROJECT_ID) {
+  if (!env.FIREBASE_API_KEY) {
     return json(env, { error: 'Firebase sign-in is not configured' }, 503)
   }
   if (!(await checkRateLimit(request, env))) {
