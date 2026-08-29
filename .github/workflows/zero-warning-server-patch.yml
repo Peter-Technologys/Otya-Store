@@ -58,9 +58,7 @@ jobs:
               rep(account, old, '')
 
           p = Path(account)
-          text = p.read_text()
-          text = text.replace('data.error ||', 'jsonText(data.error) ||')
-          text = text.replace('return data.message ||', 'return jsonText(data.message) ||')
+          text = p.read_text().replace('data.error ||', 'jsonText(data.error) ||').replace('return data.message ||', 'return jsonText(data.message) ||')
           p.write_text(text)
           rep(account,
               '<img src="/web-app-manifest-192x192.png" alt="OTYA" className="w-12 h-12 rounded-2xl" />',
@@ -81,12 +79,17 @@ jobs:
               p = Path(workflow)
               text = p.read_text().replace('actions/checkout@v4', 'actions/checkout@v5').replace('actions/setup-node@v4', 'actions/setup-node@v5')
               p.write_text(text)
+
+          Path('.eslintrc.json').unlink()
+          Path('eslint.config.mjs').write_text('''import { FlatCompat } from '@eslint/eslintrc'\nimport { fileURLToPath } from 'node:url'\nimport path from 'node:path'\n\nconst filename = fileURLToPath(import.meta.url)\nconst directory = path.dirname(filename)\nconst compat = new FlatCompat({ baseDirectory: directory })\n\nexport default [\n  { ignores: ['src/index.js', 'src/queue-worker.mjs', '.next/**', 'node_modules/**'] },\n  ...compat.extends('next/core-web-vitals', 'plugin:@typescript-eslint/recommended'),\n  {\n    rules: {\n      '@typescript-eslint/no-explicit-any': 'error',\n      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],\n      '@typescript-eslint/no-var-requires': 'error',\n      '@typescript-eslint/no-require-imports': 'error',\n      'no-console': 'off',\n      'prefer-const': 'error',\n    },\n  },\n]\n''')
           PY
       - name: Upgrade supported lint toolchain
         shell: bash
         run: |
           set -euo pipefail
-          npm install --save-dev eslint@^9 @typescript-eslint/eslint-plugin@^8 @typescript-eslint/parser@^8 --ignore-scripts --no-audit --no-fund
+          npm install --save-dev eslint@^10.8.1 @eslint/eslintrc@latest @typescript-eslint/eslint-plugin@latest @typescript-eslint/parser@latest --ignore-scripts --no-audit --no-fund
+          npm explain node-domexception || true
+          npm explain glob || true
       - name: Validate patched server
         shell: bash
         run: |
@@ -114,7 +117,7 @@ jobs:
           git rm .github/workflows/zero-warning-server-patch.yml
           git config user.name 'OTYA CI'
           git config user.email 'actions@users.noreply.github.com'
-          git add src/app/account/page.tsx src/app/admin/page.tsx .github/workflows/deploy.yml .github/workflows/security.yml package.json package-lock.json auth-worker/package-lock.json ai-worker/package-lock.json || true
+          git add -A
           git diff --cached --check
           git commit -m 'fix: enforce warning-clean server validation'
           git push origin HEAD:v1-rebuild
