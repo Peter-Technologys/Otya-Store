@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 const KEY = 'app:remote-config'
-const CURRENT_REVISION = 4
+const CURRENT_REVISION = 5
 
 const DEFAULT_CONFIG = {
   schemaVersion: 1,
   revision: CURRENT_REVISION,
   maintenance: {
     enabled: false,
-    title: 'OTYA is temporarily unavailable',
-    message: 'Please try again shortly.',
+    title: 'OTYA online services are temporarily unavailable',
+    message: 'Local playback and offline tools are still available.',
     allowOfflinePlayback: true,
     services: {},
   },
@@ -23,24 +23,19 @@ const DEFAULT_CONFIG = {
     downloadUrl: 'https://petersmartlink.com/download/otya-player',
   },
   features: {
+    transfer: true,
+    private: true,
+    // Legacy aliases are retained for older clients only.
     beam: true,
     safe: true,
     equalizer: true,
-    trimmer: true,
     whatsappTrimmer: true,
     converter: true,
-    merger: true,
-    compressor: true,
-    recorder: true,
-    audioTools: true,
-    videoTools: true,
     onlineThemes: true,
-    accountSync: true,
-    cloudSync: true,
     googleSignIn: true,
+    firebaseAuth: true,
     driveBackup: true,
     feedback: true,
-    ratings: true,
     aiAssistant: true,
     cloudPush: true,
   },
@@ -63,18 +58,19 @@ const DEFAULT_CONFIG = {
     terms: 'https://petersmartlink.com/terms',
     docs: 'https://petersmartlink.com/docs',
     account: 'https://petersmartlink.com/account',
-    ai: 'https://petersmartlink.com/ai',
+    ai: 'https://petersmartlink.com/apps/otya-player/support',
   },
   ai: {
     enabled: true,
-    standaloneService: true,
+    standaloneService: false,
     optionalForPlayer: true,
-    greeting: 'What can I help with?',
+    scope: 'otya-product-help',
+    greeting: 'Ask about OTYA, playback, files, transfer, account or troubleshooting.',
     suggestedPrompts: [
-      'Help me organize my music library',
-      'Explain something I am learning',
-      'Help me write a professional message',
-      'How can I fix a video that will not play?',
+      'How do I organize my music library in OTYA?',
+      'Why will a video not play in OTYA?',
+      'How does OTYA Transfer work?',
+      'How do I protect files with Private?',
     ],
   },
   push: {
@@ -82,10 +78,17 @@ const DEFAULT_CONFIG = {
     provider: 'fcm',
     optionalForPlayback: true,
   },
+  auth: {
+    authority: 'otya-auth',
+    emailPassword: 'cloudflare',
+    otp: 'cloudflare-resend',
+    firebaseIdentity: true,
+    firebaseIsSessionAuthority: false,
+  },
   search: {
     suggestions: [],
-    categories: ['video', 'music', 'folders', 'playlists'],
-    providerPriority: ['local'],
+    categories: ['video', 'music', 'folders', 'playlists', 'files', 'help'],
+    providerPriority: ['local', 'help'],
     timeoutSeconds: 6,
   },
   experiments: {
@@ -121,35 +124,41 @@ function migrateConfig(stored: unknown): ConfigRecord {
   const revision = Number(source.revision ?? 0)
   if (revision >= CURRENT_REVISION) return source
 
-  const features = { ...DEFAULT_CONFIG.features, ...asRecord(source.features) }
-  const links = { ...DEFAULT_CONFIG.links, ...asRecord(source.links) }
-  const ai = { ...DEFAULT_CONFIG.ai, ...asRecord(source.ai) }
-  const push = { ...DEFAULT_CONFIG.push, ...asRecord(source.push) }
+  const oldFeatures = asRecord(source.features)
+  const features = {
+    ...DEFAULT_CONFIG.features,
+    transfer: oldFeatures.transfer ?? oldFeatures.beam ?? true,
+    private: oldFeatures.private ?? oldFeatures.safe ?? true,
+    beam: oldFeatures.transfer ?? oldFeatures.beam ?? true,
+    safe: oldFeatures.private ?? oldFeatures.safe ?? true,
+    equalizer: oldFeatures.equalizer ?? true,
+    whatsappTrimmer: oldFeatures.whatsappTrimmer ?? oldFeatures.trimmer ?? true,
+    converter: oldFeatures.converter ?? true,
+    onlineThemes: oldFeatures.onlineThemes ?? true,
+    googleSignIn: oldFeatures.googleSignIn ?? true,
+    firebaseAuth: oldFeatures.firebaseAuth ?? true,
+    driveBackup: oldFeatures.driveBackup ?? true,
+    feedback: oldFeatures.feedback ?? true,
+    aiAssistant: oldFeatures.aiAssistant ?? true,
+    cloudPush: oldFeatures.cloudPush ?? true,
+  }
 
-  // Before revision 4 these two flags were stale defaults rather than an
-  // intentional service switch. Normalize them once during migration. Once a
-  // stored config is revision 4+, explicit admin true/false choices are kept.
-  features.aiAssistant = true
-  features.cloudPush = true
-  ai.enabled = true
-  ai.standaloneService = true
-  ai.optionalForPlayer = true
-  push.enabled = true
-  push.provider = 'fcm'
-  push.optionalForPlayback = true
+  const links = { ...DEFAULT_CONFIG.links, ...asRecord(source.links), ai: DEFAULT_CONFIG.links.ai }
+  const push = { ...DEFAULT_CONFIG.push, ...asRecord(source.push), provider: 'fcm', optionalForPlayback: true }
 
   return {
     ...DEFAULT_CONFIG,
     ...source,
     revision: CURRENT_REVISION,
-    maintenance: { ...DEFAULT_CONFIG.maintenance, ...asRecord(source.maintenance) },
+    maintenance: { ...DEFAULT_CONFIG.maintenance, ...asRecord(source.maintenance), allowOfflinePlayback: true },
     versions: { ...DEFAULT_CONFIG.versions, ...asRecord(source.versions) },
     features,
     home: { ...DEFAULT_CONFIG.home, ...asRecord(source.home) },
     links,
-    ai,
+    ai: DEFAULT_CONFIG.ai,
     push,
-    search: { ...DEFAULT_CONFIG.search, ...asRecord(source.search) },
+    auth: DEFAULT_CONFIG.auth,
+    search: { ...DEFAULT_CONFIG.search, ...asRecord(source.search), providerPriority: ['local', 'help'] },
     experiments: { ...DEFAULT_CONFIG.experiments, ...asRecord(source.experiments) },
     regions: { ...DEFAULT_CONFIG.regions, ...asRecord(source.regions) },
     runtime: { ...DEFAULT_CONFIG.runtime, ...asRecord(source.runtime) },
@@ -172,8 +181,7 @@ export async function GET() {
         config = migrated
         const oldRevision = Number(asRecord(stored).revision ?? 0)
         if (oldRevision < CURRENT_REVISION && kv.put) {
-          // Best-effort persistence. A KV write failure must never block app
-          // startup; the migrated response is still returned for this request.
+          // Best effort only. Remote config must never block OTYA startup.
           kv.put(KEY, JSON.stringify(migrated)).catch(() => {})
         }
       }
