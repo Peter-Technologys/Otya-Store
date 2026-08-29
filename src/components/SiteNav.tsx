@@ -16,9 +16,9 @@ export function SiteNav() {
 
   return <nav className="sticky top-0 z-50 border-b backdrop-blur-xl" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--nav-bg)' }}>
     <div className="otya-shell h-14 flex items-center justify-between gap-4">
-      <Link href="/" className="flex items-center gap-2 shrink-0" onClick={() => setOpen(false)}>
-        <Image src="/web-app-manifest-192x192.png" alt="OTYA" width={28} height={28} className="rounded-lg" priority />
-        <span className="font-semibold text-[15px] tracking-[-0.02em]" style={{ color: 'var(--cosmos-text-primary)' }}>OTYA</span>
+      <Link href="/" className="flex items-center gap-1.5 shrink-0" onClick={() => setOpen(false)} aria-label="OTYA home">
+        <Image src="/otya-icon.svg" alt="" width={30} height={30} className="rounded-lg" priority />
+        <span className="font-bold text-[15px] tracking-[0.12em]" style={{ color: 'var(--cosmos-text-primary)' }}>TYA</span>
       </Link>
 
       <div className="hidden md:flex items-center gap-5">
