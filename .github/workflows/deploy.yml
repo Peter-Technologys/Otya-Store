@@ -52,6 +52,7 @@ jobs:
         env:
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           TELEGRAM_LOGIN_CLIENT_ID: ${{ secrets.TELEGRAM_LOGIN_CLIENT_ID }}
           TELEGRAM_LOGIN_CLIENT_SECRET: ${{ secrets.TELEGRAM_LOGIN_CLIENT_SECRET }}
           TELEGRAM_GATEWAY_TOKEN: ${{ secrets.TELEGRAM_GATEWAY_TOKEN }}
@@ -63,6 +64,9 @@ jobs:
           test -n "$AUTH_JWT_SECRET" && test -n "$RESEND_API_KEY" && test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
           printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+          if [ -n "${FIREBASE_API_KEY:-}" ]; then
+            printf '%s' "$FIREBASE_API_KEY" | npx wrangler secret put FIREBASE_API_KEY
+          fi
           if [ -n "${TELEGRAM_LOGIN_CLIENT_ID:-}" ]; then
             printf '%s' "$TELEGRAM_LOGIN_CLIENT_ID" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_ID
           fi
@@ -90,10 +94,18 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Build and deploy OTYA backend
         env:
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          # The same Firebase service account is the single server credential for
+          # both FCM and Remote Config. Existing live secrets are preserved by
+          # keep_vars=true when this optional GitHub secret is not configured.
+          if [ -n "${FCM_SERVICE_ACCOUNT_JSON:-}" ]; then
+            printf '%s' "$FCM_SERVICE_ACCOUNT_JSON" | npx wrangler secret put FCM_SERVICE_ACCOUNT_JSON
+          fi
           npm run deploy
 
   deploy-ai:
