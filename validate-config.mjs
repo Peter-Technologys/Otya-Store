@@ -17,6 +17,7 @@ const ai = read('ai-worker/wrangler.toml')
 const fcm = read('src/lib/fcm.ts')
 const appCheck = read('src/lib/firebase_app_check.ts')
 const googleWrapper = read('auth-worker/src/production-entrypoint.ts')
+const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
 
 requireMatch('otya-store Worker name', store, /^name\s*=\s*"otya-store"$/m)
 for (const binding of ['R2', 'KV', 'DB', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
@@ -45,7 +46,15 @@ requireMatch('FCM must use HTTP v1', fcm, /https:\/\/fcm\.googleapis\.com\/v1\/p
 forbidMatch('Legacy FCM endpoint is forbidden', fcm, /fcm\.googleapis\.com\/fcm\/send/)
 requireMatch('App Check implementation must support monitor/enforce switch', appCheck, /FIREBASE_APP_CHECK_MODE/)
 
-const scanned = [store, auth, ai, fcm, appCheck, googleWrapper].join('\n')
+// Jamendo public catalog is intentionally read-only. It may use the app Client
+// ID, but the Client Secret belongs only in the future server-side OAuth grant
+// and refresh exchange after a user explicitly chooses to connect Jamendo.
+requireMatch('Jamendo catalog must use Cloudflare runtime context', jamendoCatalog, /getCloudflareContext/)
+requireMatch('Jamendo catalog must read JAMENDO_CLIENT_ID', jamendoCatalog, /JAMENDO_CLIENT_ID/)
+forbidMatch('Jamendo Client Secret must never enter public catalog code', jamendoCatalog, /JAMENDO_CLIENT_SECRET/)
+forbidMatch('Jamendo credentials must not be hard-coded in public catalog code', jamendoCatalog, /3bb1fe8d|606b6f72bdd754bcbacaddd50c8b2e19/)
+
+const scanned = [store, auth, ai, fcm, appCheck, googleWrapper, jamendoCatalog].join('\n')
 forbidMatch('Firebase Admin private key material must not be committed', scanned, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/)
 forbidMatch('Resend API key values must not be committed', scanned, /\bre_[A-Za-z0-9_-]{20,}\b/)
 
