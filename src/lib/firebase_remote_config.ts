@@ -1,6 +1,7 @@
 import { getGoogleAccessToken } from './google_oauth'
 
 const REMOTE_CONFIG_SCOPE = 'https://www.googleapis.com/auth/firebase.remoteconfig'
+const REMOTE_CONFIG_TIMEOUT_MS = 8000
 export const OTYA_CLIENT_CONFIG_PARAMETER = 'otya_client_config_json'
 export const OTYA_CLIENT_CONFIG_REVISION_PARAMETER = 'otya_client_config_revision'
 
@@ -61,6 +62,7 @@ export async function getFirebaseRemoteConfigTemplate(
       // Firebase currently requires compression negotiation for reliable ETag return.
       'Accept-Encoding': 'gzip',
     },
+    signal: AbortSignal.timeout(REMOTE_CONFIG_TIMEOUT_MS),
   })
   if (!response.ok) {
     const body = await response.text()
@@ -92,6 +94,7 @@ async function putTemplate(
       'If-Match': etag,
     },
     body: JSON.stringify(template),
+    signal: AbortSignal.timeout(REMOTE_CONFIG_TIMEOUT_MS),
   })
   if (!response.ok) {
     const body = await response.text()
