@@ -3,6 +3,27 @@ node_modules/
 .open-next/
 .next/
 dist/
+
+# Local environment / Worker secrets
 .dev.vars
 .env
-*.env.local
+.env.*
+!.env.example
+
+# Firebase / Google server credentials — never commit Admin SDK material
+*firebase-adminsdk*.json
+service-account*.json
+credentials/
+secrets/
+
+# Signing/private-key material
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+key.properties
+android/key.properties
+android/*.keystore
+android/*.jks
