@@ -1,56 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { verifyRequest } from '@/lib/auth'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 import { getFcmAccessToken, sendFcmWithToken } from '@/lib/fcm'
-
-// POST /api/push — Admin-only: send FCM push notification.
-// Admin requests remain protected by the Worker-side HMAC/admin secret; this
-// secret is never embedded in the Flutter APK.
-//
-// Body:
-// {
-//   "title":    "New update!",
-//   "body":     "OTYA Player v1.5.0 is available.",
-//   "url":      "https://petersmartlink.com/download/otya-player", // optional
-//   "deviceId": "abc123"                                         // optional
-// }
+import { isAdminAuthorized } from '@/lib/admin_auth'
 
 const CHUNK_SIZE = 100
 const OTYA_DOWNLOAD_URL = 'https://petersmartlink.com/download/otya-player'
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin':  'https://petersmartlink.com',
+  'Access-Control-Allow-Origin': 'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+  if (!await isAdminAuthorized(req, recordEnv)) return errorJson('Unauthorized', 401)
 
-  const auth = await verifyRequest(req, env as { OTYA_STORE_ADMIN_TOKEN: string })
-  if (!auth.ok) return errorJson(auth.error ?? 'Unauthorized', 401)
+  const serviceAccountJson = recordEnv.FCM_SERVICE_ACCOUNT_JSON as string | undefined
+  if (!serviceAccountJson) return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
 
-  const serviceAccountJson = (env as Record<string, unknown>).FCM_SERVICE_ACCOUNT_JSON as string | undefined
-  if (!serviceAccountJson) {
-    return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
-  }
-
-  let body: Record<string, string>
+  let body: Record<string, unknown>
   try {
-    body = await req.json() as Record<string, string>
+    body = await req.json() as Record<string, unknown>
   } catch {
     return errorJson('Invalid JSON body', 400)
   }
 
-  const { title, body: msgBody, url, deviceId } = body
-  if (!title || !msgBody) {
-    return errorJson('title and body required', 400)
-  }
+  const title = typeof body.title === 'string' ? body.title.trim().slice(0, 120) : ''
+  const msgBody = typeof body.body === 'string' ? body.body.trim().slice(0, 500) : ''
+  const url = typeof body.url === 'string' ? body.url.trim().slice(0, 1000) : ''
+  const deviceIdRaw = body.deviceId ?? body.device_id
+  const deviceId = typeof deviceIdRaw === 'string' ? deviceIdRaw.trim().slice(0, 128) : ''
+  if (!title || !msgBody) return errorJson('title and body required', 400)
 
-  const db = getDB(env as Record<string, unknown>)
-
+  const db = getDB(recordEnv)
   let tokens: string[] = []
   if (deviceId) {
     const row = await db.prepare(
@@ -70,17 +56,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Avoid duplicate sends when the same token was accidentally registered on
-  // more than one stale device row.
   tokens = [...new Set(tokens.filter(Boolean))]
-
   if (tokens.length === 0) {
-    return secureJson({ ok: true, sent: 0, message: 'No registered devices', ts: Date.now() })
+    return secureJson({ ok: true, sent: 0, failed: 0, total: 0, message: 'No registered devices', ts: Date.now() })
   }
 
-  const sa = JSON.parse(serviceAccountJson) as { project_id: string }
-  const link = url?.trim() || OTYA_DOWNLOAD_URL
+  let projectId = ''
+  try {
+    projectId = (JSON.parse(serviceAccountJson) as { project_id?: string }).project_id?.trim() ?? ''
+  } catch {
+    return errorJson('FCM service account is invalid', 503)
+  }
+  if (!projectId) return errorJson('FCM project_id is missing', 503)
 
+  const link = url || OTYA_DOWNLOAD_URL
   let accessToken: string
   try {
     accessToken = await getFcmAccessToken(serviceAccountJson)
@@ -89,21 +78,13 @@ export async function POST(req: NextRequest) {
     return errorJson('FCM authentication failed', 503)
   }
 
-  let totalSent   = 0
+  let totalSent = 0
   let totalFailed = 0
-
   for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
     const chunk = tokens.slice(i, i + CHUNK_SIZE)
     try {
-      const { sent, failed } = await sendFcmWithToken(
-        chunk,
-        title,
-        msgBody,
-        link,
-        accessToken,
-        sa.project_id,
-      )
-      totalSent   += sent
+      const { sent, failed } = await sendFcmWithToken(chunk, title, msgBody, link, accessToken, projectId)
+      totalSent += sent
       totalFailed += failed
     } catch (e) {
       console.error(`[push] chunk ${i}–${i + CHUNK_SIZE} failed:`, e)
@@ -115,5 +96,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, { headers: CORS_HEADERS })
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
