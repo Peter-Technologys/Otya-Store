@@ -6,6 +6,12 @@ keep_vars = true
 
 [observability]
 enabled = true
+[observability.logs]
+enabled = true
+head_sampling_rate = 0.5
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
 
 [[d1_databases]]
 binding       = "AUTH_DB"
