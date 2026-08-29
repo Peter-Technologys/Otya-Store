@@ -15,6 +15,7 @@ const CLIENT_FEATURE_KEYS = new Set([
   'ratings',
   'aiAssistant',
   'firebaseIdentity',
+  'firebaseAuth',
 ])
 
 function asRecord(value: unknown): Record<string, unknown> {
