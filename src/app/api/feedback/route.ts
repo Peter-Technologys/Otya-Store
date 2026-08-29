@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { appCheckEnforced, verifyFirebaseAppCheck } from '@/lib/firebase_app_check'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Firebase-AppCheck, X-Otya-Device-Id',
 }
 
 function cleanText(value: unknown, max: number): string | null {
@@ -22,11 +23,14 @@ function cleanInt(value: unknown): number | null {
 }
 
 // POST /api/feedback — public app telemetry endpoint.
-// The Flutter client can submit a problem before sign-in. No account identity is
-// accepted from the body; this route stores only constrained diagnostic/contact
-// fields and relies on Cloudflare rate limiting/AI moderation for abuse control.
+// App Check attests the app installation while still allowing pre-login reports.
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+  const appCheck = await verifyFirebaseAppCheck(req, recordEnv)
+  if (appCheckEnforced(recordEnv) && !appCheck.valid) {
+    return errorJson('App attestation required', 401)
+  }
 
   let body: Record<string, unknown>
   try {
@@ -47,45 +51,33 @@ export async function POST(req: NextRequest) {
     return errorJson('user_email is invalid', 400)
   }
 
-  const db = getDB(env as Record<string, unknown>)
+  const db = getDB(recordEnv)
   const result = await db.prepare(`
     INSERT INTO feedback (device_id, app_version, version_code, category, description, user_email)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(
-    deviceId,
-    appVersion,
-    versionCode,
-    category,
-    description,
-    userEmail,
-  ).run()
+  `).bind(deviceId, appVersion, versionCode, category, description, userEmail).run()
 
   const feedbackId = (result.meta as Record<string, unknown>)?.last_row_id as number | undefined
-  const aiQueue = (env as Record<string, unknown>).AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
+  const aiQueue = recordEnv.AI_QUEUE as { send(body: unknown): Promise<void> } | undefined
 
   if (feedbackId && aiQueue) {
     try {
-      await aiQueue.send({
-        type: 'moderate_feedback',
-        feedbackId,
-        description,
-      })
+      await aiQueue.send({ type: 'moderate_feedback', feedbackId, description })
     } catch (e) {
       console.error('[feedback] Failed to queue AI moderation:', (e as Error)?.message)
     }
-
     try {
-      await aiQueue.send({
-        type: 'categorize_feedback',
-        feedbackId,
-        description,
-      })
+      await aiQueue.send({ type: 'categorize_feedback', feedbackId, description })
     } catch (e) {
       console.error('[feedback] Failed to queue AI categorization:', (e as Error)?.message)
     }
   }
 
-  return secureJson({ ok: true, ts: Date.now() })
+  return secureJson({
+    ok: true,
+    app_check: appCheck.valid ? 'valid' : appCheck.configured ? 'unverified' : 'not-configured',
+    ts: Date.now(),
+  })
 }
 
 export async function OPTIONS() {
