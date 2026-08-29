@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 }
 
 export default async function HomePage() {
-  let appVersion = '1.7.0'
+  // The website must remain truthful even when KV is unavailable. OTYA's v1
+  // rebuild starts at 1.0.0; live release metadata replaces this when present.
+  let appVersion = '1.0.0'
   try {
     const { env } = await getCloudflareContext()
     const kv = getKV(env as Record<string, unknown>)
