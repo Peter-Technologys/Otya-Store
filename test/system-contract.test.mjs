@@ -21,6 +21,9 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
   assert.match(config, /AI_GUEST_MODEL = "llama-fast"/)
   assert.match(config, /AI_DEFAULT_MODEL = "otya-smart"/)
 
+  const catalogLine = config.match(/^AI_PUBLIC_MODELS\s*=\s*"([^"]+)"$/m)
+  assert.ok(catalogLine, 'AI_PUBLIC_MODELS must be present in ai-worker/wrangler.toml')
+  const configuredModels = catalogLine[1].split(',').map(value => value.trim()).filter(Boolean)
   const expected = [
     'llama-fast',
     'otya-smart',
@@ -34,7 +37,7 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
     'qwen3',
     'sea-lion',
   ]
-  for (const id of expected) assert.match(config, new RegExp(`(?:^|,)${id}(?:,|\\")`, 'm'))
+  for (const id of expected) assert.ok(configuredModels.includes(id), `${id} must remain in AI_PUBLIC_MODELS`)
 
   assert.match(chat, /if\(!signedIn\).*policy\.guest/)
   assert.match(chat, /friendly general-purpose AI assistant built into OTYA/)
