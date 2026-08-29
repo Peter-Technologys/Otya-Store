@@ -22,25 +22,20 @@ type User = {
 }
 
 type Identity = { provider: string; provider_username?: string | null }
-type Product = { product_id: string; status: string }
 type Session = { id: string; created_at: string; last_used_at: string; ip?: string | null; user_agent?: string | null }
 type TwoFactorStatus = { enabled: boolean; recovery_codes_remaining: number; available: boolean }
 type TwoFactorSetup = { secret: string; otpauth_uri: string }
-type Model = { id: string; name: string; provider: string; description?: string }
 type Consent = { terms_accepted?: number; privacy_accepted?: number; marketing_consent?: number }
 
 export default function AccountPage() {
   const [token, setToken] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [identities, setIdentities] = useState<Identity[]>([])
-  const [products, setProducts] = useState<Product[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [twoFactor, setTwoFactor] = useState<TwoFactorStatus | null>(null)
   const [setup, setSetup] = useState<TwoFactorSetup | null>(null)
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
   const [consent, setConsent] = useState<Consent | null>(null)
-  const [models, setModels] = useState<Model[]>([])
-  const [model, setModel] = useState('otya-smart')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -72,7 +67,6 @@ export default function AccountPage() {
   useEffect(() => {
     const stored = sessionStorage.getItem('otya_access_token') || ''
     setToken(stored)
-    setModel(localStorage.getItem('otya_ai_model') || 'otya-smart')
     setLocale(navigator.language || '')
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
   }, [])
@@ -88,6 +82,8 @@ export default function AccountPage() {
   function saveAuth(data: Record<string, any>) {
     sessionStorage.setItem('otya_access_token', data.access_token || '')
     sessionStorage.setItem('otya_refresh_token', data.refresh_token || '')
+    // Keep the old session key for compatibility with clients that may still
+    // read it during the transition. It is not shown as a separate AI account.
     sessionStorage.setItem('otya_ai_user', JSON.stringify(data.user || {}))
     setToken(data.access_token || '')
     setUser(data.user || null)
@@ -98,7 +94,7 @@ export default function AccountPage() {
 
   async function refreshAll(t: string) {
     await Promise.all([
-      loadAccount(t), loadTwoFactor(t), loadSessions(t), loadConsent(t), loadModels(t),
+      loadAccount(t), loadTwoFactor(t), loadSessions(t), loadConsent(t),
     ])
   }
 
@@ -111,7 +107,6 @@ export default function AccountPage() {
       const u = d.user as User
       setUser(u)
       setIdentities(d.identities || [])
-      setProducts(d.products || [])
       setEditName(u.name || '')
       setRecoveryEmail(u.recovery_email || '')
       setCountry(u.country_code || '')
@@ -142,20 +137,6 @@ export default function AccountPage() {
       const r = await fetch('/auth/consent', { headers: headers(t), cache: 'no-store' })
       const d = await r.json().catch(() => ({}))
       if (r.ok) setConsent(d.consent || null)
-    } catch {}
-  }
-
-  async function loadModels(t: string) {
-    try {
-      const r = await fetch('/api/ai/chat?models=1', { headers: headers(t), cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) return
-      const rows = d.models || []
-      setModels(rows)
-      const saved = localStorage.getItem('otya_ai_model') || d.default_model || 'otya-smart'
-      const next = rows.some((m: Model) => m.id === saved) ? saved : (d.default_model || 'otya-smart')
-      setModel(next)
-      localStorage.setItem('otya_ai_model', next)
     } catch {}
   }
 
@@ -351,15 +332,11 @@ export default function AccountPage() {
     } catch {}
   }
 
-  function chooseModel(id: string) {
-    setModel(id); localStorage.setItem('otya_ai_model', id)
-  }
-
   if (!token) return <main className="min-h-[100dvh] grid place-items-center p-4" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
     <form onSubmit={submitAuth} className="w-full max-w-md rounded-3xl border p-6 sm:p-8" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
       <div className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>OTYA</div>
       <h1 className="text-3xl font-bold mt-1">{challenge ? 'Two-step verification' : registering ? 'Create your OTYA account' : 'Sign in to OTYA'}</h1>
-      <p className="text-sm opacity-65 mt-2 mb-6">{challenge ? 'Confirm this sign-in with your authenticator or a recovery code.' : 'One account across OTYA products and services.'}</p>
+      <p className="text-sm opacity-65 mt-2 mb-6">{challenge ? 'Confirm this sign-in with your authenticator or a recovery code.' : 'Your OTYA account is for security, recovery, backup and connected features. Local playback does not require sign-in.'}</p>
       {error && <div className="mb-3 text-sm text-red-500">{error}</div>}
       {!challenge && registering && <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (optional)" autoComplete="name" className="input" />}
       <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" autoComplete="email" disabled={challenge} className="input" />
@@ -369,20 +346,20 @@ export default function AccountPage() {
       <button disabled={busy} className="cosmos-button w-full rounded-xl py-3 mt-4 font-semibold">{busy ? 'Please wait…' : challenge ? 'Verify and sign in' : registering ? 'Create OTYA account' : 'Sign in'}</button>
       {!challenge && <button type="button" onClick={() => { setRegistering(v => !v); setError('') }} className="w-full mt-3 text-sm font-semibold opacity-70">{registering ? 'Already have an account? Sign in' : 'New to OTYA? Create an account'}</button>}
       {challenge && <button type="button" onClick={() => { setChallenge(false); setSecondFactor(''); setError('') }} className="w-full mt-3 text-sm font-semibold opacity-70">Use another account</button>}
-      <div className="flex justify-center gap-4 mt-5 text-sm"><Link href="/ai">AI</Link><Link href="/docs">Docs</Link></div>
+      <div className="flex justify-center gap-4 mt-5 text-sm"><Link href="/apps/otya-player/support">Support</Link><Link href="/docs">Docs</Link></div>
       <style jsx>{`.input{width:100%;border:1px solid var(--cosmos-divider);background:transparent;border-radius:12px;padding:12px 14px;margin-bottom:12px;outline:none}`}</style>
     </form>
   </main>
 
   const telegram = identities.find(i => i.provider === 'telegram')
   return <main className="min-h-[100dvh] p-4 sm:p-6" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}><div className="max-w-6xl mx-auto">
-    <header className="flex items-start justify-between gap-4 mb-7"><div><div className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>OTYA ACCOUNT</div><h1 className="text-3xl sm:text-4xl font-bold mt-1">Your OTYA Account</h1><p className="text-sm opacity-60 mt-1">Identity, security, privacy and connected products.</p></div><button onClick={() => void signOut()} className="rounded-xl border px-4 py-2 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Sign out</button></header>
+    <header className="flex items-start justify-between gap-4 mb-7"><div><div className="text-sm font-bold" style={{ color: 'var(--cosmos-primary)' }}>OTYA ACCOUNT</div><h1 className="text-3xl sm:text-4xl font-bold mt-1">Your OTYA Account</h1><p className="text-sm opacity-60 mt-1">Identity, security, privacy and connected features.</p></div><button onClick={() => void signOut()} className="rounded-xl border px-4 py-2 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}>Sign out</button></header>
     {(error || notice) && <div className={`mb-5 rounded-xl border p-3 text-sm ${error ? 'text-red-500' : ''}`} style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>{error || notice}</div>}
 
     <div className="grid md:grid-cols-[220px_1fr] gap-5">
-      <aside className="md:sticky md:top-20 md:self-start rounded-2xl border p-2" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>{[['Home','#home'],['Personal info','#personal'],['Security','#security'],['Sessions','#sessions'],['Data & privacy','#privacy'],['Connected accounts','#connected'],['Products','#products'],['OTYA AI','#ai'],['Docs','/docs']].map(([label, href]) => <a key={label} href={href} className="block rounded-xl px-3 py-2.5 text-sm">{label}</a>)}</aside>
+      <aside className="md:sticky md:top-20 md:self-start rounded-2xl border p-2" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>{[['Home','#home'],['Personal info','#personal'],['Security','#security'],['Sessions','#sessions'],['Data & privacy','#privacy'],['Connected accounts','#connected'],['Support','#support'],['Docs','/docs']].map(([label, href]) => <a key={label} href={href} className="block rounded-xl px-3 py-2.5 text-sm">{label}</a>)}</aside>
       <div className="space-y-5">
-        <Card id="home" title={`Welcome${user?.name ? `, ${user.name}` : ''}`}><p>One identity for OTYA Player, OTYA AI and future OTYA products.</p><p className="mt-2 text-sm opacity-60">{user?.email} · Account {user?.id?.slice(0,8)}…</p></Card>
+        <Card id="home" title={`Welcome${user?.name ? `, ${user.name}` : ''}`}><p>Your account supports OTYA security, recovery, backup and connected features. Video and music on your device stay available without an account.</p><p className="mt-2 text-sm opacity-60">{user?.email} · Account {user?.id?.slice(0,8)}…</p></Card>
 
         <Card id="personal" title="Personal info"><p className="text-sm opacity-60 mb-4">Keep signup simple. Add recovery and regional preferences only when useful.</p><div className="grid sm:grid-cols-2 gap-3"><Field label="Name" value={editName} setValue={setEditName}/><Field label="Recovery email" value={recoveryEmail} setValue={setRecoveryEmail}/><Field label="Country / region" value={country} setValue={setCountry} placeholder="UG"/><Field label="Language" value={locale} setValue={setLocale} placeholder="en-UG"/><Field label="Timezone" value={timezone} setValue={setTimezone} placeholder="Africa/Kampala"/></div><button onClick={() => void saveProfile()} disabled={busy} className="cosmos-button rounded-xl px-4 py-2.5 mt-4 text-sm font-semibold">Save personal info</button></Card>
 
@@ -403,9 +380,7 @@ export default function AccountPage() {
 
         <Card id="connected" title="Connected accounts"><div className="space-y-2"><SecurityBox title="Telegram" subtitle={telegram ? `Connected${telegram.provider_username ? ` as @${telegram.provider_username}` : ''}` : 'Not connected'}><button onClick={() => void connectTelegram()} className="button mt-2">{telegram ? 'Reconnect' : 'Connect'}</button></SecurityBox><SecurityBox title="Google" subtitle="Google Sign-In remains a server-verified OTYA authentication method." /></div></Card>
 
-        <Card id="products" title="Your OTYA products"><p className="text-sm opacity-60">Products use the same account ID but keep product-private data separately scoped.</p><div className="rounded-xl border p-4 mt-3 flex justify-between" style={{borderColor:'var(--cosmos-divider)'}}><div><strong>OTYA Player</strong><div className="text-xs opacity-55">Android · offline-first media</div></div><Link href="/otya-player" className="font-semibold">View</Link></div>{products.length > 0 && <p className="text-xs opacity-50 mt-3">Recorded: {products.map(p => p.product_id).join(', ')}</p>}</Card>
-
-        <Card id="ai" title="OTYA AI"><p className="text-sm opacity-60">Standalone OTYA assistant service. Choose your signed-in model preference here.</p><select value={model} onChange={e => chooseModel(e.target.value)} className="mt-4 w-full sm:max-w-md rounded-xl border bg-transparent px-3 py-3" style={{borderColor:'var(--cosmos-divider)'}}>{models.map(m => <option key={m.id} value={m.id}>{m.name} · {m.provider}</option>)}</select><div className="mt-4"><Link href="/ai" className="cosmos-button rounded-xl px-4 py-2.5 text-sm font-semibold">Open OTYA AI</Link></div></Card>
+        <Card id="support" title="Help with OTYA"><p className="text-sm opacity-60">Ask OTYA for product help, read the guides, or contact support when a person needs to look at the issue.</p><div className="flex flex-wrap gap-3 mt-4"><Link href="/apps/otya-player/support" className="cosmos-button rounded-xl px-4 py-2.5 text-sm font-semibold">Ask OTYA</Link><Link href="/docs" className="button">Open Docs</Link><Link href="/contact" className="button">Contact support</Link></div></Card>
       </div>
     </div>
   </div><style jsx global>{`.button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--cosmos-divider);border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600}.smallInput{min-width:180px;flex:1;border:1px solid var(--cosmos-divider);background:transparent;border-radius:12px;padding:9px 12px;outline:none}`}</style></main>
