@@ -1,8 +1,10 @@
 /**
  * Server-side Resend transport for OTYA authentication emails.
  *
- * The API key must be provided as the Cloudflare Worker secret
- * RESEND_API_KEY. It must never be embedded in source or sent to clients.
+ * Cloudflare owns delivery decisions and secure values. Resend owns the
+ * presentation of known transactional messages through published templates.
+ * Unknown/legacy messages keep a safe HTML+text fallback so email delivery can
+ * never be blocked by a template rollout.
  */
 
 export interface ResendEmail {
@@ -18,6 +20,11 @@ interface ResendResponse {
   message?: string
   name?: string
   statusCode?: number
+}
+
+interface TemplateSelection {
+  id: string
+  variables: Record<string, string | number>
 }
 
 const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
@@ -52,9 +59,9 @@ function renderEmailHtml(subject: string, text: string): string {
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#07091a;padding:28px 14px">
     <tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0d1026;border:1px solid #25294b;border-radius:22px;overflow:hidden">
-        <tr><td style="padding:26px 28px;background:linear-gradient(135deg,#16c8ff 0%,#7b2cff 52%,#ff19ae 100%)">
+        <tr><td style="padding:26px 28px;background:#6d28d9">
           <div style="font-size:24px;font-weight:900;color:#ffffff;letter-spacing:.3px">OTYA</div>
-          <div style="margin-top:5px;font-size:13px;color:#f4edff">One account across OTYA products.</div>
+          <div style="margin-top:5px;font-size:13px;color:#f4edff">Your media. Your account. Your control.</div>
         </td></tr>
         <tr><td style="padding:28px">
           <h1 style="margin:0 0 22px;font-size:22px;line-height:1.3;color:#ffffff">${escapeHtml(subject)}</h1>
@@ -71,6 +78,65 @@ function renderEmailHtml(subject: string, text: string): string {
 </html>`
 }
 
+function extractOtp(text: string): string | null {
+  return text.match(/\b[A-Z][0-9]{4}\b/)?.[0] ?? null
+}
+
+function extractMinutes(text: string, fallback = 10): number {
+  const match = text.match(/expires? in\s+(\d+)\s+minutes?/i)
+  const value = match ? Number.parseInt(match[1], 10) : fallback
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function selectTemplate(email: ResendEmail): TemplateSelection | null {
+  const subject = email.subject.toLowerCase()
+  const otp = extractOtp(email.text)
+
+  if (subject.includes('verification code') && otp) {
+    return {
+      id: 'otya-verification-code',
+      variables: { CODE: otp, MINUTES: extractMinutes(email.text) },
+    }
+  }
+
+  if ((subject.includes('password') || subject.includes('reset')) && otp) {
+    return {
+      id: 'otya-password-reset',
+      variables: { CODE: otp, MINUTES: extractMinutes(email.text) },
+    }
+  }
+
+  if (subject.includes('welcome')) {
+    const name = email.text.match(/\bHi\s+([^,\n]+),/i)?.[1]?.trim() || 'there'
+    return {
+      id: 'otya-welcome',
+      variables: { NAME: name },
+    }
+  }
+
+  if (subject.includes('security') || subject.includes('new login')) {
+    const ip = email.text.match(/IP address\s*:\s*([^\n]+)/i)?.[1]?.trim()
+    const time = email.text.match(/Time\s*:\s*([^\n]+)/i)?.[1]?.trim()
+    const message = email.text
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /detected|security|login/i.test(line) && !/^hi\b/i.test(line))
+      ?? 'We detected security-related activity on your OTYA account.'
+
+    return {
+      id: 'otya-security-alert',
+      variables: {
+        MESSAGE: message,
+        DEVICE: 'OTYA app or web account',
+        LOCATION: ip ? `IP ${ip}` : 'Unknown location',
+        TIME: time || new Date().toUTCString(),
+      },
+    }
+  }
+
+  return null
+}
+
 export async function sendResendEmail(
   apiKey: string | undefined,
   email: ResendEmail,
@@ -79,20 +145,30 @@ export async function sendResendEmail(
     throw new Error('RESEND_API_KEY is not configured')
   }
 
+  const template = selectTemplate(email)
+  const payload = template
+    ? {
+        from: email.from,
+        to: email.to,
+        template,
+        reply_to: email.replyTo ?? OTYA_SUPPORT_EMAIL,
+      }
+    : {
+        from: email.from,
+        to: email.to,
+        subject: email.subject,
+        text: email.text,
+        html: renderEmailHtml(email.subject, email.text),
+        reply_to: email.replyTo ?? OTYA_SUPPORT_EMAIL,
+      }
+
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from: email.from,
-      to: email.to,
-      subject: email.subject,
-      text: email.text,
-      html: renderEmailHtml(email.subject, email.text),
-      reply_to: email.replyTo ?? OTYA_SUPPORT_EMAIL,
-    }),
+    body: JSON.stringify(payload),
   })
 
   let data: ResendResponse = {}
