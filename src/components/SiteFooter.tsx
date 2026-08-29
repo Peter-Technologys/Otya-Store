@@ -2,22 +2,100 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export function SiteFooter() {
-  return <footer className="border-t" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-app-bar)' }}>
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-      <div className="grid sm:grid-cols-[1.4fr_1fr_1fr_1fr] gap-8 mb-10">
-        <div>
-          <div className="flex items-center gap-2.5 mb-3"><Image src="/web-app-manifest-192x192.png" alt="OTYA" width={30} height={30} className="rounded-lg"/><span className="font-extrabold">OTYA</span></div>
-          <p className="text-xs leading-relaxed max-w-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Apps, AI, one shared account, support and connected services — developed by PeterSmart Link in Uganda.</p>
+  return (
+    <footer
+      className="border-t"
+      style={{
+        borderColor: 'var(--cosmos-divider)',
+        background: 'var(--cosmos-app-bar)',
+      }}
+    >
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-7">
+        <div className="grid gap-6 md:grid-cols-[1.45fr_1fr_1fr] md:items-start">
+          <div className="max-w-sm">
+            <Link href="/" className="inline-flex items-center gap-2.5">
+              <Image
+                src="/web-app-manifest-192x192.png"
+                alt="OTYA"
+                width={28}
+                height={28}
+                className="rounded-lg"
+              />
+              <span className="font-extrabold text-sm">OTYA</span>
+            </Link>
+            <p
+              className="mt-2.5 text-xs leading-relaxed"
+              style={{ color: 'var(--cosmos-text-secondary)' }}
+            >
+              Offline-first video and music for Android, with local Transfer,
+              private files, useful tools and Ask OTYA when you want help.
+            </p>
+          </div>
+
+          <FooterGroup
+            title="OTYA"
+            links={[
+              ['Product', '/otya-player'],
+              ['Download', '/download/otya-player'],
+              ['Support', '/apps/otya-player/support'],
+              ['Changelog', '/apps/otya-player/changelog'],
+            ]}
+          />
+
+          <FooterGroup
+            title="Account & legal"
+            links={[
+              ['Account', '/account'],
+              ['Docs', '/docs'],
+              ['Privacy', '/privacy'],
+              ['Terms', '/terms'],
+              ['Contact', '/contact'],
+            ]}
+          />
         </div>
-        <FooterGroup title="OTYA" links={[["Apps","/apps"],["OTYA AI","/ai"],["My Account","/account"],["Docs","/docs"]]} />
-        <FooterGroup title="OTYA Player" links={[["Product","/otya-player"],["Download","/download/otya-player"],["Changelog","/apps/otya-player/changelog"],["Support","/apps/otya-player/support"],["Security","/apps/otya-player/security"],["Privacy","/apps/otya-player/privacy"]]} />
-        <FooterGroup title="Legal & Help" links={[["Privacy","/privacy"],["Terms","/terms"],["Docs","/docs"],["Contact","/contact"]]} />
+
+        <div
+          className="mt-6 border-t pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-[11px]"
+          style={{
+            borderColor: 'var(--cosmos-divider)',
+            color: 'var(--cosmos-text-secondary)',
+          }}
+        >
+          <span>© {new Date().getFullYear()} OTYA</span>
+          <span>Developed by PeterSmart Link · Uganda 🇺🇬</span>
+        </div>
       </div>
-      <div className="border-t pt-5 flex flex-col sm:flex-row justify-between gap-2 text-xs" style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-secondary)' }}><span>© {new Date().getFullYear()} OTYA · Developed by PeterSmart Link</span><span>Built in Uganda 🇺🇬</span></div>
-    </div>
-  </footer>
+    </footer>
+  )
 }
 
-function FooterGroup({ title, links }: { title: string; links: string[][] }) {
-  return <div><p className="font-bold text-xs uppercase tracking-widest mb-3" style={{ color: 'var(--cosmos-text-secondary)' }}>{title}</p><div className="space-y-2">{links.map(([label, href]) => <Link key={href} href={href} className="block text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{label}</Link>)}</div></div>
+function FooterGroup({
+  title,
+  links,
+}: {
+  title: string
+  links: string[][]
+}) {
+  return (
+    <div>
+      <p
+        className="font-bold text-[10px] uppercase tracking-[.12em] mb-2.5"
+        style={{ color: 'var(--cosmos-text-secondary)' }}
+      >
+        {title}
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-1 gap-x-4 gap-y-1.5">
+        {links.map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="text-xs leading-5"
+            style={{ color: 'var(--cosmos-text-secondary)' }}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
 }
