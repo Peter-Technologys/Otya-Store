@@ -5,6 +5,11 @@ const JAMENDO_API = 'https://api.jamendo.com/v3.0/tracks/'
 const DEFAULT_LIMIT = 24
 const MAX_LIMIT = 50
 
+type JamendoPayload = {
+  headers?: { status?: string; code?: number; error_message?: string }
+  results?: Array<Record<string, unknown>>
+}
+
 function clampInt(value: string | null, fallback: number, min: number, max: number) {
   const parsed = Number.parseInt(value ?? '', 10)
   if (!Number.isFinite(parsed)) return fallback
@@ -13,6 +18,20 @@ function clampInt(value: string | null, fallback: number, min: number, max: numb
 
 function safeText(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -62,9 +81,16 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const payload = await response.json() as {
-    headers?: { status?: string; code?: number; error_message?: string }
-    results?: Array<Record<string, unknown>>
+  let payload: JamendoPayload
+  try {
+    const parsed = await response.json()
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid payload')
+    payload = parsed as JamendoPayload
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: 'Online music provider returned an invalid response.' },
+      { status: 502 },
+    )
   }
 
   if (payload.headers?.status && payload.headers.status !== 'success') {
@@ -74,22 +100,32 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const tracks = (payload.results ?? []).map((track) => ({
-    id: safeText(track.id),
-    title: safeText(track.name),
-    artistId: safeText(track.artist_id),
-    artist: safeText(track.artist_name),
-    albumId: safeText(track.album_id),
-    album: safeText(track.album_name),
-    artwork: safeText(track.image) || safeText(track.album_image),
-    durationSeconds: Number(track.duration ?? 0),
-    streamUrl: safeText(track.audio),
-    downloadAllowed: track.audiodownload_allowed === true,
-    downloadUrl: track.audiodownload_allowed === true ? safeText(track.audiodownload) : '',
-    shareUrl: safeText(track.shareurl),
-    licenseUrl: safeText(track.license_ccurl),
-    provider: 'jamendo',
-  })).filter((track) => track.id && track.title && track.streamUrl)
+  const results = Array.isArray(payload.results) ? payload.results : []
+  const tracks = results
+    .filter((track): track is Record<string, unknown> => Boolean(track) && typeof track === 'object' && !Array.isArray(track))
+    .map((track) => {
+      const streamUrl = safeText(track.audio)
+      const downloadAllowed = track.audiodownload_allowed === true
+      const rawDownloadUrl = downloadAllowed ? safeText(track.audiodownload) : ''
+      const downloadUrl = rawDownloadUrl && isHttpUrl(rawDownloadUrl) ? rawDownloadUrl : ''
+      return {
+        id: safeText(track.id),
+        title: safeText(track.name),
+        artistId: safeText(track.artist_id),
+        artist: safeText(track.artist_name),
+        albumId: safeText(track.album_id),
+        album: safeText(track.album_name),
+        artwork: safeText(track.image) || safeText(track.album_image),
+        durationSeconds: safeNumber(track.duration),
+        streamUrl: isHttpUrl(streamUrl) ? streamUrl : '',
+        downloadAllowed: downloadAllowed && Boolean(downloadUrl),
+        downloadUrl,
+        shareUrl: safeText(track.shareurl),
+        licenseUrl: safeText(track.license_ccurl),
+        provider: 'jamendo',
+      }
+    })
+    .filter((track) => track.id && track.title && track.streamUrl)
 
   return NextResponse.json(
     {
