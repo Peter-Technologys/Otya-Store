@@ -8,7 +8,7 @@ import {
 
 const KEY = 'app:remote-config'
 const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
-const CURRENT_REVISION = 7
+const CURRENT_REVISION = 8
 const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
 const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
@@ -76,13 +76,16 @@ const DEFAULT_CONFIG = {
     enabled: true,
     standaloneService: false,
     optionalForPlayer: true,
-    scope: 'otya-product-help',
-    greeting: 'Ask about OTYA, playback, files, transfer, account or troubleshooting.',
+    scope: 'general-assistant',
+    productContext: 'otya-aware',
+    guestPolicy: 'single-low-cost-model',
+    signedInPolicy: 'managed-model-selector',
+    greeting: 'Ask OTYA anything. It can answer general questions and has extra OTYA product context when you need help with playback, files, Transfer, Private, updates or your account.',
     suggestedPrompts: [
-      'How do I organize my music library in OTYA?',
-      'Why will a video not play in OTYA?',
-      'How does OTYA Transfer work?',
-      'How do I protect files with Private?',
+      'Explain something I am learning in simple language.',
+      'Help me think through a decision step by step.',
+      'How do I send a large video with OTYA Transfer?',
+      'Why can a video have picture but no sound?',
     ],
   },
   push: {
