@@ -31,6 +31,7 @@ jobs:
         working-directory: auth-worker
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm test
           npx tsc --noEmit
       - name: Validate AI worker
         working-directory: ai-worker
