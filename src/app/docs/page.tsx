@@ -1,38 +1,30 @@
 import Link from 'next/link'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
+import { OtyaAssistPrompt } from '@/components/OtyaAssistPrompt'
 
 export const metadata = {
   title: 'Docs | OTYA',
-  description: 'Official OTYA documentation for products, account, security, privacy, support and releases.',
+  description: 'Official OTYA help for playback, account, security, privacy, support and releases.',
   alternates: { canonical: 'https://petersmartlink.com/docs' },
 }
 
 const groups = [
   {
+    title: 'Using OTYA',
+    items: [
+      ['OTYA overview','See the main app features and how they fit together.','/otya-player'],
+      ['Support & FAQ','Fix common playback, permission, transfer and library problems.','/apps/otya-player/support'],
+      ['Download & updates','Get the latest Android build and release information.','/download/otya-player'],
+      ['Security','Read OTYA security guidance.','/apps/otya-player/security'],
+    ],
+  },
+  {
     title: 'Account',
     items: [
-      ['OTYA Account','Identity, profile, recovery, sessions and connected accounts.','/account'],
-      ['Security','Verification, account safety and security reporting.','/apps/otya-player/security'],
+      ['My account','Profile, recovery, sessions, backup and connected identities.','/account'],
       ['Privacy','How OTYA handles account and service information.','/privacy'],
-      ['Terms','Terms for OTYA accounts and connected services.','/terms'],
-    ],
-  },
-  {
-    title: 'OTYA Player',
-    items: [
-      ['Player overview','Product information and capabilities.','/otya-player'],
-      ['Support & FAQ','Troubleshooting and support contact.','/apps/otya-player/support'],
-      ['Release & download','Current version, download and release information.','/download/otya-player'],
-      ['Player privacy','Product-specific privacy information.','/apps/otya-player/privacy'],
-      ['Player terms','Product-specific terms.','/apps/otya-player/terms'],
-    ],
-  },
-  {
-    title: 'OTYA AI',
-    items: [
-      ['Open OTYA AI','General assistant and OTYA-aware support.','/ai'],
-      ['AI account settings','Models, account security and saved conversation access.','/account#ai'],
+      ['Terms','Terms for using OTYA and connected services.','/terms'],
     ],
   },
 ]
@@ -42,17 +34,19 @@ export default function DocsPage(){
     <SiteNav />
     <main className="flex-1">
       <div className="otya-shell py-12 sm:py-16">
-        <header className="max-w-2xl mb-10">
-          <div className="otya-kicker mb-3">Documentation</div>
+        <header className="max-w-2xl mb-7">
+          <div className="otya-kicker mb-3">Help</div>
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-.04em]">OTYA Docs</h1>
-          <p className="mt-3 text-sm sm:text-[15px] otya-muted">Official product, account, security, legal and support information.</p>
+          <p className="mt-3 text-sm sm:text-[15px] otya-muted">Find simple help for OTYA. You can also ask a question below.</p>
         </header>
+
+        <div className="mb-10"><OtyaAssistPrompt /></div>
 
         <div className="grid lg:grid-cols-[180px_1fr] gap-8 lg:gap-12">
           <aside className="hidden lg:block text-sm">
             <nav className="sticky top-20 space-y-1">
               {groups.map(group=><a key={group.title} href={`#${group.title.toLowerCase().replaceAll(' ','-')}`} className="block py-1.5 otya-muted">{group.title}</a>)}
-              <a href="#data" className="block py-1.5 otya-muted">Data requests</a>
+              <a href="#data" className="block py-1.5 otya-muted">My data</a>
             </nav>
           </aside>
 
@@ -69,8 +63,8 @@ export default function DocsPage(){
             </section>)}
 
             <section id="data" className="scroll-mt-24 border-t pt-8" style={{borderColor:'var(--cosmos-divider)'}}>
-              <h2 className="text-base font-semibold">Account data requests</h2>
-              <p className="text-sm otya-muted mt-2 max-w-xl">Private exports, deletion records and account-specific documents are released only after identity verification.</p>
+              <h2 className="text-base font-semibold">My account data</h2>
+              <p className="text-sm otya-muted mt-2 max-w-xl">Private exports and account-specific records are released only after identity checks.</p>
               <div className="mt-4 flex flex-wrap gap-4 text-sm font-medium">
                 <a href="mailto:support@petersmartlink.com?subject=OTYA%20Account%20Data%20Request">Request my data →</a>
                 <Link href="/account">Manage account →</Link>
