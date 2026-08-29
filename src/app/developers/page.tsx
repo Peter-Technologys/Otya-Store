@@ -26,7 +26,7 @@ export default function DevelopersPage() {
         <div className="otya-shell py-16 sm:py-24 max-w-5xl">
           <div className="otya-kicker mb-4">OTYA Developers</div>
           <h1 className="text-4xl sm:text-6xl font-black tracking-[-.05em] leading-[.98]">Build on OTYA.<br/>Not inside our private infrastructure.</h1>
-          <p className="mt-6 max-w-3xl text-base sm:text-lg leading-relaxed otya-muted">OTYA's developer platform is being designed around explicit permissions, app isolation and stable public contracts. Developers will integrate through OTYA-controlled APIs and SDKs—not Cloudflare secrets, D1/KV/R2 credentials, Firebase Admin keys or administrator access.</p>
+          <p className="mt-6 max-w-3xl text-base sm:text-lg leading-relaxed otya-muted">OTYA&apos;s developer platform is being designed around explicit permissions, app isolation and stable public contracts. Developers will integrate through OTYA-controlled APIs and SDKs—not Cloudflare secrets, D1/KV/R2 credentials, Firebase Admin keys or administrator access.</p>
           <div className="mt-7 inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: 'var(--cosmos-divider)' }}>Platform groundwork · not required for OTYA Player 1.0</div>
         </div>
       </section>
