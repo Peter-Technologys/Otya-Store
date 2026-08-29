@@ -8,7 +8,7 @@ import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
   title: 'OTYA',
-  description: 'OTYA is an offline-first Android media experience for video and music, with local transfer, private files, useful tools and optional intelligent help.',
+  description: 'OTYA is an offline-first Android media experience for video and music, with local transfer, private files, useful tools and Ask OTYA when you want intelligent help.',
   alternates: { canonical: 'https://petersmartlink.com' },
 }
 
@@ -30,8 +30,8 @@ export default async function HomePage() {
         <div className="otya-shell py-16 sm:py-24 grid lg:grid-cols-[.9fr_1.1fr] gap-10 lg:gap-16 items-center">
           <div>
             <div className="otya-kicker mb-5">OTYA · by PeterSmart Link</div>
-            <h1 className="text-5xl sm:text-7xl font-black tracking-[-.055em] leading-[.95]">Play it.<br/>Move it.<br/>Find it.</h1>
-            <p className="mt-6 max-w-xl text-base sm:text-lg leading-relaxed otya-muted">One offline-first media app for the videos and music already on your phone—with transfer, privacy, useful tools and intelligent search woven into the same experience.</p>
+            <h1 className="text-5xl sm:text-7xl font-black tracking-[-.055em] leading-[.95]">Play it.<br/>Move it.<br/>Ask it.</h1>
+            <p className="mt-6 max-w-xl text-base sm:text-lg leading-relaxed otya-muted">One offline-first media app for the videos and music already on your phone—with local Transfer, privacy, useful tools and a friendly assistant when you want one.</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/otya-player" className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold">Explore OTYA</Link>
               <Link href="/download/otya-player" className="otya-quiet-button rounded-xl px-5 py-3 text-sm font-bold">Download</Link>
@@ -54,9 +54,9 @@ export default async function HomePage() {
 
       <section className="border-y" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }}>
         <div className="otya-shell py-14 sm:py-18 grid md:grid-cols-[.72fr_1.28fr] gap-8 md:gap-14">
-          <div><div className="otya-kicker mb-2">Intelligence</div><h2 className="otya-section-title">AI where it helps, not another app.</h2></div>
+          <div><div className="otya-kicker mb-2">Ask OTYA</div><h2 className="otya-section-title">A useful assistant, not a playback dependency.</h2></div>
           <div>
-            <p className="otya-muted max-w-2xl">OTYA searches your device first. When online, intelligent answers can appear inside Search and Support, with longer follow-up only when you ask for it. Core playback never depends on AI or sign-in.</p>
+            <p className="otya-muted max-w-2xl">Ask general questions or get OTYA-specific help when you are online. Signed-in users can choose from supported Cloudflare AI models, while guests use a lighter model. Your local library, Search, Video and Music keep working even if AI or the internet is unavailable.</p>
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium"><Link href="/apps/otya-player/support">Help & support →</Link><Link href="/account">Account →</Link></div>
           </div>
         </div>
