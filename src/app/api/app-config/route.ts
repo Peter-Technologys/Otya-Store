@@ -8,7 +8,7 @@ import {
 
 const KEY = 'app:remote-config'
 const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
-const CURRENT_REVISION = 8
+const CURRENT_REVISION = 9
 const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
 const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
     equalizer: true,
     whatsappTrimmer: true,
     converter: true,
+    onlineMusic: true,
     onlineThemes: true,
     googleSignIn: true,
     firebaseIdentity: true,
@@ -56,7 +57,7 @@ const DEFAULT_CONFIG = {
       enabled: true,
       title: 'Your media. Your way.',
       subtitle: 'Private, fast and built for everyday playback.',
-      action: '/myspace',
+      action: '/music',
     },
     sectionOrder: ['continue', 'recent', 'featured', 'tools'],
     banners: [],
@@ -70,7 +71,7 @@ const DEFAULT_CONFIG = {
     terms: 'https://petersmartlink.com/terms',
     docs: 'https://petersmartlink.com/docs',
     account: 'https://petersmartlink.com/account',
-    ai: 'https://petersmartlink.com/apps/otya-player/support',
+    ai: 'https://petersmartlink.com/ask',
   },
   ai: {
     enabled: true,
@@ -80,7 +81,7 @@ const DEFAULT_CONFIG = {
     productContext: 'otya-aware',
     guestPolicy: 'single-low-cost-model',
     signedInPolicy: 'managed-model-selector',
-    greeting: 'Ask OTYA anything. It can answer general questions and has extra OTYA product context when you need help with playback, files, Transfer, Private, updates or your account.',
+    greeting: 'Ask OTYA anything. It can answer general questions and has extra OTYA product context when you need help with playback, files, Transfer, Private, online music, updates or your account.',
     suggestedPrompts: [
       'Explain something I am learning in simple language.',
       'Help me think through a decision step by step.',
@@ -110,8 +111,8 @@ const DEFAULT_CONFIG = {
   },
   search: {
     suggestions: [],
-    categories: ['video', 'music', 'folders', 'playlists', 'files', 'help'],
-    providerPriority: ['local', 'help'],
+    categories: ['video', 'music', 'folders', 'playlists', 'files', 'help', 'online-music'],
+    providerPriority: ['local', 'help', 'online'],
     timeoutSeconds: 6,
   },
   experiments: {
@@ -170,6 +171,7 @@ function migrateConfig(stored: unknown): ConfigRecord {
     equalizer: oldFeatures.equalizer ?? true,
     whatsappTrimmer: oldFeatures.whatsappTrimmer ?? oldFeatures.trimmer ?? true,
     converter: oldFeatures.converter ?? true,
+    onlineMusic: oldFeatures.onlineMusic ?? true,
     onlineThemes: oldFeatures.onlineThemes ?? true,
     googleSignIn: oldFeatures.googleSignIn ?? true,
     firebaseIdentity,
@@ -219,7 +221,7 @@ function migrateConfig(stored: unknown): ConfigRecord {
     search: {
       ...DEFAULT_CONFIG.search,
       ...asRecord(source.search),
-      providerPriority: ['local', 'help'],
+      providerPriority: ['local', 'help', 'online'],
     },
     experiments: { ...DEFAULT_CONFIG.experiments, ...asRecord(source.experiments) },
     regions: { ...DEFAULT_CONFIG.regions, ...asRecord(source.regions) },
@@ -262,11 +264,15 @@ async function loadFirebaseClientLayer(
       fetchedAtMs: Date.now(),
     }
     if (kv?.put) {
-      kv.put(
-        FIREBASE_CACHE_KEY,
-        JSON.stringify(fresh),
-        { expirationTtl: FIREBASE_CACHE_TTL_SECS },
-      ).catch(() => {})
+      try {
+        await kv.put(
+          FIREBASE_CACHE_KEY,
+          JSON.stringify(fresh),
+          { expirationTtl: FIREBASE_CACHE_TTL_SECS },
+        )
+      } catch {
+        // Cache persistence is optional; the fresh response is still usable.
+      }
     }
     return fresh
   } catch (error) {
@@ -289,8 +295,11 @@ export async function GET() {
         config = migrated
         const oldRevision = Number(asRecord(stored).revision ?? 0)
         if (oldRevision < CURRENT_REVISION && kv.put) {
-          // Best effort only. Remote config must never block OTYA startup.
-          kv.put(KEY, JSON.stringify(migrated)).catch(() => {})
+          try {
+            await kv.put(KEY, JSON.stringify(migrated))
+          } catch {
+            // Migration persistence is best-effort; serving config must continue.
+          }
         }
       }
     } catch {
