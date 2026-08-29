@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 const JAMENDO_API = 'https://api.jamendo.com/v3.0/tracks/'
 const DEFAULT_LIMIT = 24
@@ -15,7 +16,8 @@ function safeText(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const clientId = process.env.JAMENDO_CLIENT_ID?.trim()
+  const { env } = await getCloudflareContext({ async: true })
+  const clientId = String((env as Record<string, unknown>).JAMENDO_CLIENT_ID ?? '').trim()
   if (!clientId) {
     return NextResponse.json(
       { ok: false, error: 'Online music is not configured.' },
