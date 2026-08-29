@@ -8,6 +8,7 @@ const CLIENT_FEATURE_KEYS = new Set([
   'trimmer',
   'whatsappTrimmer',
   'converter',
+  'onlineMusic',
   'onlineThemes',
   'googleSignIn',
   'driveBackup',
