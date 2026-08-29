@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { mergeFirebaseOwnedClientConfig } from '@/lib/client_config'
+import {
+  extractOtyaClientConfig,
+  getFirebaseRemoteConfigTemplate,
+} from '@/lib/firebase_remote_config'
 
 const KEY = 'app:remote-config'
-const CURRENT_REVISION = 5
+const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
+const CURRENT_REVISION = 6
+const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
+const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
 const DEFAULT_CONFIG = {
   schemaVersion: 1,
@@ -33,6 +41,7 @@ const DEFAULT_CONFIG = {
     converter: true,
     onlineThemes: true,
     googleSignIn: true,
+    firebaseIdentity: true,
     firebaseAuth: true,
     driveBackup: true,
     feedback: true,
@@ -112,6 +121,16 @@ const DEFAULT_CONFIG = {
 }
 
 type ConfigRecord = Record<string, unknown>
+type FirebaseCache = {
+  config: Record<string, unknown> | null
+  revision: number | null
+  fetchedAtMs: number
+}
+
+type KvLike = {
+  get(key: string, type?: 'json'): Promise<unknown>
+  put?(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
+}
 
 function asRecord(value: unknown): ConfigRecord {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -125,18 +144,22 @@ function migrateConfig(stored: unknown): ConfigRecord {
   if (revision >= CURRENT_REVISION) return source
 
   const oldFeatures = asRecord(source.features)
+  const transfer = oldFeatures.transfer ?? oldFeatures.beam ?? true
+  const privateFeature = oldFeatures.private ?? oldFeatures.safe ?? true
+  const firebaseIdentity = oldFeatures.firebaseIdentity ?? oldFeatures.firebaseAuth ?? true
   const features = {
     ...DEFAULT_CONFIG.features,
-    transfer: oldFeatures.transfer ?? oldFeatures.beam ?? true,
-    private: oldFeatures.private ?? oldFeatures.safe ?? true,
-    beam: oldFeatures.transfer ?? oldFeatures.beam ?? true,
-    safe: oldFeatures.private ?? oldFeatures.safe ?? true,
+    transfer,
+    private: privateFeature,
+    beam: transfer,
+    safe: privateFeature,
     equalizer: oldFeatures.equalizer ?? true,
     whatsappTrimmer: oldFeatures.whatsappTrimmer ?? oldFeatures.trimmer ?? true,
     converter: oldFeatures.converter ?? true,
     onlineThemes: oldFeatures.onlineThemes ?? true,
     googleSignIn: oldFeatures.googleSignIn ?? true,
-    firebaseAuth: oldFeatures.firebaseAuth ?? true,
+    firebaseIdentity,
+    firebaseAuth: firebaseIdentity,
     driveBackup: oldFeatures.driveBackup ?? true,
     feedback: oldFeatures.feedback ?? true,
     aiAssistant: oldFeatures.aiAssistant ?? true,
@@ -144,13 +167,22 @@ function migrateConfig(stored: unknown): ConfigRecord {
   }
 
   const links = { ...DEFAULT_CONFIG.links, ...asRecord(source.links), ai: DEFAULT_CONFIG.links.ai }
-  const push = { ...DEFAULT_CONFIG.push, ...asRecord(source.push), provider: 'fcm', optionalForPlayback: true }
+  const push = {
+    ...DEFAULT_CONFIG.push,
+    ...asRecord(source.push),
+    provider: 'fcm',
+    optionalForPlayback: true,
+  }
 
   return {
     ...DEFAULT_CONFIG,
     ...source,
     revision: CURRENT_REVISION,
-    maintenance: { ...DEFAULT_CONFIG.maintenance, ...asRecord(source.maintenance), allowOfflinePlayback: true },
+    maintenance: {
+      ...DEFAULT_CONFIG.maintenance,
+      ...asRecord(source.maintenance),
+      allowOfflinePlayback: true,
+    },
     versions: { ...DEFAULT_CONFIG.versions, ...asRecord(source.versions) },
     features,
     home: { ...DEFAULT_CONFIG.home, ...asRecord(source.home) },
@@ -158,19 +190,69 @@ function migrateConfig(stored: unknown): ConfigRecord {
     ai: DEFAULT_CONFIG.ai,
     push,
     auth: DEFAULT_CONFIG.auth,
-    search: { ...DEFAULT_CONFIG.search, ...asRecord(source.search), providerPriority: ['local', 'help'] },
+    search: {
+      ...DEFAULT_CONFIG.search,
+      ...asRecord(source.search),
+      providerPriority: ['local', 'help'],
+    },
     experiments: { ...DEFAULT_CONFIG.experiments, ...asRecord(source.experiments) },
     regions: { ...DEFAULT_CONFIG.regions, ...asRecord(source.regions) },
     runtime: { ...DEFAULT_CONFIG.runtime, ...asRecord(source.runtime) },
   }
 }
 
+function validFirebaseCache(value: unknown): FirebaseCache | null {
+  const record = asRecord(value)
+  if (typeof record.fetchedAtMs !== 'number') return null
+  const config = record.config
+  return {
+    config: config && typeof config === 'object' && !Array.isArray(config)
+      ? config as Record<string, unknown>
+      : null,
+    revision: typeof record.revision === 'number' ? record.revision : null,
+    fetchedAtMs: record.fetchedAtMs,
+  }
+}
+
+async function loadFirebaseClientLayer(
+  env: Record<string, unknown>,
+  kv: KvLike | undefined,
+): Promise<FirebaseCache | null> {
+  const cached = kv ? validFirebaseCache(await kv.get(FIREBASE_CACHE_KEY, 'json')) : null
+  if (cached && Date.now() - cached.fetchedAtMs < FIREBASE_CACHE_FRESH_MS) return cached
+
+  const serviceAccountJson = env.FCM_SERVICE_ACCOUNT_JSON as string | undefined
+  if (!serviceAccountJson) return cached
+
+  try {
+    const remote = await getFirebaseRemoteConfigTemplate(
+      serviceAccountJson,
+      env.FIREBASE_PROJECT_ID as string | undefined,
+    )
+    const extracted = extractOtyaClientConfig(remote.template)
+    const fresh: FirebaseCache = {
+      config: extracted.config,
+      revision: extracted.revision,
+      fetchedAtMs: Date.now(),
+    }
+    if (kv?.put) {
+      kv.put(
+        FIREBASE_CACHE_KEY,
+        JSON.stringify(fresh),
+        { expirationTtl: FIREBASE_CACHE_TTL_SECS },
+      ).catch(() => {})
+    }
+    return fresh
+  } catch (error) {
+    console.error('[app-config] Firebase Remote Config fetch failed:', (error as Error)?.message)
+    return cached
+  }
+}
+
 export async function GET() {
   const { env } = await getCloudflareContext({ async: true })
-  const kv = (env as Record<string, unknown>).KV as {
-    get(key: string, type?: 'json'): Promise<unknown>
-    put?(key: string, value: string): Promise<void>
-  } | undefined
+  const recordEnv = env as Record<string, unknown>
+  const kv = recordEnv.KV as KvLike | undefined
   let config: ConfigRecord = DEFAULT_CONFIG
 
   if (kv) {
@@ -190,8 +272,28 @@ export async function GET() {
     }
   }
 
+  const cloudflareRevision = Number(config.revision ?? CURRENT_REVISION)
+  const firebaseLayer = await loadFirebaseClientLayer(recordEnv, kv)
+  const useFirebase = Boolean(
+    firebaseLayer?.config
+    && firebaseLayer.revision !== null
+    && firebaseLayer.revision >= cloudflareRevision,
+  )
+
+  if (useFirebase && firebaseLayer?.config) {
+    config = mergeFirebaseOwnedClientConfig(config, firebaseLayer.config)
+  }
+
   return NextResponse.json(
-    { ok: true, config, fetchedAt: new Date().toISOString() },
+    {
+      ok: true,
+      config,
+      source: {
+        safety: 'cloudflare',
+        clientConfig: useFirebase ? 'firebase-remote-config' : 'cloudflare-fallback',
+      },
+      fetchedAt: new Date().toISOString(),
+    },
     {
       headers: {
         'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600',
