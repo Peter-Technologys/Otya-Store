@@ -28,31 +28,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forbidden='(^|/)(\.env($|\.)|key\.properties$|keystore\.jks$|.*\.(jks|keystore|p12|pfx|pem|key)$)'
-          ! git ls-files | grep -E "$forbidden" || { echo '::error::Potential secret/signing material is tracked.'; exit 1; }
-      - name: Block private keys and Telegram bot tokens
+          tracked="$(git ls-files)"
+          if printf '%s\n' "$tracked" | grep -E '(^|/)(\.env($|\.)|\.dev\.vars$|key\.properties$|keystore\.jks$|.*\.(jks|keystore|p12|pfx|pem|key)$|.*firebase-adminsdk.*\.json$|service-account.*\.json$)' | grep -Ev '(^|/)\.env\.example$'; then
+            echo '::error::Potential secret/signing material is tracked.'
+            exit 1
+          fi
+      - name: Block private keys and provider tokens
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E -- '^-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----$' -- ':!*.md'; then exit 1; fi
+          if git grep -n -I -E -- '^-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----$' -- ':!*.md'; then
+            echo '::error::Private key material is committed.'
+            exit 1
+          fi
           if git grep -n -I -E -- '[0-9]{8,12}:[A-Za-z0-9_-]{25,}' -- ':!*.md'; then
-            echo '::error::Possible Telegram bot token committed to source.'; exit 1
+            echo '::error::Possible Telegram bot token committed to source.'
+            exit 1
+          fi
+          if git grep -n -I -E -- '\bre_[A-Za-z0-9_-]{20,}\b' -- ':!*.md'; then
+            echo '::error::Possible Resend API key committed to source.'
+            exit 1
           fi
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Validate web/backend
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm run validate:config
+          npm test
           npm run typecheck
       - name: Validate auth worker
         working-directory: auth-worker
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm test
           npx tsc --noEmit
       - name: Validate AI worker
         working-directory: ai-worker
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm test
           npm run check
 
   dependency-review:
