@@ -34,6 +34,7 @@ jobs:
         working-directory: ai-worker
         run: |
           npm install --no-package-lock --ignore-scripts
+          npm test
           npm run check
 
   deploy-auth:
