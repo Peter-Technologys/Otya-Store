@@ -1,28 +1,67 @@
 import { appendMessage, getOrCreateConversation, hashIdentity, listConversations, newConversation, readConversation } from './conversations.mjs'
 
 const TELEGRAM_API='https://api.telegram.org'
-const GUEST_MODEL='llama-fast'
-const SIGNED_DEFAULT='otya-smart'
+const FALLBACK_GUEST_MODEL='llama-fast'
+const FALLBACK_SIGNED_DEFAULT='otya-smart'
 const MODELS={
-  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast answers for everyday questions.',freePlanSafe:true},
-  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Balanced general assistant with strong multilingual and tool-use ability.',freePlanSafe:true},
-  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large general-purpose model for detailed answers.',freePlanSafe:true},
-  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',description:'Reasoning model for harder questions.',freePlanSafe:true},
-  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',description:'Large reasoning model for complex questions.',freePlanSafe:true},
-  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Modern multilingual reasoning model.',freePlanSafe:true},
-  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',description:'Strong reasoning and agentic model.',freePlanSafe:true},
-  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',description:'Modern multimodal-capable general assistant model.',freePlanSafe:true},
-  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',description:'Multilingual reasoning and instruction following.',freePlanSafe:true},
-  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact fast model for everyday questions.',freePlanSafe:true},
-  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',description:'Regional multilingual model for Southeast Asian languages.',freePlanSafe:true},
+  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast answers for everyday questions.',costClass:'low'},
+  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Balanced general assistant with strong multilingual ability.',costClass:'low'},
+  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Modern multilingual general assistant.',costClass:'medium'},
+  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact fallback model for everyday questions.',costClass:'low'},
+  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large general-purpose model for detailed answers.',costClass:'high'},
+  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',description:'Reasoning model for harder questions.',costClass:'high'},
+  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',description:'Large reasoning model for complex questions.',costClass:'high'},
+  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',description:'Strong reasoning and agentic model.',costClass:'high'},
+  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',description:'Modern general assistant model.',costClass:'medium'},
+  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',description:'Multilingual reasoning and instruction following.',costClass:'high'},
+  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',description:'Regional multilingual model.',costClass:'medium'},
 }
 
 const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
 const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
-const publicModels=()=>Object.entries(MODELS).map(([id,m])=>({id,name:m.name,provider:m.provider,tier:m.tier,description:m.description,guest:id===GUEST_MODEL,free_plan_safe:m.freePlanSafe===true}))
-function resolveModel(requested,signedIn){if(!signedIn)return{id:GUEST_MODEL,...MODELS[GUEST_MODEL]};const id=MODELS[requested]?requested:SIGNED_DEFAULT;return{id,...MODELS[id]}}
-async function runAi(env,messages,selection){if(!env.AI?.run)throw new Error('AI unavailable');return clean(aiText(await env.AI.run(selection.model,{messages})),9000)}
+const parseIds=v=>String(v??'').split(',').map(x=>clean(x,60)).filter(Boolean)
+
+function configuredPolicy(env){
+  const configured=parseIds(env.AI_PUBLIC_MODELS)
+  const allowed=configured.length?configured.filter(id=>MODELS[id]):['llama-fast','otya-smart','gemma-4','granite']
+  const safeAllowed=allowed.length?allowed:['llama-fast','otya-smart','granite']
+  const requestedGuest=clean(env.AI_GUEST_MODEL,60)
+  const requestedDefault=clean(env.AI_DEFAULT_MODEL,60)
+  const guest=safeAllowed.includes(requestedGuest)?requestedGuest:(safeAllowed.includes(FALLBACK_GUEST_MODEL)?FALLBACK_GUEST_MODEL:safeAllowed[0])
+  const signedDefault=safeAllowed.includes(requestedDefault)?requestedDefault:(safeAllowed.includes(FALLBACK_SIGNED_DEFAULT)?FALLBACK_SIGNED_DEFAULT:guest)
+  return{allowed:safeAllowed,guest,signedDefault}
+}
+function publicModels(env){
+  const policy=configuredPolicy(env)
+  return policy.allowed.map(id=>({id,name:MODELS[id].name,provider:MODELS[id].provider,tier:MODELS[id].tier,description:MODELS[id].description,guest:id===policy.guest,cost_class:MODELS[id].costClass,availability:'managed'}))
+}
+function resolveModel(env,requested,signedIn){
+  const policy=configuredPolicy(env)
+  if(!signedIn){const id=policy.guest;return{id,...MODELS[id]}}
+  const id=policy.allowed.includes(requested)?requested:policy.signedDefault
+  return{id,...MODELS[id]}
+}
+function fallbackSelections(env,selection){
+  const policy=configuredPolicy(env)
+  const ids=[selection.id,policy.signedDefault,policy.guest,'granite','llama-fast'].filter((id,index,all)=>MODELS[id]&&policy.allowed.includes(id)&&all.indexOf(id)===index)
+  return ids.map(id=>({id,...MODELS[id]}))
+}
+async function runAi(env,messages,selection){
+  if(!env.AI?.run)throw new Error('AI unavailable')
+  let lastError=null
+  for(const candidate of fallbackSelections(env,selection)){
+    try{
+      const answer=clean(aiText(await env.AI.run(candidate.model,{messages})),9000)
+      if(answer)return{answer,selection:candidate,fallback:candidate.id!==selection.id}
+      lastError=new Error(`Empty response from ${candidate.id}`)
+    }catch(e){
+      lastError=e
+      console.warn('[public-ai-model-fallback]',candidate.id,e?.message)
+    }
+  }
+  throw lastError||new Error('AI unavailable')
+}
 
 async function publicOtyaContext(env){
   const base=(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')
@@ -93,14 +132,14 @@ async function persistentReply(env,{userId,message,channel,conversationId,select
   const previous=await readConversation(env,{ownerType:'client',ownerKey,conversationId:conv.id,limit:22})
   const history=(previous?.messages||[]).map(x=>({role:x.role,content:clean(x.content,3500)}))
   await appendMessage(env,{conversationId:conv.id,role:'user',content:message,channel})
-  const raw=await runAi(env,[{role:'system',content:await system(env)},...history,{role:'user',content:clean(message,3000)}],selection)
-  const result=handoffResult(raw)
+  const generated=await runAi(env,[{role:'system',content:await system(env)},...history,{role:'user',content:clean(message,3000)}],selection)
+  const result=handoffResult(generated.answer)
   await appendMessage(env,{conversationId:conv.id,role:'assistant',content:result.answer,channel})
-  return{conversation_id:conv.id,...result,persisted:true,model:selection.id,model_name:selection.name}
+  return{conversation_id:conv.id,...result,persisted:true,model:generated.selection.id,model_name:generated.selection.name,model_fallback:generated.fallback}
 }
 async function temporaryReply(env,{message,history=[],selection}){
-  const raw=await runAi(env,[{role:'system',content:await system(env)},...historyFrom(history),{role:'user',content:clean(message,3000)}],selection)
-  return{...handoffResult(raw),persisted:false,model:selection.id,model_name:selection.name}
+  const generated=await runAi(env,[{role:'system',content:await system(env)},...historyFrom(history),{role:'user',content:clean(message,3000)}],selection)
+  return{...handoffResult(generated.answer),persisted:false,model:generated.selection.id,model_name:generated.selection.name,model_fallback:generated.fallback}
 }
 
 async function sendAdminHandoff(env,{message,email,name,source,userId}){
@@ -151,7 +190,7 @@ export async function handleSharedTelegram(request,env){
   if(!chatId||m?.chat?.type!=='private'||!text)return json({ok:true})
   const key=await hashIdentity(env,`telegram:${sender}`)
   if(!(await rate(env,key,45,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'Too many messages at once. Please wait a moment.'});return json({ok:true,rate_limited:true})}
-  const selection=resolveModel(null,false)
+  const selection=resolveModel(env,null,false)
   let answer
   if(text==='/start')answer='Welcome to Ask OTYA. Ask me a general question or ask about OTYA Player, playback, files, Transfer, account, updates and troubleshooting.'
   else if(text==='/download')answer=`Official OTYA download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
@@ -171,10 +210,14 @@ export async function handlePublicChat(request,env){
   const userId=clean(request.headers.get('X-OTYA-User-ID'),120)
   const signedIn=request.headers.get('X-OTYA-Persist-Chat')==='1'&&Boolean(userId)
   const ownerKey=signedIn?await hashIdentity(env,`user:${userId}`):null
+  const policy=configuredPolicy(env)
 
   if(request.method==='GET'){
     if(url.searchParams.get('quota')==='1')return json({ok:true,signed_in:signedIn,quota:unlimitedStatus()})
-    if(url.searchParams.get('models')==='1')return json({ok:true,signed_in:signedIn,guest_model:GUEST_MODEL,default_model:SIGNED_DEFAULT,models:signedIn?publicModels():publicModels().filter(m=>m.id===GUEST_MODEL),quota:unlimitedStatus()})
+    if(url.searchParams.get('models')==='1'){
+      const models=publicModels(env)
+      return json({ok:true,signed_in:signedIn,guest_model:policy.guest,default_model:policy.signedDefault,models:signedIn?models:models.filter(m=>m.id===policy.guest),quota:unlimitedStatus(),catalog:'managed'})
+    }
     if(!signedIn)return json({error:'Sign in to load saved conversations'},401)
     if(url.searchParams.get('list')==='1')return json({ok:true,conversations:await listConversations(env,{ownerType:'client',ownerKey,limit:40})})
     const id=clean(url.searchParams.get('conversation_id'),80)
@@ -203,7 +246,7 @@ export async function handlePublicChat(request,env){
   const rateKey=await hashIdentity(env,`${rateIdentity}:${ip}`)
   if(!(await rate(env,rateKey,signedIn?60:45,60)))return json({error:'Too many messages at once. Please wait a moment.',code:'AI_RATE_LIMIT'},429)
 
-  const selection=resolveModel(clean(body.model,60),signedIn)
+  const selection=resolveModel(env,clean(body.model,60),signedIn)
   if(!(await modelRate(env,rateKey,selection)))return json({error:'This model is receiving too many requests at once. Please wait a moment.',code:'AI_RATE_LIMIT'},429)
 
   try{
