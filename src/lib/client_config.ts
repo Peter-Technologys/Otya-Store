@@ -16,6 +16,9 @@ const CLIENT_FEATURE_KEYS = new Set([
   'aiAssistant',
   'firebaseIdentity',
   'firebaseAuth',
+  'firebaseAppCheck',
+  'firebaseAnalytics',
+  'firebasePerformance',
 ])
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -36,7 +39,7 @@ function pickFeatures(value: unknown): Record<string, unknown> {
 /**
  * Firebase Remote Config owns only client presentation/experiment settings.
  * It never owns maintenance, minimum versions, backend runtime, secrets,
- * authentication policy, or push infrastructure.
+ * authentication policy, App Check enforcement, or push infrastructure.
  */
 export function extractFirebaseOwnedClientConfig(
   fullConfig: Record<string, unknown>,
