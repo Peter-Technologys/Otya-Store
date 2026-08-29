@@ -1,7 +1,7 @@
 /**
  * OTYA Auth production entrypoint.
  *
- * Production wrapper for Resend, Google verification, Telegram account linking,
+ * Production wrapper for Resend, Google/Firebase verification, Telegram account linking,
  * account profile controls, phone verification, two-step verification, session
  * controls, Drive backup and explicit legal/marketing consent.
  */
@@ -11,6 +11,7 @@ import { handleBackupRoute } from './backup_route'
 import { handleTelegramLogin } from './telegram-login'
 import { handleAccountProfile } from './account-profile'
 import { handlePhoneVerification } from './phone-verification'
+import { handleFirebaseLogin } from './firebase-auth'
 import {
   handleSessionRoute,
   recordSessionFromAuthResponse,
@@ -63,6 +64,8 @@ interface D1Database {
 interface ResendEnv extends Record<string, unknown> {
   RESEND_API_KEY?: string
   GOOGLE_CLIENT_ID?: string
+  FIREBASE_API_KEY?: string
+  FIREBASE_PROJECT_ID?: string
   TELEGRAM_LOGIN_CLIENT_ID?: string
   TELEGRAM_LOGIN_CLIENT_SECRET?: string
   TELEGRAM_LOGIN_REDIRECT_URI?: string
@@ -301,6 +304,16 @@ export default {
     if (url.pathname === '/auth/backup' && request.method !== 'OPTIONS') {
       const backupResponse = await handleBackupRoute(request, env)
       if (backupResponse) return backupResponse
+    }
+
+    if (url.pathname === '/auth/firebase') {
+      const firebaseResponse = await handleFirebaseLogin(request, env)
+      if (firebaseResponse) {
+        if (firebaseResponse.ok && request.method === 'POST') {
+          await recordSessionFromAuthResponse(request, firebaseResponse, env)
+        }
+        return firebaseResponse
+      }
     }
 
     let forwardedRequest = request
