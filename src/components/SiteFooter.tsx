@@ -39,6 +39,7 @@ export function SiteFooter() {
               ['Download', '/download/otya-player'],
               ['Support', '/apps/otya-player/support'],
               ['Changelog', '/apps/otya-player/changelog'],
+              ['Developers', '/developers'],
             ]}
           />
 
