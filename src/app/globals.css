@@ -166,6 +166,16 @@ a:hover, button:hover { opacity: .88; }
   box-shadow: none !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 @media (max-width: 640px) {
   body { font-size: 14px; }
   .otya-shell, .otya-reading { width: min(100% - 24px, var(--content-max)); }
