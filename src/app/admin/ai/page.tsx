@@ -2,11 +2,11 @@ import type { Metadata } from 'next'
 import ConsoleClient from './ConsoleClient'
 
 export const metadata: Metadata = {
-  title: 'OTYA Admin',
-  description: 'Private OTYA operations, support and administration console.',
+  title: 'OTYA Command Center',
+  description: 'Private OTYA conversational operations, support and administration workspace.',
   robots: { index: false, follow: false },
 }
 
-export default function OtyaConsolePage(){
+export default function OtyaCommandCenterPage() {
   return <ConsoleClient />
 }
