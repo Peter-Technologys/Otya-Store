@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
+import { isAdminAuthorized } from '@/lib/admin_auth'
 import { extractFirebaseOwnedClientConfig } from '@/lib/client_config'
 import { publishOtyaClientConfig } from '@/lib/firebase_remote_config'
 
@@ -12,12 +13,6 @@ type KvLike = {
   get(key: string, type?: 'json'): Promise<unknown>
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
   delete(key: string): Promise<void>
-}
-
-function authorized(req: NextRequest, env: Record<string, unknown>) {
-  const expected = env.ADMIN_TOKEN as string | undefined
-  const actual = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-  return !!expected && actual === expected
 }
 
 function firebaseSettings(env: Record<string, unknown>) {
@@ -58,11 +53,17 @@ async function syncFirebaseClientConfig(
   }
 }
 
-export async function GET(req: NextRequest) {
+async function context(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
-  if (!authorized(req, recordEnv)) return errorJson('Unauthorized', 401)
-  const kv = recordEnv.KV as KvLike
+  if (!await isAdminAuthorized(req, recordEnv)) return null
+  return recordEnv
+}
+
+export async function GET(req: NextRequest) {
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
+  const kv = env.KV as KvLike
   const [config, firebase] = await Promise.all([
     kv.get(KEY, 'json'),
     kv.get(FIREBASE_SYNC_KEY, 'json'),
@@ -71,9 +72,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-  const recordEnv = env as Record<string, unknown>
-  if (!authorized(req, recordEnv)) return errorJson('Unauthorized', 401)
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
 
   const raw = await req.text()
   if (!raw || raw.length > MAX_BYTES) return errorJson('Config body is empty or too large', 400)
@@ -87,14 +87,10 @@ export async function PUT(req: NextRequest) {
   if (typeof body.schemaVersion !== 'number') return errorJson('schemaVersion is required', 400)
   if (typeof body.revision !== 'number') return errorJson('revision is required', 400)
 
-  const kv = recordEnv.KV as KvLike
+  const kv = env.KV as KvLike
   const revision = body.revision
-
-  // Cloudflare stores the full safety/fallback snapshot first. Firebase owns
-  // the client-experiment subset, but a failed Firebase sync must never make
-  // the admin lose a valid safety config or make the app unavailable.
   await kv.put(KEY, JSON.stringify(body))
-  const firebase = await syncFirebaseClientConfig(recordEnv, kv, body, revision)
+  const firebase = await syncFirebaseClientConfig(env, kv, body, revision)
 
   return secureJson({
     ok: true,
@@ -105,23 +101,15 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-  const recordEnv = env as Record<string, unknown>
-  if (!authorized(req, recordEnv)) return errorJson('Unauthorized', 401)
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
 
-  const kv = recordEnv.KV as KvLike
+  const kv = env.KV as KvLike
   const current = await kv.get(KEY, 'json') as Record<string, unknown> | null
-  const nextRevision = typeof current?.revision === 'number'
-    ? current.revision + 1
-    : Date.now()
-
+  const nextRevision = typeof current?.revision === 'number' ? current.revision + 1 : Date.now()
   await kv.delete(KEY)
-
-  // Publish an empty Firebase client layer so old client experiments do not
-  // survive a deliberate reset. Failure is non-fatal because Cloudflare
-  // defaults remain the safety source.
   const firebase = await syncFirebaseClientConfig(
-    recordEnv,
+    env,
     kv,
     { schemaVersion: 1, revision: nextRevision },
     nextRevision,
