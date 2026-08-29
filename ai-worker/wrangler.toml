@@ -3,8 +3,16 @@ main = "src/scheduled-entry.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
+
 [observability]
 enabled = true
+[observability.logs]
+enabled = true
+head_sampling_rate = 0.35
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
+
 [vars]
 ENVIRONMENT = "production"
 APP_NAME = "OTYA AI"
@@ -16,24 +24,30 @@ TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
 OTYA_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 OTYA_REPORT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
 GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
+
 [ai]
 binding = "AI"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "otya-store-db"
 database_id = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
+
 [[kv_namespaces]]
 binding = "KV"
 id = "3f179286e0fc4dbfa2332884cdf81312"
+
 [[queues.producers]]
 binding = "PUSH_QUEUE"
 queue = "otya-push-queue"
+
 [[queues.consumers]]
 queue = "otya-ai-queue"
 max_batch_size = 5
 max_batch_timeout = 30
 max_retries = 3
 dead_letter_queue = "otya-ai-queue-dlq"
+
 [triggers]
 # Hourly: lightweight admin-only exception check.
 # 05:00 UTC = 08:00 Africa/Kampala: morning operations brief + churn signals.
