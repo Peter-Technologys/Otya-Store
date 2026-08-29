@@ -4,54 +4,215 @@ const TELEGRAM_API='https://api.telegram.org'
 const GUEST_MODEL='llama-fast'
 const SIGNED_DEFAULT='otya-smart'
 const MODELS={
-  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',cost:1,description:'Fast and efficient. Used automatically for guests.'},
-  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',cost:2,description:'Recommended balance of reasoning, speed and long context.'},
-  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',cost:4,description:'Large general-purpose model with strong instruction following.'},
-  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',cost:3,description:'Lower-latency reasoning model.'},
-  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',cost:5,description:'High-reasoning general-purpose model.'},
-  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',cost:2,description:'Efficient multilingual reasoning model.'},
-  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',cost:5,description:'Large agentic and reasoning model.'},
-  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',cost:2,description:'Modern mixture-of-experts assistant model.'},
-  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',cost:3,description:'Efficient reasoning and multilingual model.'},
-  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',cost:1,description:'Compact instruction and tool-use model.'},
-  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',cost:2,description:'Strong Southeast Asian multilingual model.'},
+  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast OTYA help.'},
+  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Detailed OTYA help.'},
+  'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large OTYA support model.'},
+  'gpt-oss-20b':{name:'GPT-OSS 20B',provider:'OpenAI',model:'@cf/openai/gpt-oss-20b',tier:'reasoning',description:'Reasoning model for OTYA support.'},
+  'gpt-oss-120b':{name:'GPT-OSS 120B',provider:'OpenAI',model:'@cf/openai/gpt-oss-120b',tier:'reasoning',description:'Large reasoning model for OTYA support.'},
+  'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Multilingual OTYA support.'},
+  'nemotron':{name:'Nemotron 120B',provider:'NVIDIA',model:'@cf/nvidia/nemotron-3-120b-a12b',tier:'large',description:'Large support model.'},
+  'llama-4-scout':{name:'Llama 4 Scout',provider:'Meta',model:'@cf/meta/llama-4-scout-17b-16e-instruct',tier:'balanced',description:'Modern OTYA support model.'},
+  'qwen3':{name:'Qwen3 30B',provider:'Qwen',model:'@cf/qwen/qwen3-30b-a3b-fp8',tier:'reasoning',description:'Multilingual reasoning for OTYA support.'},
+  'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact OTYA support model.'},
+  'sea-lion':{name:'SEA-LION 27B',provider:'AI Singapore',model:'@cf/aisingapore/gemma-sea-lion-v4-27b-it',tier:'balanced',description:'Multilingual OTYA support model.'},
 }
 
 const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
 const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
-const publicModels=()=>Object.entries(MODELS).map(([id,m])=>({id,name:m.name,provider:m.provider,tier:m.tier,cost:m.cost,description:m.description,guest:id===GUEST_MODEL}))
+const publicModels=()=>Object.entries(MODELS).map(([id,m])=>({id,name:m.name,provider:m.provider,tier:m.tier,description:m.description,guest:id===GUEST_MODEL}))
 function resolveModel(requested,signedIn){if(!signedIn)return{id:GUEST_MODEL,...MODELS[GUEST_MODEL]};const id=MODELS[requested]?requested:SIGNED_DEFAULT;return{id,...MODELS[id]}}
 async function runAi(env,messages,selection){if(!env.AI?.run)throw new Error('AI unavailable');return clean(aiText(await env.AI.run(selection.model,{messages})),9000)}
 
 async function publicOtyaContext(env){
   const base=(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')
-  const facts=['OTYA AI is the official general-purpose assistant from PeterSmart Link and the official assistant for OTYA Player.',`Official website: ${base}.`,`Official download page: ${base}/download/otya-player.`,`Official Telegram: ${env.TELEGRAM_CHANNEL_URL||'https://t.me/otyaplayer'}.`,'OTYA Player is an offline-first Android media player. Local media files in Android Download/Downloads folders belong in the normal music or video library according to media type.']
-  try{const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500);const r=await fetch(`${base}/api/version`,{headers:{Accept:'application/json'},signal:controller.signal});clearTimeout(timeout);if(r.ok){const v=await r.json().catch(()=>null);if(v&&typeof v==='object'){const version=clean(v.version,80),code=Number(v.versionCode||0),date=clean(v.date,80),changelog=clean(v.changelog,700);if(version)facts.push(`Current public OTYA Player release: version ${version}${code?` (build ${code})`:''}${date?`, release date ${date}`:''}.`);if(changelog)facts.push(`Current release notes: ${changelog}`)}}}catch(e){console.warn('[ai-live-context]',e?.message)}
+  const facts=[
+    'OTYA is an offline-first Android music and video player by PeterSmart Link.',
+    'Ask OTYA is product help inside OTYA and its website. It is not a general-purpose public assistant.',
+    `Official website: ${base}.`,
+    `Official download page: ${base}/download/otya-player.`,
+    `Official support page: ${base}/apps/otya-player/support.`,
+    `Official Telegram: ${env.TELEGRAM_CHANNEL_URL||'https://t.me/otyaplayer'}.`,
+    'Local playback, media scanning, local search and supported local transfer must keep working without signing in or using AI.',
+    'New audio and video received or downloaded on the phone should appear in the normal Music or Video library after scanning.',
+  ]
+  try{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),3500)
+    const r=await fetch(`${base}/api/version`,{headers:{Accept:'application/json'},signal:controller.signal})
+    clearTimeout(timeout)
+    if(r.ok){
+      const v=await r.json().catch(()=>null)
+      if(v&&typeof v==='object'){
+        const version=clean(v.version,80),code=Number(v.versionCode||0),date=clean(v.date,80),changelog=clean(v.changelog,700)
+        if(version)facts.push(`Current public OTYA release: version ${version}${code?` (build ${code})`:''}${date?`, release date ${date}`:''}.`)
+        if(changelog)facts.push(`Current release notes: ${changelog}`)
+      }
+    }
+  }catch(e){console.warn('[ai-live-context]',e?.message)}
   return facts.join('\n')
 }
-async function system(env){const live=await publicOtyaContext(env);return `You are OTYA AI by PeterSmart Link. You are a friendly, capable GENERAL-PURPOSE assistant, not an OTYA-only support bot.
 
-Answer questions across general knowledge, education, writing, brainstorming, planning, coding, everyday life and problem solving. If someone asks a normal question unrelated to OTYA, answer it normally and naturally. Never reject a question merely because it is not about OTYA. Be warm and direct without repeatedly announcing that you are a language model. Use clear paragraphs and formatting when useful.
+async function system(env){
+  const live=await publicOtyaContext(env)
+  return `You are Ask OTYA, the product assistant for the OTYA Android media player and the official OTYA website.
 
-Freshness: do not pretend you have live worldwide web access. For facts that may have changed recently and are not supplied by a connected tool, state the limitation briefly when it matters. OTYA public product facts below ARE live/connected and should be treated as authoritative.
+SCOPE: Answer only questions that are meaningfully about OTYA, OTYA Player, its music/video playback, media library, files, transfer, converter, private/vault features, tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, release information, or troubleshooting.
 
-OTYA behavior: use the live OTYA context below for current release/version and official links; help with playback, library, account, updates and troubleshooting; PeterSmart Link is the developer/publisher/brand behind OTYA Player; do not invent private personal details about its owner or staff.
+If the request is not about OTYA, do not answer the unrelated question. Reply with exactly this prefix on the first line: [HANDOFF]\nThen briefly say that Ask OTYA is for OTYA help and offer to connect the person with PeterSmart Link support. Do not claim a person has been notified until the backend confirms a handoff request.
 
-Privacy and permissions: never expose or request passwords, OTPs, JWTs, API keys, secrets or payment credentials. Customer/guest chat has no access to admin Gmail, GitHub, Cloudflare, private customer lists or infrastructure tools. Never claim an external action happened unless a verified tool/backend action confirms it. For sensitive account-specific actions use verified signed-in flows or support@petersmartlink.com.
+If the question is about OTYA, answer directly in simple language. Use the live facts below when relevant. Do not invent features or claim an action happened unless the backend confirms it.
 
-LIVE PUBLIC OTYA CONTEXT:\n${live}`}
+Privacy: never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data.
 
-async function rate(env,key,limit=20,seconds=60){if(!env.KV)return true;const bucket=Math.floor(Date.now()/(seconds*1000)),k=`ai:client-rate:${key}:${bucket}`,n=Number(await env.KV.get(k)||0);if(n>=limit)return false;await env.KV.put(k,String(n+1),{expirationTtl:seconds*2});return true}
-async function modelRate(env,key,selection){return rate(env,`${key}:model:${selection.id}`,['large','reasoning'].includes(selection.tier)?8:20,60)}
-const dayKey=()=>new Date().toISOString().slice(0,10)
-function quotaLimits(env,signedIn){return{user:signedIn?Math.max(5,Number(env.AI_SIGNED_DAILY_CREDITS||40)):Math.max(1,Number(env.AI_GUEST_DAILY_CREDITS||8)),global:Math.max(50,Number(env.AI_GLOBAL_DAILY_CREDITS||600))}}
-async function quotaStatus(env,identity,signedIn){const limits=quotaLimits(env,signedIn);if(!env.KV)return{limit:limits.user,used:0,remaining:limits.user,global_limit:limits.global,global_used:0};const day=dayKey(),userKey=`ai:credits:${day}:${identity}`,globalKey=`ai:credits:${day}:global`,used=Number(await env.KV.get(userKey)||0),globalUsed=Number(await env.KV.get(globalKey)||0);return{limit:limits.user,used,remaining:Math.max(0,limits.user-used),global_limit:limits.global,global_used:globalUsed}}
-async function consumeQuota(env,identity,signedIn,cost){const status=await quotaStatus(env,identity,signedIn);if(status.remaining<cost)return{ok:false,reason:'user',...status};if(status.global_used+cost>status.global_limit)return{ok:false,reason:'global',...status};if(env.KV){const day=dayKey(),ttl=60*60*48,userKey=`ai:credits:${day}:${identity}`,globalKey=`ai:credits:${day}:global`;await Promise.all([env.KV.put(userKey,String(status.used+cost),{expirationTtl:ttl}),env.KV.put(globalKey,String(status.global_used+cost),{expirationTtl:ttl})])}return{ok:true,...status,used:status.used+cost,remaining:Math.max(0,status.limit-status.used-cost),global_used:status.global_used+cost}}
-function historyFrom(value){if(!Array.isArray(value))return[];return value.slice(-20).map(x=>({role:x?.role==='assistant'?'assistant':'user',content:clean(x?.content,3500)})).filter(x=>x.content)}
-async function persistentReply(env,{userId,message,channel,conversationId,selection,forceNew=false}){const ownerKey=await hashIdentity(env,`user:${userId}`),conv=forceNew?await newConversation(env,{ownerType:'client',ownerKey,title:message.slice(0,80)}):await getOrCreateConversation(env,{ownerType:'client',ownerKey,conversationId}),previous=await readConversation(env,{ownerType:'client',ownerKey,conversationId:conv.id,limit:22}),history=(previous?.messages||[]).map(x=>({role:x.role,content:clean(x.content,3500)}));await appendMessage(env,{conversationId:conv.id,role:'user',content:message,channel});const answer=await runAi(env,[{role:'system',content:await system(env)},...history,{role:'user',content:clean(message,3000)}],selection);await appendMessage(env,{conversationId:conv.id,role:'assistant',content:answer,channel});return{conversation_id:conv.id,answer,persisted:true,model:selection.id,model_name:selection.name}}
-async function temporaryReply(env,{message,history=[],selection}){const answer=await runAi(env,[{role:'system',content:await system(env)},...historyFrom(history),{role:'user',content:clean(message,3000)}],selection);return{answer,persisted:false,model:selection.id,model_name:selection.name}}
-async function telegram(env,method,body){if(!env.TELEGRAM_BOT_TOKEN)throw new Error('Telegram unavailable');const r=await fetch(`${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Telegram send failed')}
-export async function handleSharedTelegram(request,env){const url=new URL(request.url);if(!url.pathname.endsWith('/webhook'))return null;if(request.method!=='POST')return json({error:'Method not allowed'},405);if(!env.TELEGRAM_WEBHOOK_SECRET)return json({error:'Telegram webhook unavailable'},503);if((request.headers.get('X-Telegram-Bot-Api-Secret-Token')||'')!==env.TELEGRAM_WEBHOOK_SECRET)return json({error:'Unauthorized'},401);const update=await request.json().catch(()=>null),m=update?.message,chatId=m?.chat?.id,sender=m?.from?.id??chatId,text=clean(m?.text,3000);if(!chatId||m?.chat?.type!=='private'||!text)return json({ok:true});const key=await hashIdentity(env,`telegram:${sender}`);if(!(await rate(env,key,20,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'You are sending messages too quickly. Please wait a moment.'});return json({ok:true,rate_limited:true})}const selection=resolveModel(null,false),quota=await consumeQuota(env,`telegram:${key}`,false,selection.cost);if(!quota.ok){await telegram(env,'sendMessage',{chat_id:chatId,text:quota.reason==='global'?'OTYA AI has reached today’s shared capacity. Please try again later.':'You have reached today’s OTYA AI guest allowance. Sign in on OTYA to get a larger daily allowance.'});return json({ok:true,quota_limited:true})}let answer;if(text==='/start')answer='Welcome to OTYA AI. Ask me anything — general questions or OTYA Player help.';else if(text==='/download')answer=`Official OTYA Player download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`;else if(text==='/privacy')answer='Never send passwords, OTPs, payment credentials or secret keys here. Telegram chats are not stored as OTYA account history.';else{try{answer=(await temporaryReply(env,{message:text,selection})).answer}catch(e){console.error('[telegram-shared]',e?.message);answer='I cannot answer reliably right now. Please try again shortly.'}}await telegram(env,'sendMessage',{chat_id:chatId,text:clean(answer,3500),disable_web_page_preview:true});return json({ok:true})}
+LIVE OTYA CONTEXT:\n${live}`
+}
 
-export async function handlePublicChat(request,env){const url=new URL(request.url),userId=clean(request.headers.get('X-OTYA-User-ID'),120),signedIn=request.headers.get('X-OTYA-Persist-Chat')==='1'&&Boolean(userId),ownerKey=signedIn?await hashIdentity(env,`user:${userId}`):null;if(request.method==='GET'){const guest=clean(url.searchParams.get('guest_id'),120),identity=signedIn?`user:${userId}`:`guest:${guest||request.headers.get('CF-Connecting-IP')||'unknown'}`;if(url.searchParams.get('quota')==='1')return json({ok:true,signed_in:signedIn,quota:await quotaStatus(env,await hashIdentity(env,identity),signedIn)});if(url.searchParams.get('models')==='1')return json({ok:true,signed_in:signedIn,guest_model:GUEST_MODEL,default_model:SIGNED_DEFAULT,models:signedIn?publicModels():publicModels().filter(m=>m.id===GUEST_MODEL),quota:await quotaStatus(env,await hashIdentity(env,identity),signedIn)});if(!signedIn)return json({error:'Sign in to load saved conversations'},401);if(url.searchParams.get('list')==='1')return json({ok:true,conversations:await listConversations(env,{ownerType:'client',ownerKey,limit:40})});const id=clean(url.searchParams.get('conversation_id'),80);if(!id)return json({error:'conversation_id is required'},400);const conversation=await readConversation(env,{ownerType:'client',ownerKey,conversationId:id,limit:100});return conversation?json({ok:true,conversation,persisted:true}):json({error:'Conversation not found'},404)}if(request.method!=='POST')return json({error:'Method not allowed'},405);const body=await request.json().catch(()=>({})),message=clean(body.message,3000);if(!message)return json({error:'message is required'},400);const guest=clean(body.guest_id,120),ip=request.headers.get('CF-Connecting-IP')||'unknown',rateIdentity=signedIn?`user:${userId}`:`guest:${guest||ip}`,identityKey=await hashIdentity(env,rateIdentity),rateKey=await hashIdentity(env,`${rateIdentity}:${ip}`);if(!(await rate(env,rateKey,signedIn?30:15,60)))return json({error:'Too many messages. Please wait a moment.'},429);const selection=resolveModel(clean(body.model,60),signedIn);if(!(await modelRate(env,rateKey,selection)))return json({error:'This model is being used too quickly. Please wait a moment or choose a faster model.'},429);const quota=await consumeQuota(env,identityKey,signedIn,selection.cost);if(!quota.ok)return json({error:quota.reason==='global'?'OTYA AI has reached today’s shared capacity. Please try again later.':signedIn?'You have used today’s OTYA AI allowance. It resets automatically tomorrow.':'Guest AI allowance reached. Sign in for a larger daily allowance.',code:quota.reason==='global'?'AI_GLOBAL_QUOTA':'AI_DAILY_QUOTA',quota},429);try{const result=signedIn?await persistentReply(env,{userId,message,channel:clean(body.channel,20)||'web',conversationId:clean(body.conversation_id,80),selection,forceNew:body.new_chat===true}):await temporaryReply(env,{message,history:body.history,selection});return json({ok:true,...result,quota})}catch(e){console.error('[public-ai]',selection.id,e?.message);return json({error:'OTYA AI is temporarily unavailable',quota},503)}}
+async function rate(env,key,limit=45,seconds=60){
+  if(!env.KV)return true
+  const bucket=Math.floor(Date.now()/(seconds*1000)),k=`ai:client-rate:${key}:${bucket}`,n=Number(await env.KV.get(k)||0)
+  if(n>=limit)return false
+  await env.KV.put(k,String(n+1),{expirationTtl:seconds*2})
+  return true
+}
+async function modelRate(env,key,selection){return rate(env,`${key}:model:${selection.id}`,['large','reasoning'].includes(selection.tier)?18:45,60)}
+const unlimitedStatus=()=>({unlimited:true,limit:null,used:null,remaining:null})
+
+function historyFrom(value){
+  if(!Array.isArray(value))return[]
+  return value.slice(-20).map(x=>({role:x?.role==='assistant'?'assistant':'user',content:clean(x?.content,3500)})).filter(x=>x.content)
+}
+function handoffResult(answer){
+  const text=clean(answer,9000)
+  if(!text.startsWith('[HANDOFF]'))return{answer:text,handoff_available:false}
+  return{answer:clean(text.replace(/^\[HANDOFF\]\s*/,'').trim(),9000),handoff_available:true,handoff_label:'Talk to PeterSmart Link support'}
+}
+
+async function persistentReply(env,{userId,message,channel,conversationId,selection,forceNew=false}){
+  const ownerKey=await hashIdentity(env,`user:${userId}`)
+  const conv=forceNew?await newConversation(env,{ownerType:'client',ownerKey,title:message.slice(0,80)}):await getOrCreateConversation(env,{ownerType:'client',ownerKey,conversationId})
+  const previous=await readConversation(env,{ownerType:'client',ownerKey,conversationId:conv.id,limit:22})
+  const history=(previous?.messages||[]).map(x=>({role:x.role,content:clean(x.content,3500)}))
+  await appendMessage(env,{conversationId:conv.id,role:'user',content:message,channel})
+  const raw=await runAi(env,[{role:'system',content:await system(env)},...history,{role:'user',content:clean(message,3000)}],selection)
+  const result=handoffResult(raw)
+  await appendMessage(env,{conversationId:conv.id,role:'assistant',content:result.answer,channel})
+  return{conversation_id:conv.id,...result,persisted:true,model:selection.id,model_name:selection.name}
+}
+async function temporaryReply(env,{message,history=[],selection}){
+  const raw=await runAi(env,[{role:'system',content:await system(env)},...historyFrom(history),{role:'user',content:clean(message,3000)}],selection)
+  return{...handoffResult(raw),persisted:false,model:selection.id,model_name:selection.name}
+}
+
+async function sendAdminHandoff(env,{message,email,name,source,userId}){
+  if(!env.RESEND_API_KEY)throw new Error('Support email is unavailable')
+  const ticket=`OTYA-${Date.now().toString(36).toUpperCase()}`
+  const admin=env.ADMIN_REPORT_EMAIL||'petersmartlink@gmail.com'
+  const lines=[
+    `New OTYA support handoff: ${ticket}`,
+    '',
+    `Source: ${clean(source,80)||'OTYA'}`,
+    `User: ${clean(name,120)||'Not provided'}`,
+    `Email: ${clean(email,180)||'Not provided'}`,
+    `Account ID: ${clean(userId,120)||'Guest'}`,
+    '',
+    'Question:',
+    clean(message,3000),
+    '',
+    'Open the private OTYA Admin console to review support and reply through the approved support tools.',
+  ]
+  const r=await fetch('https://api.resend.com/emails',{
+    method:'POST',
+    headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      from:'OTYA Support <noreply@petersmartlink.com>',
+      to:[admin],
+      reply_to:clean(email,180)||'support@petersmartlink.com',
+      subject:`OTYA support handoff · ${ticket}`,
+      text:lines.join('\n'),
+    }),
+  })
+  if(!r.ok)throw new Error(`Support email failed (${r.status})`)
+  return ticket
+}
+
+async function telegram(env,method,body){
+  if(!env.TELEGRAM_BOT_TOKEN)throw new Error('Telegram unavailable')
+  const r=await fetch(`${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  if(!r.ok)throw new Error('Telegram send failed')
+}
+
+export async function handleSharedTelegram(request,env){
+  const url=new URL(request.url)
+  if(!url.pathname.endsWith('/webhook'))return null
+  if(request.method!=='POST')return json({error:'Method not allowed'},405)
+  if(!env.TELEGRAM_WEBHOOK_SECRET)return json({error:'Telegram webhook unavailable'},503)
+  if((request.headers.get('X-Telegram-Bot-Api-Secret-Token')||'')!==env.TELEGRAM_WEBHOOK_SECRET)return json({error:'Unauthorized'},401)
+  const update=await request.json().catch(()=>null),m=update?.message,chatId=m?.chat?.id,sender=m?.from?.id??chatId,text=clean(m?.text,3000)
+  if(!chatId||m?.chat?.type!=='private'||!text)return json({ok:true})
+  const key=await hashIdentity(env,`telegram:${sender}`)
+  if(!(await rate(env,key,45,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'Too many messages at once. Please wait a moment.'});return json({ok:true,rate_limited:true})}
+  const selection=resolveModel(null,false)
+  let answer
+  if(text==='/start')answer='Welcome to Ask OTYA. I can help with OTYA Player, playback, files, transfer, account, updates and troubleshooting.'
+  else if(text==='/download')answer=`Official OTYA download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
+  else if(text==='/privacy')answer='Never send passwords, OTPs, payment details or secret keys here.'
+  else{
+    try{
+      const result=await temporaryReply(env,{message:text,selection})
+      answer=result.handoff_available?`${result.answer}\n\nFor human help, use the official support page: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/apps/otya-player/support`:result.answer
+    }catch(e){console.error('[telegram-shared]',e?.message);answer='Ask OTYA is unavailable right now. Please try again shortly.'}
+  }
+  await telegram(env,'sendMessage',{chat_id:chatId,text:clean(answer,3500),disable_web_page_preview:true})
+  return json({ok:true})
+}
+
+export async function handlePublicChat(request,env){
+  const url=new URL(request.url)
+  const userId=clean(request.headers.get('X-OTYA-User-ID'),120)
+  const signedIn=request.headers.get('X-OTYA-Persist-Chat')==='1'&&Boolean(userId)
+  const ownerKey=signedIn?await hashIdentity(env,`user:${userId}`):null
+
+  if(request.method==='GET'){
+    if(url.searchParams.get('quota')==='1')return json({ok:true,signed_in:signedIn,quota:unlimitedStatus()})
+    if(url.searchParams.get('models')==='1')return json({ok:true,signed_in:signedIn,guest_model:GUEST_MODEL,default_model:SIGNED_DEFAULT,models:signedIn?publicModels():publicModels().filter(m=>m.id===GUEST_MODEL),quota:unlimitedStatus()})
+    if(!signedIn)return json({error:'Sign in to load saved conversations'},401)
+    if(url.searchParams.get('list')==='1')return json({ok:true,conversations:await listConversations(env,{ownerType:'client',ownerKey,limit:40})})
+    const id=clean(url.searchParams.get('conversation_id'),80)
+    if(!id)return json({error:'conversation_id is required'},400)
+    const conversation=await readConversation(env,{ownerType:'client',ownerKey,conversationId:id,limit:100})
+    return conversation?json({ok:true,conversation,persisted:true}):json({error:'Conversation not found'},404)
+  }
+
+  if(request.method!=='POST')return json({error:'Method not allowed'},405)
+  const body=await request.json().catch(()=>({}))
+  const message=clean(body.message,3000)
+  if(!message)return json({error:'message is required'},400)
+
+  if(body.request_handoff===true){
+    try{
+      const ticket=await sendAdminHandoff(env,{message,email:body.contact_email,name:body.contact_name,source:body.surface||body.channel||'web',userId})
+      return json({ok:true,handoff_sent:true,ticket,message:'PeterSmart Link support has been notified.'})
+    }catch(e){
+      console.error('[support-handoff]',e?.message)
+      return json({error:'Could not notify support right now. Please use support@petersmartlink.com.',code:'HANDOFF_FAILED'},503)
+    }
+  }
+
+  const guest=clean(body.guest_id,120),ip=request.headers.get('CF-Connecting-IP')||'unknown'
+  const rateIdentity=signedIn?`user:${userId}`:`guest:${guest||ip}`
+  const rateKey=await hashIdentity(env,`${rateIdentity}:${ip}`)
+  if(!(await rate(env,rateKey,signedIn?60:45,60)))return json({error:'Too many messages at once. Please wait a moment.',code:'AI_RATE_LIMIT'},429)
+
+  const selection=resolveModel(clean(body.model,60),signedIn)
+  if(!(await modelRate(env,rateKey,selection)))return json({error:'This model is receiving too many requests at once. Please wait a moment.',code:'AI_RATE_LIMIT'},429)
+
+  try{
+    const result=signedIn
+      ?await persistentReply(env,{userId,message,channel:clean(body.channel,20)||'web',conversationId:clean(body.conversation_id,80),selection,forceNew:body.new_chat===true})
+      :await temporaryReply(env,{message,history:body.history,selection})
+    return json({ok:true,...result,quota:unlimitedStatus()})
+  }catch(e){
+    console.error('[public-ai]',selection.id,e?.message)
+    return json({error:'Ask OTYA is unavailable right now. Please try again shortly.'},503)
+  }
+}
