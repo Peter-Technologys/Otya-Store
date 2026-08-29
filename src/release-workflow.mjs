@@ -1,4 +1,5 @@
 import { WorkflowEntrypoint } from 'cloudflare:workers'
+import { mirrorApkToFirebaseAppDistribution } from './lib/firebase_app_distribution'
 
 const TAG_RE = /^v\d+\.\d+\.\d+$/
 const VERSION_RE = /^\d+\.\d+\.\d+$/
@@ -179,6 +180,26 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         return value
       })
 
+      const firebaseDistribution = await step.do('mirror test build to Firebase App Distribution', async () => {
+        try {
+          const apk = await this.env.R2.get(release.arm64Key)
+          if (!apk?.body) return { configured: false, mirrored: false, reason: 'arm64-apk-missing' }
+          return await mirrorApkToFirebaseAppDistribution(
+            this.env,
+            apk.body,
+            `OTYA-${release.tag}-arm64.apk`,
+            metadata.changelog,
+          )
+        } catch (error) {
+          console.error('[release] Firebase App Distribution mirror failed:', error?.message)
+          return {
+            configured: true,
+            mirrored: false,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
+      })
+
       const notification = await step.do('queue update notification once', async () => {
         const markerKey = `release:push:${release.tag}`
         if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
@@ -212,6 +233,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           `Version code: ${release.versionCode}`,
           `arm64: ${release.arm64Key}`,
           `arm32: ${release.arm32Key}`,
+          `Firebase test mirror: ${firebaseDistribution.mirrored ? 'yes' : 'no'}`,
           `Push queued: ${notification.queued}`,
           'Status: completed',
         ].join('\n'),
@@ -224,6 +246,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         versionCode: release.versionCode,
         artifacts,
         database,
+        firebaseDistribution,
         notification,
         analytics,
         report,
