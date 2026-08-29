@@ -8,7 +8,7 @@ import {
 
 const KEY = 'app:remote-config'
 const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
-const CURRENT_REVISION = 6
+const CURRENT_REVISION = 7
 const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
 const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
@@ -43,6 +43,9 @@ const DEFAULT_CONFIG = {
     googleSignIn: true,
     firebaseIdentity: true,
     firebaseAuth: true,
+    firebaseAppCheck: true,
+    firebaseAnalytics: true,
+    firebasePerformance: true,
     driveBackup: true,
     feedback: true,
     aiAssistant: true,
@@ -93,6 +96,14 @@ const DEFAULT_CONFIG = {
     otp: 'cloudflare-resend',
     firebaseIdentity: true,
     firebaseIsSessionAuthority: false,
+  },
+  security: {
+    appCheck: {
+      mode: 'monitor',
+      header: 'X-Firebase-AppCheck',
+      provider: 'play-integrity',
+      allowOfflinePlayback: true,
+    },
   },
   search: {
     suggestions: [],
@@ -160,6 +171,9 @@ function migrateConfig(stored: unknown): ConfigRecord {
     googleSignIn: oldFeatures.googleSignIn ?? true,
     firebaseIdentity,
     firebaseAuth: firebaseIdentity,
+    firebaseAppCheck: oldFeatures.firebaseAppCheck ?? true,
+    firebaseAnalytics: oldFeatures.firebaseAnalytics ?? true,
+    firebasePerformance: oldFeatures.firebasePerformance ?? true,
     driveBackup: oldFeatures.driveBackup ?? true,
     feedback: oldFeatures.feedback ?? true,
     aiAssistant: oldFeatures.aiAssistant ?? true,
@@ -190,6 +204,15 @@ function migrateConfig(stored: unknown): ConfigRecord {
     ai: DEFAULT_CONFIG.ai,
     push,
     auth: DEFAULT_CONFIG.auth,
+    security: {
+      ...DEFAULT_CONFIG.security,
+      ...asRecord(source.security),
+      appCheck: {
+        ...DEFAULT_CONFIG.security.appCheck,
+        ...asRecord(asRecord(source.security).appCheck),
+        allowOfflinePlayback: true,
+      },
+    },
     search: {
       ...DEFAULT_CONFIG.search,
       ...asRecord(source.search),
