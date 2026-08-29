@@ -24,7 +24,7 @@ export default function ServicesPage() {
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
             <div className="otya-kicker mb-3">PeterSmart Link · Local business</div>
             <h1 className="text-3xl sm:text-5xl font-black tracking-[-.04em]">Local services in Mbirizi</h1>
-            <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl" style={{ color: 'var(--cosmos-text-secondary)' }}>This page covers PeterSmart Link's in-person retail and mobile-money services. OTYA is our separate Android software product.</p>
+            <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl" style={{ color: 'var(--cosmos-text-secondary)' }}>This page covers PeterSmart Link&apos;s in-person retail and mobile-money services. OTYA is our separate Android software product.</p>
             <div className="mt-5 text-sm font-semibold"><Link href="/otya-player">Looking for OTYA Player? →</Link></div>
           </div>
         </section>
