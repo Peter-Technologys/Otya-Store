@@ -23,6 +23,33 @@ type TokenPayload = {
   error_description?: string
 }
 
+function b64url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+async function encryptionKey(secret: string): Promise<CryptoKey> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`OTYA Jamendo OAuth token storage v1\n${secret}`),
+  )
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt'])
+}
+
+async function encryptTokenRecord(record: Record<string, unknown>, secret: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const key = await encryptionKey(secret)
+  const plaintext = new TextEncoder().encode(JSON.stringify(record))
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext)
+  return JSON.stringify({
+    v: 1,
+    alg: 'A256GCM',
+    iv: b64url(iv),
+    ciphertext: b64url(new Uint8Array(ciphertext)),
+  })
+}
+
 function finish(message: string, success: boolean) {
   const url = new URL('/account', 'https://petersmartlink.com')
   url.searchParams.set('jamendo', success ? 'connected' : 'error')
@@ -64,11 +91,17 @@ export async function GET(request: NextRequest) {
     return finish('Jamendo connection could not be verified. Please try again.', false)
   }
 
-  const stored = await kv.get(`jamendo:oauth:state:${state}`, 'json') as StateRecord | null
+  const stateKey = `jamendo:oauth:state:${state}`
+  const stored = await kv.get(stateKey, 'json') as StateRecord | null
   const accountKey = String(stored?.accountKey ?? '').trim()
-  if (!accountKey) {
+  const createdAt = Number(stored?.createdAt ?? 0)
+  if (!accountKey || !Number.isFinite(createdAt) || Date.now() - createdAt > 10 * 60 * 1000) {
+    await kv.delete?.(stateKey).catch(() => undefined)
     return finish('Jamendo connection expired. Please try again.', false)
   }
+
+  // Consume state before the provider call so the callback cannot be replayed.
+  await kv.delete?.(stateKey).catch(() => undefined)
 
   const body = new URLSearchParams({
     client_id: clientId,
@@ -97,7 +130,8 @@ export async function GET(request: NextRequest) {
     return finish(token.error_description || 'Jamendo did not complete the connection.', false)
   }
 
-  const expiresIn = Math.max(60, Number(token.expires_in ?? 7200))
+  const parsedExpiry = Number(token.expires_in ?? 7200)
+  const expiresIn = Number.isFinite(parsedExpiry) ? Math.max(60, Math.min(parsedExpiry, 24 * 60 * 60)) : 7200
   const record = {
     provider: 'jamendo',
     accessToken: token.access_token,
@@ -108,7 +142,12 @@ export async function GET(request: NextRequest) {
     connectedAt: Date.now(),
   }
 
-  await kv.put(`jamendo:account:${accountKey}`, JSON.stringify(record))
-  await kv.delete?.(`jamendo:oauth:state:${state}`)
+  try {
+    const encrypted = await encryptTokenRecord(record, clientSecret)
+    await kv.put(`jamendo:account:${accountKey}`, encrypted)
+  } catch {
+    return finish('OTYA could not securely save the Jamendo connection. Please try again.', false)
+  }
+
   return finish('Jamendo connected successfully.', true)
 }
