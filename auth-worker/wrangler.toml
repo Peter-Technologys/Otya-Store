@@ -22,9 +22,20 @@ CORS_ORIGIN = "https://petersmartlink.com"
 GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
 TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/auth/telegram/callback"
 
+# Firebase bridge (free-tier safe):
+# - FIREBASE_PROJECT_ID and FIREBASE_API_KEY are deployment vars supplied by
+#   GitHub/Cloudflare. They are intentionally not hard-coded here.
+# - Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
+#   session authority and email/password + OTP remain in this Worker.
+# - FCM service-account credentials belong only on the server-side push path;
+#   never put a service-account private key in the Flutter app.
+# keep_vars=true preserves the currently configured live values during deploys.
+
 # Secrets are configured through GitHub Actions / Cloudflare, never committed.
-# keep_vars=true preserves live optional secrets/vars when Wrangler deploys.
 # Required: AUTH_JWT_SECRET, RESEND_API_KEY
+# Firebase identity vars: FIREBASE_PROJECT_ID, FIREBASE_API_KEY
+# Optional Firebase/FCM server secret (only where FCM sending is configured):
+# FIREBASE_SERVICE_ACCOUNT_JSON
 # Optional account verification: TELEGRAM_LOGIN_CLIENT_ID,
 # TELEGRAM_LOGIN_CLIENT_SECRET, TELEGRAM_GATEWAY_TOKEN
 # Optional internal service settings: OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET
