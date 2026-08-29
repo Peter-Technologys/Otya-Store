@@ -1,26 +1,28 @@
 import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
+import { isAdminAuthorized } from '@/lib/admin_auth'
 
 const KEY = 'themes:catalog'
 const MAX_BYTES = 128 * 1024
 
-function authorized(req: NextRequest, env: Record<string, unknown>) {
-  const expected = env.ADMIN_TOKEN as string | undefined
-  const actual = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-  return !!expected && actual === expected
+async function context(req: NextRequest) {
+  const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+  if (!await isAdminAuthorized(req, recordEnv)) return null
+  return recordEnv
 }
 
 export async function GET(req: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-  if (!authorized(req, env as Record<string, unknown>)) return errorJson('Unauthorized', 401)
-  const kv = (env as Record<string, unknown>).KV as { get(key: string, type?: 'json'): Promise<unknown> }
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
+  const kv = env.KV as { get(key: string, type?: 'json'): Promise<unknown> }
   return secureJson({ ok: true, catalog: await kv.get(KEY, 'json') })
 }
 
 export async function PUT(req: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-  if (!authorized(req, env as Record<string, unknown>)) return errorJson('Unauthorized', 401)
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
   const raw = await req.text()
   if (!raw || raw.length > MAX_BYTES) return errorJson('Theme catalog is empty or too large', 400)
   let body: Record<string, unknown>
@@ -28,15 +30,15 @@ export async function PUT(req: NextRequest) {
   if (!Array.isArray(body.themes)) return errorJson('themes must be an array', 400)
   if (typeof body.catalogVersion !== 'number') return errorJson('catalogVersion is required', 400)
   body.updatedAt = new Date().toISOString()
-  const kv = (env as Record<string, unknown>).KV as { put(key: string, value: string): Promise<void> }
+  const kv = env.KV as { put(key: string, value: string): Promise<void> }
   await kv.put(KEY, JSON.stringify(body))
   return secureJson({ ok: true, catalogVersion: body.catalogVersion, total: body.themes.length, updatedAt: body.updatedAt })
 }
 
 export async function DELETE(req: NextRequest) {
-  const { env } = await getCloudflareContext({ async: true })
-  if (!authorized(req, env as Record<string, unknown>)) return errorJson('Unauthorized', 401)
-  const kv = (env as Record<string, unknown>).KV as { delete(key: string): Promise<void> }
+  const env = await context(req)
+  if (!env) return errorJson('Unauthorized', 401)
+  const kv = env.KV as { delete(key: string): Promise<void> }
   await kv.delete(KEY)
   return secureJson({ ok: true, resetToBuiltInCatalog: true })
 }
