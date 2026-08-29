@@ -21,6 +21,12 @@ ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 ADMIN_CRASH_ALERT_THRESHOLD = "5"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
+# Public Ask OTYA catalog. These IDs are curated general/chat-capable Workers
+# AI models verified against Cloudflare's current model catalog. Guest users
+# stay on the fast low-cost model; signed-in users may choose any listed model.
+AI_PUBLIC_MODELS = "llama-fast,otya-smart,gemma-4,granite,llama-70b,gpt-oss-20b,gpt-oss-120b,nemotron,llama-4-scout,qwen3,sea-lion"
+AI_GUEST_MODEL = "llama-fast"
+AI_DEFAULT_MODEL = "otya-smart"
 OTYA_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 OTYA_REPORT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
 GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
