@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { OtyaAiMark } from './OtyaAiMark'
 
 export function OtyaAssistPrompt() {
   const [query, setQuery] = useState('')
@@ -76,8 +77,13 @@ export function OtyaAssistPrompt() {
   }
 
   return <div className="border-y py-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
-    <div className="otya-kicker mb-2">Ask OTYA</div>
-    <p className="text-sm otya-muted mb-3">Help with OTYA, playback, files, transfer, account, updates and troubleshooting.</p>
+    <div className="flex items-center gap-3 mb-3">
+      <OtyaAiMark size={52} state={loading ? 'thinking' : 'idle'} />
+      <div>
+        <div className="otya-kicker mb-1">Ask OTYA</div>
+        <p className="text-sm otya-muted">Help with OTYA, playback, files, transfer, account, updates and troubleshooting.</p>
+      </div>
+    </div>
     <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2">
       <input
         value={query}
@@ -87,7 +93,7 @@ export function OtyaAssistPrompt() {
         style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)', color: 'var(--cosmos-text-primary)' }}
       />
       <button disabled={loading || !query.trim() || !guestId} className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">
-        {loading ? 'Checking…' : 'Ask'}
+        {loading ? 'OTYA is thinking…' : 'Ask'}
       </button>
     </form>
 
