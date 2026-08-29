@@ -5,14 +5,17 @@
 //
 // Authentication model:
 //   - Verified JWT: links the installation to the token's user_id.
+//   - Firebase App Check: attests that the request came from an OTYA app build.
+//     It starts in monitor mode and can later be enforced without an app update.
 //   - Anonymous/legacy unsigned install: allowed for non-sensitive installation
-//     metadata only. user_id is always forced to null so an unauthenticated
-//     caller cannot impersonate or link itself to another account.
+//     metadata only while App Check remains in monitor mode. user_id is forced
+//     to null so an unauthenticated caller cannot impersonate an account.
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyRequest } from '@/lib/auth'
 import { dualAuth } from '@/lib/auth-service'
+import { appCheckEnforced, verifyFirebaseAppCheck } from '@/lib/firebase_app_check'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 
@@ -34,7 +37,7 @@ export interface DevicePayload {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Firebase-AppCheck, X-Otya-Timestamp, X-Otya-Signature, X-Otya-Device-Id',
 }
 
 function cleanText(value: unknown, maxLength: number): string | null {
@@ -46,6 +49,12 @@ function cleanText(value: unknown, maxLength: number): string | null {
 
 export async function POST(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
+  const recordEnv = env as Record<string, unknown>
+
+  const appCheck = await verifyFirebaseAppCheck(request, recordEnv)
+  if (appCheckEnforced(recordEnv) && !appCheck.valid) {
+    return errorJson('App attestation required', 401)
+  }
 
   // Attempt JWT verification, but do not reject a clean anonymous install.
   const auth = await dualAuth(request, env, verifyRequest)
@@ -68,12 +77,11 @@ export async function POST(request: NextRequest) {
   const abi = cleanText(body.abi ?? body.arch, 32) ?? 'arm64'
   const platform = cleanText(body.platform, 32) ?? 'android'
 
-  // Only a verified JWT may establish account ownership. The Flutter app no
-  // longer embeds a shared HMAC secret, so anonymous installation metadata is
-  // intentionally accepted without trusting a body-supplied user_id.
+  // Only a verified JWT may establish account ownership. App Check proves the
+  // app installation, not the user's identity.
   const resolvedUserId = auth.mode === 'jwt' ? auth.user_id : null
 
-  const db = getDB(env as Record<string, unknown>)
+  const db = getDB(recordEnv)
 
   await db.prepare(`
     INSERT INTO devices
@@ -105,7 +113,11 @@ export async function POST(request: NextRequest) {
     cleanText(body.locale, 32),
   ).run()
 
-  return secureJson({ ok: true, authenticated: auth.mode === 'jwt' })
+  return secureJson({
+    ok: true,
+    authenticated: auth.mode === 'jwt',
+    app_check: appCheck.valid ? 'valid' : appCheck.configured ? 'unverified' : 'not-configured',
+  })
 }
 
 export async function OPTIONS() {
