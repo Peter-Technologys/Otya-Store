@@ -80,9 +80,6 @@ async function verifyFirebaseIdToken(
 ): Promise<FirebaseAccount | null> {
   if (!env.FIREBASE_API_KEY) return null
 
-  // accounts:lookup verifies the Firebase ID token against the project selected
-  // by this API key and returns the canonical Firebase account. The API key is
-  // a project identifier, not OTYA's session authority or a privileged admin key.
   const response = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_API_KEY)}`,
     {
@@ -113,16 +110,28 @@ async function linkFirebaseIdentity(
   userId: string,
   firebaseUid: string,
   email: string,
-): Promise<void> {
+): Promise<boolean> {
+  // Ownership is immutable: once a Firebase subject belongs to an OTYA user,
+  // a concurrent/replayed request must never move that subject to another user.
   await env.AUTH_DB.prepare(`
     INSERT INTO linked_identities (
       user_id, provider, provider_subject, provider_email, linked_at, last_used_at
     ) VALUES (?, 'firebase', ?, ?, datetime('now'), datetime('now'))
     ON CONFLICT(provider, provider_subject) DO UPDATE SET
-      user_id = excluded.user_id,
-      provider_email = excluded.provider_email,
-      last_used_at = datetime('now')
+      provider_email = CASE
+        WHEN linked_identities.user_id = excluded.user_id THEN excluded.provider_email
+        ELSE linked_identities.provider_email
+      END,
+      last_used_at = CASE
+        WHEN linked_identities.user_id = excluded.user_id THEN datetime('now')
+        ELSE linked_identities.last_used_at
+      END
   `).bind(userId, firebaseUid, email).run()
+
+  const link = await env.AUTH_DB.prepare(
+    "SELECT user_id FROM linked_identities WHERE provider = 'firebase' AND provider_subject = ? LIMIT 1",
+  ).bind(firebaseUid).first<{ user_id?: string }>()
+  return link?.user_id === userId
 }
 
 function legalAccepted(body: Record<string, unknown>): boolean {
@@ -201,7 +210,6 @@ export async function handleFirebaseLogin(
 
   if (!user) return json(env, { error: 'OTYA account not found' }, 404)
 
-  // Never let a Firebase subject silently move between OTYA accounts.
   const existingLink = await env.AUTH_DB.prepare(
     "SELECT user_id FROM linked_identities WHERE provider = 'firebase' AND provider_subject = ? LIMIT 1",
   ).bind(account.localId).first<{ user_id?: string }>()
@@ -225,7 +233,9 @@ export async function handleFirebaseLogin(
     return json(env, { error: 'The authenticator or recovery code is invalid.', code: 'TWO_FACTOR_INVALID' }, 401)
   }
 
-  await linkFirebaseIdentity(env, user.id, account.localId, email)
+  if (!(await linkFirebaseIdentity(env, user.id, account.localId, email))) {
+    return json(env, { error: 'This Firebase identity is linked to another OTYA account' }, 409)
+  }
   await touchUserProduct(env.AUTH_DB, user.id, 'otya')
 
   const now = Math.floor(Date.now() / 1000)
