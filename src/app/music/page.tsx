@@ -42,7 +42,10 @@ export default function MusicPage(){
     const audio=audioRef.current
     if(!audio)return
     if(current?.id===track.id){if(audio.paused)void audio.play().catch(()=>setPlaying(false));else audio.pause();return}
-    setCurrent(track);audio.src=track.streamUrl;audio.load();void audio.play().catch(()=>setPlaying(false))
+    setCurrent(track)
+    audio.src = track.streamUrl
+    audio.load()
+    void audio.play().catch(()=>setPlaying(false))
   }
 
   const downloadHref=(track:Track)=>`/api/music/jamendo/download/${encodeURIComponent(track.id)}`
