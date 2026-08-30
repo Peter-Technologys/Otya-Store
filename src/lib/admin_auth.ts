@@ -1,5 +1,9 @@
 const COOKIE_NAME = 'otya_admin_session'
-const SESSION_TTL_SECONDS = 12 * 60 * 60
+// A trusted admin device can remain signed in for up to seven days. The session
+// is renewed only after the server has successfully verified the existing
+// signed HttpOnly cookie, so active use slides the expiry without weakening the
+// authentication boundary.
+const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
 type AdminEnv = Record<string, unknown>
 
@@ -41,8 +45,12 @@ export function adminConfigured(env: AdminEnv): boolean {
   return Boolean(text(env.ADMIN_EMAIL) && text(env.ADMIN_PASSWORD) && text(env.ADMIN_SESSION_SECRET))
 }
 
+export function adminEmail(env: AdminEnv): string {
+  return text(env.ADMIN_EMAIL).toLowerCase()
+}
+
 export function validAdminCredentials(env: AdminEnv, email: string, password: string): boolean {
-  const expectedEmail = text(env.ADMIN_EMAIL).toLowerCase()
+  const expectedEmail = adminEmail(env)
   const expectedPassword = text(env.ADMIN_PASSWORD)
   return Boolean(expectedEmail && expectedPassword)
     && timingSafeEqual(email.trim().toLowerCase(), expectedEmail)
@@ -62,7 +70,7 @@ export async function createAdminSession(env: AdminEnv, email: string): Promise<
 
 export async function verifyAdminSession(request: Request, env: AdminEnv): Promise<boolean> {
   const secret = text(env.ADMIN_SESSION_SECRET)
-  const expectedEmail = text(env.ADMIN_EMAIL).toLowerCase()
+  const expectedEmail = adminEmail(env)
   if (!secret || !expectedEmail) return false
 
   const cookie = request.headers.get('cookie') ?? ''
