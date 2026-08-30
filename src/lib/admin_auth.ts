@@ -1,8 +1,6 @@
 const COOKIE_NAME = 'otya_admin_session'
 const ACCOUNT_ACCESS_COOKIE = '__Host-otya_access'
-// Legacy direct-admin sessions remain supported during migration. The preferred
-// browser path is now one Otya account whose email is granted the admin role.
-const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
+const SESSION_TTL_SECONDS = 60 * 60
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
 type AdminEnv = Record<string, unknown> & { AUTH?: AuthBinding }
@@ -41,20 +39,20 @@ async function sign(value: string, secret: string): Promise<string> {
   return b64url(new Uint8Array(mac))
 }
 
-function cookieValue(request: Request, name: string): string {
+export function cookieValue(request: Request, name: string): string {
   const cookie = request.headers.get('cookie') ?? ''
   return cookie.split(';').map(v => v.trim()).find(v => v.startsWith(`${name}=`))?.slice(name.length + 1) ?? ''
 }
 
-function adminEmails(env: AdminEnv): Set<string> {
+export function adminEmails(env: AdminEnv): Set<string> {
   const values = [text(env.ADMIN_EMAIL), ...text(env.ADMIN_EMAILS).split(',')]
   return new Set(values.map(v => v.trim().toLowerCase()).filter(Boolean))
 }
 
 export function adminConfigured(env: AdminEnv): boolean {
-  // An admin identity can be authorized by the normal Otya account session even
-  // when the legacy direct-admin password is not configured.
-  return adminEmails(env).size > 0 && Boolean(env.AUTH?.fetch || (text(env.ADMIN_PASSWORD) && text(env.ADMIN_SESSION_SECRET)))
+  return adminEmails(env).size > 0
+    && Boolean(env.AUTH?.fetch)
+    && Boolean(text(env.ADMIN_SESSION_SECRET))
 }
 
 export function adminEmail(env: AdminEnv): string {
@@ -74,16 +72,16 @@ export async function createAdminSession(env: AdminEnv, email: string): Promise<
   if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured')
   const payload = JSON.stringify({
     email: email.trim().toLowerCase(),
+    mfa: true,
     exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
   })
   const encoded = b64url(new TextEncoder().encode(payload))
   return `${encoded}.${await sign(encoded, secret)}`
 }
 
-async function verifyLegacyAdminCookie(request: Request, env: AdminEnv): Promise<boolean> {
+async function verifySignedAdminCookie(request: Request, env: AdminEnv): Promise<boolean> {
   const secret = text(env.ADMIN_SESSION_SECRET)
-  const expectedEmail = adminEmail(env)
-  if (!secret || !expectedEmail) return false
+  if (!secret) return false
 
   const raw = cookieValue(request, COOKIE_NAME)
   if (!raw) return false
@@ -93,8 +91,10 @@ async function verifyLegacyAdminCookie(request: Request, env: AdminEnv): Promise
   if (!timingSafeEqual(signature, expectedSignature)) return false
 
   try {
-    const payload = JSON.parse(new TextDecoder().decode(fromB64url(encoded))) as { email?: string; exp?: number }
-    return payload.email === expectedEmail
+    const payload = JSON.parse(new TextDecoder().decode(fromB64url(encoded))) as { email?: string; mfa?: boolean; exp?: number }
+    return typeof payload.email === 'string'
+      && adminEmails(env).has(payload.email.toLowerCase())
+      && payload.mfa === true
       && typeof payload.exp === 'number'
       && payload.exp > Math.floor(Date.now() / 1000)
   } catch {
@@ -102,33 +102,27 @@ async function verifyLegacyAdminCookie(request: Request, env: AdminEnv): Promise
   }
 }
 
-async function verifyOtyaAccountAdmin(request: Request, env: AdminEnv): Promise<boolean> {
+export async function getOtyaAccountAdminEmail(request: Request, env: AdminEnv): Promise<string | null> {
   const accessToken = cookieValue(request, ACCOUNT_ACCESS_COOKIE)
   const allowed = adminEmails(env)
-  if (!accessToken || !allowed.size || !env.AUTH?.fetch) return false
+  if (!accessToken || !allowed.size || !env.AUTH?.fetch) return null
   try {
     const upstream = await env.AUTH.fetch(new Request('https://auth/auth/account', {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     }))
-    if (!upstream.ok) return false
+    if (!upstream.ok) return null
     const data = await upstream.json().catch(() => ({})) as { email?: string; user?: { email?: string } }
     const email = String(data.user?.email ?? data.email ?? '').trim().toLowerCase()
-    return Boolean(email) && allowed.has(email)
+    return email && allowed.has(email) ? email : null
   } catch {
-    return false
+    return null
   }
 }
 
-/**
- * Canonical browser authorization for Otya Admin.
- *
- * Preferred path: one normal Otya account session plus an admin email/role
- * allowlist. Legacy signed admin cookies remain valid during migration.
- */
+/** Admin console access requires a signed session created only after MFA. */
 export async function verifyAdminSession(request: Request, env: AdminEnv): Promise<boolean> {
-  if (await verifyOtyaAccountAdmin(request, env)) return true
-  return verifyLegacyAdminCookie(request, env)
+  return verifySignedAdminCookie(request, env)
 }
 
 function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
