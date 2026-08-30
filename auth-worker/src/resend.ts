@@ -14,7 +14,7 @@ interface ResendResponse { id?: string; message?: string; name?: string; statusC
 interface TemplateSelection { id: string; variables: Record<string, string | number> }
 
 const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
-const OTYA_LOGO_URL = 'https://petersmartlink.com/web-app-manifest-192x192.png'
+const OTYA_LOGO_URL = 'https://petersmartlink.com/otya-icon.svg'
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')
@@ -22,16 +22,16 @@ function escapeHtml(value: string): string {
 
 function renderParagraph(line: string): string {
   const safe = escapeHtml(line.trim())
-  if (!safe) return '<div style="height:12px"></div>'
+  if (!safe) return '<tr><td style="height:10px;font-size:1px;line-height:1px">&nbsp;</td></tr>'
   const isOtp = /^[A-Z][0-9]{4}$/.test(line.trim())
-  if (isOtp) return `<div style="margin:22px 0;padding:18px;border-radius:16px;background:#211a46;border:1px solid #8c78ff;text-align:center;font-size:32px;font-weight:900;letter-spacing:10px;color:#ffffff">${safe}</div>`
+  if (isOtp) return `<tr><td bgcolor="#F4F5F7" style="background-color:#F4F5F7;padding-top:18px;padding-bottom:18px;padding-left:18px;padding-right:18px;border-radius:16px;border-width:1px;border-style:solid;border-color:#E4E7EC;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:32px;line-height:40px;font-weight:800;letter-spacing:8px;color:#101114">${safe}</td></tr>`
   const isSignature = line.trim().startsWith('—')
-  return `<p style="margin:0 0 12px;line-height:1.65;color:${isSignature?'#b0a9c7':'#f4f1ff'};font-size:15px">${safe}</p>`
+  return `<tr><td style="padding-bottom:12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:${isSignature?'#667085':'#344054'}">${safe}</td></tr>`
 }
 
 function renderEmailHtml(subject: string, text: string): string {
   const body = text.split('\n').map(renderParagraph).join('')
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#100d1d;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#100d1d;padding:28px 14px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#171326;border:1px solid #332b55;border-radius:22px;overflow:hidden"><tr><td style="padding:24px 28px;border-bottom:1px solid #332b55"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:44px;height:44px;vertical-align:middle"><img src="${OTYA_LOGO_URL}" alt="Otya" width="44" height="44" style="display:block;border:0;border-radius:12px" /></td><td style="padding-left:12px"><div style="font-size:23px;font-weight:900;color:#ffffff">Otya</div><div style="margin-top:3px;font-size:12px;color:#b0a9c7">Account & security</div></td></tr></table><div style="height:3px;margin-top:20px;border-radius:3px;background:#8c78ff"></div></td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 22px;font-size:22px;line-height:1.3;color:#ffffff">${escapeHtml(subject)}</h1>${body}<div style="margin-top:28px;padding-top:20px;border-top:1px solid #332b55;color:#aaa2bf;font-size:12px;line-height:1.65"><strong style="color:#ddd7ee">Otya</strong><br/>This is an automated Otya account or security message. Never share passwords, OTPs or recovery codes.<br/>Need help? <a href="mailto:${OTYA_SUPPORT_EMAIL}" style="color:#a996ff;text-decoration:none">${OTYA_SUPPORT_EMAIL}</a></div></td></tr></table></td></tr></table></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="X-UA-Compatible" content="IE=edge"></head><body style="margin:0;padding:0;background-color:#F7F8FA;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#F7F8FA" style="background-color:#F7F8FA;padding-top:28px;padding-bottom:28px;padding-left:14px;padding-right:14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin-left:auto;margin-right:auto"><tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding-top:24px;padding-bottom:24px;padding-left:26px;padding-right:26px;border-top-left-radius:22px;border-top-right-radius:22px;border-width:1px;border-style:solid;border-color:#EAECF0;border-bottom-width:0"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="vertical-align:middle"><img src="${OTYA_LOGO_URL}" alt="Otya" width="42" height="42" border="0" style="display:block;width:42px;height:42px;background-color:transparent" /></td><td style="padding-left:10px;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:28px;font-weight:800;color:#101114">tya</td></tr></table></td></tr><tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding-top:8px;padding-bottom:28px;padding-left:26px;padding-right:26px;border-bottom-left-radius:22px;border-bottom-right-radius:22px;border-width:1px;border-style:solid;border-color:#EAECF0;border-top-width:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding-bottom:20px;font-family:Arial,Helvetica,sans-serif;font-size:24px;line-height:32px;font-weight:800;color:#101114">${escapeHtml(subject)}</td></tr>${body}<tr><td style="padding-top:18px;border-top-width:1px;border-top-style:solid;border-top-color:#EAECF0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#667085">This is an automated Otya account or security message. Never share passwords, verification codes or recovery codes.<br/>Need help? <a href="mailto:${OTYA_SUPPORT_EMAIL}" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#475467;text-decoration:underline">${OTYA_SUPPORT_EMAIL}</a></td></tr></table></td></tr></table></td></tr></table></body></html>`
 }
 
 function extractOtp(text: string): string | null { return text.match(/\b[A-Z][0-9]{4}\b/)?.[0] ?? null }
@@ -41,12 +41,12 @@ function extractFirstMessageLine(text: string): string { return text.split('\n')
 
 function selectTemplate(email: ResendEmail): TemplateSelection | null {
   const subject=email.subject.toLowerCase(); const otp=extractOtp(email.text); const name=extractName(email.text)
-  if(subject.includes('verification code')&&otp)return{id:'otya-verification-code',variables:{NAME:name,CODE:otp,MINUTES:extractMinutes(email.text)}}
-  if((subject.includes('password')||subject.includes('reset'))&&otp)return{id:'otya-password-reset',variables:{NAME:name,CODE:otp,MINUTES:extractMinutes(email.text)}}
-  if(subject.includes('welcome'))return{id:'otya-welcome',variables:{NAME:name}}
+  if(subject.includes('verification code')&&otp)return{id:'otya-verification-code-1',variables:{NAME:name,CODE:otp,MINUTES:extractMinutes(email.text)}}
+  if((subject.includes('password')||subject.includes('reset'))&&otp)return{id:'otya-password-reset-1',variables:{NAME:name,CODE:otp,MINUTES:extractMinutes(email.text)}}
+  if(subject.includes('welcome'))return{id:'otya-welcome-1',variables:{NAME:name}}
   if(subject.includes('security')||subject.includes('new login')){
     const ip=email.text.match(/IP address\s*:\s*([^\n]+)/i)?.[1]?.trim(); const time=email.text.match(/Time\s*:\s*([^\n]+)/i)?.[1]?.trim(); const device=email.text.match(/Device\s*:\s*([^\n]+)/i)?.[1]?.trim(); const location=email.text.match(/Location\s*:\s*([^\n]+)/i)?.[1]?.trim(); const message=email.text.split('\n').map(line=>line.trim()).find(line=>/detected|security|login|signed in/i.test(line)&&!/^hi\b/i.test(line))??'We detected security-related activity on your Otya account.'
-    return{id:'otya-security-alert',variables:{NAME:name,MESSAGE:message,DEVICE:device||'Otya app or web account',LOCATION:location||(ip?`IP ${ip}`:'Unknown location'),TIME:time||new Date().toUTCString()}}
+    return{id:'otya-security-alert-1',variables:{NAME:name,MESSAGE:message,DEVICE:device||'Otya app or web account',LOCATION:location||(ip?`IP ${ip}`:'Unknown location'),TIME:time||new Date().toUTCString()}}
   }
   if(subject.includes('service')||subject.includes('notice')||subject.includes('maintenance'))return{id:'otya-service-notice',variables:{NAME:name,MESSAGE:extractFirstMessageLine(email.text),STATUS:subject.includes('maintenance')?'Maintenance':'Information'}}
   return null
