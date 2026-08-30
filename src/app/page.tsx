@@ -66,7 +66,7 @@ export default function HomePage() {
           <Link href="/music" className="text-sm font-black">See all</Link>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {MOODS.map(([label,query,short],index) => <Link key={label} href={`/music?q=${encodeURIComponent(query)}`} className="group min-h-[150px] sm:min-h-[180px] rounded-[24px] p-4 flex flex-col justify-between overflow-hidden border border-black/[.055] dark:border-white/[.07] shadow-sm" style={{background:`linear-gradient(145deg,color-mix(in srgb,var(--cosmos-card) 88%,var(--cosmos-primary)),color-mix(in srgb,var(--cosmos-card) 94%,var(--cosmos-cyan)))`}}>
+          {MOODS.map(([label,query,short]) => <Link key={label} href={`/music?q=${encodeURIComponent(query)}`} className="group min-h-[150px] sm:min-h-[180px] rounded-[24px] p-4 flex flex-col justify-between overflow-hidden border border-black/[.055] dark:border-white/[.07] shadow-sm" style={{background:`linear-gradient(145deg,color-mix(in srgb,var(--cosmos-card) 88%,var(--cosmos-primary)),color-mix(in srgb,var(--cosmos-card) 94%,var(--cosmos-cyan)))`}}>
             <span className="w-11 h-11 rounded-2xl grid place-items-center text-[11px] font-black bg-black/[.055] dark:bg-white/[.08]">{short}</span>
             <div><div className="font-black text-[17px] leading-tight">{label}</div><div className="mt-1 text-xs otya-muted group-hover:translate-x-0.5 transition-transform">Open →</div></div>
           </Link>)}
