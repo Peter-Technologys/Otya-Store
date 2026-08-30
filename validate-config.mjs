@@ -18,6 +18,7 @@ const fcm = read('src/lib/fcm.ts')
 const appCheck = read('src/lib/firebase_app_check.ts')
 const googleWrapper = read('auth-worker/src/production-entrypoint.ts')
 const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
+const telegramProxy = read('src/app/api/auth/telegram/[...path]/route.ts')
 
 requireMatch('otya-store Worker name', store, /^name\s*=\s*"otya-store"$/m)
 for (const binding of ['R2', 'KV', 'DB', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
@@ -34,6 +35,10 @@ requireMatch('otya-auth must use production wrapper', auth, /^main\s*=\s*"src\/p
 requireMatch('Android Google client id must be verified', auth, /^GOOGLE_CLIENT_ID\s*=\s*"82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv\.apps\.googleusercontent\.com"$/m)
 requireMatch('Web Google client id must be verified', auth, /^GOOGLE_WEB_CLIENT_ID\s*=\s*"82776565585-obr8k53b8n6djsggissv8qne81cm3u5u\.apps\.googleusercontent\.com"$/m)
 requireMatch('otya-auth Firebase project id', auth, /^FIREBASE_PROJECT_ID\s*=\s*"otya-player"$/m)
+requireMatch('Telegram redirect must match live canonical API callback', auth, /^TELEGRAM_LOGIN_REDIRECT_URI\s*=\s*"https:\/\/petersmartlink\.com\/api\/auth\/telegram\/callback"$/m)
+requireMatch('Telegram public callback must proxy to private auth service', telegramProxy, /PUBLIC_PREFIX\s*=\s*'\/api\/auth\/telegram\/'/)
+requireMatch('Telegram public callback must preserve private auth route', telegramProxy, /AUTH_PREFIX\s*=\s*'\/auth\/telegram\/'/)
+requireMatch('Telegram public callback must use AUTH binding', telegramProxy, /\.AUTH as AuthService/)
 forbidMatch('Cloudflare EMAIL binding must not return to auth Wrangler', auth, /\[\[send_email\]\]|binding\s*=\s*"EMAIL"/i)
 requireMatch('production Google wrapper must support web audience', googleWrapper, /GOOGLE_WEB_CLIENT_ID/)
 requireMatch('production Google wrapper must reject unconfigured audiences', googleWrapper, /configuredGoogleAudiences/)
@@ -54,7 +59,7 @@ requireMatch('Jamendo catalog must read JAMENDO_CLIENT_ID', jamendoCatalog, /JAM
 forbidMatch('Jamendo Client Secret must never enter public catalog code', jamendoCatalog, /JAMENDO_CLIENT_SECRET/)
 forbidMatch('Jamendo credentials must not be hard-coded in public catalog code', jamendoCatalog, /3bb1fe8d|606b6f72bdd754bcbacaddd50c8b2e19/)
 
-const scanned = [store, auth, ai, fcm, appCheck, googleWrapper, jamendoCatalog].join('\n')
+const scanned = [store, auth, ai, fcm, appCheck, googleWrapper, jamendoCatalog, telegramProxy].join('\n')
 forbidMatch('Firebase Admin private key material must not be committed', scanned, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/)
 forbidMatch('Resend API key values must not be committed', scanned, /\bre_[A-Za-z0-9_-]{20,}\b/)
 
