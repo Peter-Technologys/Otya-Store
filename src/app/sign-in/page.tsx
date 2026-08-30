@@ -21,6 +21,10 @@ async function authFetch(path: string, init: RequestInit = {}) {
   return fetch(`${API}/${path}`, { ...init, headers, credentials: 'same-origin', cache: 'no-store' })
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export default function SignInPage() {
   const googleButtonRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<Mode>('signin')
@@ -29,6 +33,7 @@ export default function SignInPage() {
   const [name, setName] = useState('')
   const [otp, setOtp] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [secondFactor, setSecondFactor] = useState('')
   const [useRecovery, setUseRecovery] = useState(false)
   const [terms, setTerms] = useState(false)
@@ -48,10 +53,12 @@ export default function SignInPage() {
     }).catch(() => undefined)
 
     const telegram = new URLSearchParams(window.location.search).get('telegram')
-    if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in first, then connect Telegram from your account.')
+    if (telegram === 'signed-in') void verifySessionAndOpen()
+    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then connect Telegram from your account.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
     else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
     else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -61,7 +68,12 @@ export default function SignInPage() {
       if (cancelled || !window.google || !googleButtonRef.current) return
       googleButtonRef.current.replaceChildren()
       window.google.accounts.id.initialize({ client_id: GOOGLE_WEB_CLIENT_ID, callback: response => void completeGoogle(response), auto_select: false })
-      window.google.accounts.id.renderButton(googleButtonRef.current, { type: 'standard', theme: 'outline', size: 'large', text: registration ? 'signup_with' : 'continue_with', shape: 'pill', width: 360 })
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        type: 'icon',
+        theme: 'outline',
+        size: 'large',
+        shape: 'circle',
+      })
     }
     const existing = document.querySelector<HTMLScriptElement>('script[data-otya-google]')
     if (existing) {
@@ -82,7 +94,29 @@ export default function SignInPage() {
   }, [mode, terms, privacy, marketing])
 
   function switchMode(next: Mode) {
-    setMode(next); setError(''); setNotice(''); setOtp(''); setSecondFactor(''); setUseRecovery(false)
+    setMode(next)
+    setError('')
+    setNotice('')
+    setOtp('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setSecondFactor('')
+    setUseRecovery(false)
+  }
+
+  async function verifySessionAndOpen() {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await authFetch('session').catch(() => null)
+      if (response?.ok) {
+        const data = await response.json().catch(() => ({})) as Json
+        if (data.authenticated === true) {
+          window.location.replace('/account')
+          return true
+        }
+      }
+      if (attempt < 2) await sleep(180 * (attempt + 1))
+    }
+    throw new Error('Your details were accepted, but Otya could not open a secure session. Please try again.')
   }
 
   async function completeGoogle(response: GoogleCredentialResponse) {
@@ -96,11 +130,11 @@ export default function SignInPage() {
       if (!result.ok) {
         if (result.status === 428 || data.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
           setMode('register')
-          throw new Error('This Google account is new to Otya. Accept the Terms and Privacy Policy, then continue with Google again.')
+          throw new Error('This Google account is new to Otya. Accept the Terms and Privacy Policy, then use Google again.')
         }
         throw new Error(data.error || 'Google Sign-In failed.')
       }
-      window.location.replace('/account')
+      await verifySessionAndOpen()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
@@ -126,6 +160,7 @@ export default function SignInPage() {
     if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your account.')
     if (mode === 'twofactor' && !secondFactor.trim()) return setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
     if (mode === 'reset' && (!otp.trim() || newPassword.length < 8)) return setError('Enter the reset code and a new password of at least 8 characters.')
+    if (mode === 'reset' && newPassword !== confirmPassword) return setError('The new passwords do not match.')
 
     setBusy(true); setError(''); setNotice('')
     try {
@@ -141,7 +176,7 @@ export default function SignInPage() {
         const response = await authFetch('reset-password', { method: 'POST', body: JSON.stringify({ email: email.trim(), otp: otp.trim(), new_password: newPassword }) })
         const data = await response.json().catch(() => ({})) as Json
         if (!response.ok) throw new Error(data.error || 'Could not reset your password.')
-        setPassword(''); setNewPassword(''); setOtp(''); setMode('signin')
+        setPassword(''); setNewPassword(''); setConfirmPassword(''); setOtp(''); setMode('signin')
         setNotice(data.message || 'Password updated. Sign in with your new password.')
         return
       }
@@ -159,13 +194,13 @@ export default function SignInPage() {
         }
         throw new Error(data.error || (registration ? 'Account creation failed.' : 'Sign in failed.'))
       }
-      window.location.replace('/account')
+      await verifySessionAndOpen()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
 
   const title = mode === 'register' ? 'Create your Otya account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to Otya'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use Google, Telegram, or your email.'
+  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use your Otya account.'
 
   return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
@@ -181,18 +216,12 @@ export default function SignInPage() {
         {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
         {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
 
-        {providerMode && <>
-          <div className={busy ? 'pointer-events-none opacity-55' : ''}><div ref={googleButtonRef} className="w-full min-h-[44px] flex justify-center overflow-hidden rounded-full" aria-label="Continue with Google" /></div>
-          {!registration && <button type="button" onClick={()=>void startTelegram()} disabled={busy} className="mt-3 w-full min-h-11 rounded-full border border-black/[.08] dark:border-white/[.10] px-5 text-sm font-black disabled:opacity-55">Continue with Telegram</button>}
-          <div className="flex items-center gap-3 my-6"><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/><span className="text-[10px] font-black otya-muted">OR USE EMAIL</span><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/></div>
-        </>}
-
         <form onSubmit={submit} className="space-y-3">
           {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
           <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />
           {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
           {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
-          {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/></>}
+          {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/><Field value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm new password" type="password" autoComplete="new-password"/></>}
 
           {registration && <div className="space-y-3 py-2 text-sm otya-muted">
             <Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check>
@@ -208,6 +237,16 @@ export default function SignInPage() {
           {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>
+
+        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5">
+          <p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p>
+          <div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
+            <div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" />
+            <button type="button" onClick={()=>void startTelegram()} disabled={busy || registration} aria-label="Continue with Telegram" title={registration ? 'Telegram account creation will be available after Telegram is linked' : 'Continue with Telegram'} className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg>
+            </button>
+          </div>
+        </div>}
       </div>
 
       <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted">
