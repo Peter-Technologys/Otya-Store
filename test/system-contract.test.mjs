@@ -55,7 +55,9 @@ test('Cloudflare remains the public release and AI control plane', () => {
   const chat = read('ai-worker/src/client-chat.mjs')
   assert.match(chat, /Official website:/)
   assert.match(chat, /\/latest/)
-  assert.match(chat, /Local playback, media scanning, local search and supported local transfer must keep working without signing in or using AI/)
+  assert.match(chat, /Local playback, media scanning, local search and supported local transfer must keep working/)
+  assert.match(chat, /without signing in, Firebase, Jamendo or AI/)
+  assert.match(chat, /local Search are primary; online music and AI are optional enhancements/)
 })
 
 test('new client capabilities stay synchronized across the control plane', () => {
