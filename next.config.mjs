@@ -33,17 +33,17 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // unsafe-eval only in dev (Next.js HMR needs it); production is strict
+      // Google Identity Services requires accounts.google.com in script/frame/connect.
+      // Keep this allowlist narrow rather than relaxing the policy globally.
       isDev
-        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com"
-        : "script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com",
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com"
+        : "script-src 'self' 'unsafe-inline' https://accounts.google.com https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https: https://pagead2.googlesyndication.com",
-      // Authentication is same-origin/service-bound; never require workers.dev
-      // from browser code. AdSense/analytics origins remain explicit.
-      "connect-src 'self' https://petersmartlink.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
-      "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
+      // Browser auth stays same-origin except the official Google Identity Services client.
+      "connect-src 'self' https://petersmartlink.com https://accounts.google.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
+      "frame-src https://accounts.google.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
       "frame-ancestors 'none'",
     ].join('; '),
   },
