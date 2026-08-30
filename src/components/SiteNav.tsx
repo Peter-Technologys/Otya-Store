@@ -26,6 +26,12 @@ function CloseGlyph() {
   return <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
 }
 
+const publicLinks = [
+  ['Home', '/'],
+  ['App', '/otya-player'],
+  ['Music', '/music'],
+] as const
+
 export function SiteNav() {
   const [user, setUser] = useState<User | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -78,7 +84,7 @@ export function SiteNav() {
   return <>
     <header className="sticky top-0 z-50 border-b border-black/[.06] dark:border-white/[.08] bg-[color:var(--nav-bg)] backdrop-blur-2xl">
       <div className="otya-shell h-[64px] flex items-center gap-2 sm:gap-3">
-        <button type="button" onClick={() => { setAccountOpen(false); setMenuOpen(true) }} aria-label="Open menu" aria-expanded={menuOpen} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.05] dark:hover:bg-white/[.07]">
+        <button type="button" onClick={() => { setAccountOpen(false); setMenuOpen(true) }} aria-label="Open menu" aria-expanded={menuOpen} className="md:hidden inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.05] dark:hover:bg-white/[.07]">
           <MenuGlyph />
         </button>
 
@@ -86,6 +92,10 @@ export function SiteNav() {
           <OtyaBrandMark size={34} />
           <span className="font-black text-[19px] tracking-[-.045em] leading-none">tya</span>
         </Link>
+
+        <nav className="hidden md:flex items-center gap-1 ml-7" aria-label="Main navigation">
+          {publicLinks.map(([label, href]) => <Link key={href} href={href} className="min-h-10 inline-flex items-center rounded-full px-4 text-[13px] font-extrabold otya-muted transition hover:bg-black/[.045] hover:text-[color:var(--cosmos-text-primary)] dark:hover:bg-white/[.06]">{label}</Link>)}
+        </nav>
 
         <div className="ml-auto flex items-center gap-2">
           <Link href="/ask" aria-label="Open Otya" title="Otya" className="inline-flex min-h-11 min-w-11 items-center justify-center">
@@ -116,7 +126,7 @@ export function SiteNav() {
       </div>
     </header>
 
-    <div className={`fixed inset-0 z-[70] transition ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!menuOpen}>
+    <div className={`fixed inset-0 z-[70] transition md:hidden ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!menuOpen}>
       <button type="button" onClick={closeMenu} aria-label="Close menu" tabIndex={menuOpen ? 0 : -1} className={`absolute inset-0 bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0'}`} />
       <aside role="dialog" aria-modal="true" aria-label="Otya menu" className={`absolute inset-y-0 left-0 w-[86vw] max-w-[340px] border-r border-black/[.08] bg-[color:var(--cosmos-surface)] shadow-2xl transition-transform duration-300 ease-out dark:border-white/[.10] ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center gap-2 border-b border-black/[.06] px-4 dark:border-white/[.08]">
@@ -125,11 +135,12 @@ export function SiteNav() {
         </div>
 
         <div className="h-[calc(100dvh-64px)] overflow-y-auto px-3 py-4">
-          <div className="px-3 pb-2 text-[10px] font-black uppercase tracking-[.14em] otya-muted">Otya</div>
           <nav className="space-y-1 text-sm" aria-label="Otya navigation">
-            <Link href="/" onClick={closeMenu} className="block rounded-2xl px-3 py-3 font-bold hover:bg-black/[.045] dark:hover:bg-white/[.06]">Home</Link>
-            <Link href="/#app" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">App</Link>
-            <Link href="/#music" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Music</Link>
+            {publicLinks.map(([label, href]) => <Link key={href} href={href} onClick={closeMenu} className="block rounded-2xl px-3 py-3 font-bold hover:bg-black/[.045] dark:hover:bg-white/[.06]">{label}</Link>)}
+          </nav>
+
+          <div className="mx-3 my-4 h-px bg-black/[.07] dark:bg-white/[.08]" />
+          <nav className="space-y-1 text-sm" aria-label="Help navigation">
             <Link href="/help" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Help</Link>
             <Link href="/docs" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Docs</Link>
           </nav>
