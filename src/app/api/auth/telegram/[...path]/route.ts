@@ -14,6 +14,7 @@ type AuthService = {
 
 type TelegramLoginPayload = {
   telegram_login?: boolean
+  admin_mfa?: boolean
   access_token?: string
   refresh_token?: string
 }
@@ -22,9 +23,6 @@ function cookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     secure: true,
-    // OAuth/OIDC returns arrive as top-level navigations from another origin.
-    // Lax keeps the session protected from normal cross-site subrequests while
-    // allowing the browser to complete Google/Telegram-style sign-in returns.
     sameSite: 'lax' as const,
     path: '/',
     maxAge,
@@ -51,6 +49,8 @@ async function forward(request: NextRequest): Promise<Response> {
 
   const headers = new Headers(request.headers)
   headers.set('X-OTYA-Public-Auth-Route', publicUrl.pathname)
+  const accessToken = request.cookies.get(ACCESS_COOKIE)?.value
+  if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`)
 
   const upstream = await auth.fetch(new Request(authUrl, {
     method: request.method,
@@ -64,7 +64,10 @@ async function forward(request: NextRequest): Promise<Response> {
     if (contentType.includes('application/json')) {
       const data = await upstream.clone().json().catch(() => ({})) as TelegramLoginPayload
       if (data.telegram_login === true && data.access_token && data.refresh_token) {
-        const response = NextResponse.redirect(new URL('/account?telegram=signed-in', request.url), 302)
+        const destination = data.admin_mfa === true
+          ? '/admin?telegram=verified'
+          : '/account?telegram=signed-in'
+        const response = NextResponse.redirect(new URL(destination, request.url), 302)
         response.cookies.set(ACCESS_COOKIE, data.access_token, cookieOptions(ACCESS_MAX_AGE))
         response.cookies.set(REFRESH_COOKIE, data.refresh_token, cookieOptions(REFRESH_MAX_AGE))
         response.headers.set('Cache-Control', 'no-store')
