@@ -1,4 +1,6 @@
 import authWorker from './entrypoint'
+import { handleAdminMfa } from './admin-mfa'
+import { handleTelegramLogin } from './telegram-login'
 
 interface GoogleTokenPayload {
   aud?: string
@@ -11,6 +13,7 @@ interface GoogleTokenPayload {
 interface ProductionEnv extends Record<string, unknown> {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_WEB_CLIENT_ID?: string
+  ADMIN_EMAILS?: string
 }
 
 function configuredGoogleAudiences(env: ProductionEnv): Set<string> {
@@ -81,6 +84,25 @@ async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Pro
 export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
+
+    if (url.pathname.startsWith('/auth/admin/')) {
+      const response = await handleAdminMfa(
+        request,
+        env as Parameters<typeof handleAdminMfa>[1],
+      )
+      if (response) return response
+    }
+
+    // Keep Telegram on the production wrapper so admin step-up and normal
+    // account linking share the exact same OIDC verifier and AUTH_KV state.
+    if (url.pathname.startsWith('/auth/telegram/')) {
+      const response = await handleTelegramLogin(
+        request,
+        env as Parameters<typeof handleTelegramLogin>[1],
+      )
+      if (response) return response
+    }
+
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
