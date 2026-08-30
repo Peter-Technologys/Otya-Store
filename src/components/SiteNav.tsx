@@ -31,7 +31,7 @@ export function SiteNav() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Link href="/account" className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium" style={{ color: 'var(--cosmos-text-secondary)' }}>Account</Link>
+        <Link href="/sign-in" className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium" style={{ color: 'var(--cosmos-text-secondary)' }}>Account</Link>
         <button onClick={() => setOpen(v => !v)} className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center" style={{ color: 'var(--cosmos-text-primary)' }} aria-label="Menu" aria-expanded={open}>
           <span className="text-lg leading-none">{open ? '×' : '☰'}</span>
         </button>
@@ -41,7 +41,7 @@ export function SiteNav() {
     {open && <div className="md:hidden border-t" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-app-bar)' }}>
       <div className="px-3 py-2">
         {NAV_LINKS.map(({ label, href }) => <Link key={href} href={href} onClick={() => setOpen(false)} className="block px-2 py-3 rounded-lg text-sm font-semibold" style={{ color: 'var(--cosmos-text-primary)' }}>{label}</Link>)}
-        <Link href="/account" onClick={() => setOpen(false)} className="block px-2 py-3 rounded-lg text-sm font-semibold">Account</Link>
+        <Link href="/sign-in" onClick={() => setOpen(false)} className="block px-2 py-3 rounded-lg text-sm font-semibold">Account</Link>
       </div>
     </div>}
   </nav>
