@@ -5,12 +5,21 @@ const HEALTH_CHECK_CRON = '*/5 * * * *'
 const HEALTH_INCIDENT_KEY = 'monitor:health:incident:v2'
 const HEALTH_PATHS = ['/', '/download/otya-player', '/api/version', '/latest']
 const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
+const ACCESS_COOKIE = '__Host-otya_access'
+const ADMIN_COOKIE = 'otya_admin_session'
 
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})}
+function cookieValue(request,name){const cookie=request.headers.get('cookie')||'';return cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(`${name}=`))?.slice(name.length+1)||''}
+function timingSafeEqual(a,b){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
+function b64url(bytes){let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'')}
+function fromB64url(value){const base64=value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=');return Uint8Array.from(atob(base64),c=>c.charCodeAt(0))}
+async function sign(value,secret){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const mac=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value));return b64url(new Uint8Array(mac))}
 
 async function authenticateUser(request,env){
-  const authorization=request.headers.get('Authorization')||''
-  if(!authorization.startsWith('Bearer ')||!env.AUTH?.fetch)return null
+  const bearer=request.headers.get('Authorization')||''
+  const cookieToken=cookieValue(request,ACCESS_COOKIE)
+  const authorization=bearer.startsWith('Bearer ')?bearer:(cookieToken?`Bearer ${cookieToken}`:'')
+  if(!authorization||!env.AUTH?.fetch)return null
   try{
     const verifyUrl=new URL('/auth/verify',request.url)
     const verifyRequest=new Request(verifyUrl,{method:'GET',headers:{Authorization:authorization}})
@@ -25,6 +34,24 @@ function adminEmails(env){
   return new Set(String(env.ADMIN_EMAILS||env.ADMIN_REPORT_EMAIL||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean))
 }
 function isAdminUser(user,env){return Boolean(user?.email)&&adminEmails(env).has(user.email.toLowerCase())}
+async function hasElevatedAdminSession(request,env){
+  const secret=String(env.ADMIN_SESSION_SECRET||'').trim()
+  const raw=cookieValue(request,ADMIN_COOKIE)
+  if(!secret||!raw)return false
+  const [encoded,signature]=raw.split('.')
+  if(!encoded||!signature)return false
+  const expected=await sign(encoded,secret)
+  if(!timingSafeEqual(signature,expected))return false
+  try{
+    const payload=JSON.parse(new TextDecoder().decode(fromB64url(encoded)))
+    const email=typeof payload?.email==='string'?payload.email.toLowerCase():''
+    return Boolean(email)
+      && adminEmails(env).has(email)
+      && payload?.mfa===true
+      && typeof payload?.exp==='number'
+      && payload.exp>Math.floor(Date.now()/1000)
+  }catch{return false}
+}
 
 function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`}`)}}}
 function withProductionAdapters(env){return{...env,EMAIL:createResendEmailAdapter(env)}}
@@ -45,9 +72,6 @@ async function forwardClientAi(request,env){
   headers.delete('X-OTYA-User-Email')
   headers.delete('X-OTYA-Persist-Chat')
   if(user&&env.INTERNAL_SECRET){
-    // Identity was verified by otya-auth through the AUTH service binding.
-    // The AI worker trusts account headers only when this internal service
-    // marker is also present, so direct workers.dev requests remain guest-only.
     headers.set('X-OTYA-Internal-Secret',env.INTERNAL_SECRET)
     headers.set('X-OTYA-User-ID',user.id)
     headers.set('X-OTYA-User-Email',user.email)
@@ -62,6 +86,7 @@ async function forwardAdminAi(request,env){
   const user=await authenticateUser(request,env)
   if(!user)return json({error:'Sign in required'},401)
   if(!isAdminUser(user,env))return json({error:'Administrator access required'},403)
+  if(!await hasElevatedAdminSession(request,env))return json({error:'Elevated administrator verification required'},403)
   if(!env.AI_SUPPORT?.fetch)return json({error:'AI support service unavailable'},503)
   if(!env.INTERNAL_SECRET)return json({error:'AI admin channel is not configured'},503)
   const headers=new Headers(request.headers)
@@ -69,6 +94,14 @@ async function forwardAdminAi(request,env){
   headers.set('X-OTYA-Admin-ID',user.id)
   headers.set('X-OTYA-Admin-Email',user.email)
   return env.AI_SUPPORT.fetch(new Request(request,{headers}))
+}
+
+async function authorizeReleaseWorkflow(request,env){
+  const user=await authenticateUser(request,env)
+  if(!user)return {ok:false,response:json({error:'Sign in required'},401)}
+  if(!isAdminUser(user,env))return {ok:false,response:json({error:'Administrator access required'},403)}
+  if(!await hasElevatedAdminSession(request,env))return {ok:false,response:json({error:'Elevated administrator verification required'},403)}
+  return {ok:true,user}
 }
 
 export default {
@@ -91,17 +124,15 @@ export default {
   }
   if(url.pathname.startsWith('/api/telegram/')){response=runtimeEnv.AI_SUPPORT?.fetch?await runtimeEnv.AI_SUPPORT.fetch(request):json({error:'AI support service unavailable'},503);writeRequestAnalytics(runtimeEnv,request,response,startedAt);return response}
   if(url.pathname==='/api/admin/release-workflow'&&request.method==='POST'){
-    const user=await authenticateUser(request,runtimeEnv)
-    if(!user)response=json({error:'Sign in required'},401)
-    else if(!isAdminUser(user,runtimeEnv))response=json({error:'Administrator access required'},403)
+    const auth=await authorizeReleaseWorkflow(request,runtimeEnv)
+    if(!auth.ok)response=auth.response
     else if(!runtimeEnv.OTYA_RELEASE_WORKFLOW?.create)response=json({error:'Release workflow binding unavailable'},503)
     else{try{const params=await request.json();const instance=await runtimeEnv.OTYA_RELEASE_WORKFLOW.create({params});response=json({ok:true,instanceId:instance.id,status:'queued'},202)}catch(error){response=json({error:'Could not start release workflow',detail:error instanceof Error?error.message:'Invalid request'},400)}}
     writeRequestAnalytics(runtimeEnv,request,response,startedAt);return response
   }
   if(url.pathname==='/api/admin/release-workflow/status'&&request.method==='GET'){
-    const user=await authenticateUser(request,runtimeEnv)
-    if(!user)response=json({error:'Sign in required'},401)
-    else if(!isAdminUser(user,runtimeEnv))response=json({error:'Administrator access required'},403)
+    const auth=await authorizeReleaseWorkflow(request,runtimeEnv)
+    if(!auth.ok)response=auth.response
     else if(!runtimeEnv.OTYA_RELEASE_WORKFLOW?.get)response=json({error:'Release workflow binding unavailable'},503)
     else{const id=url.searchParams.get('id');if(!id)response=json({error:'id is required'},400);else{try{const instance=await runtimeEnv.OTYA_RELEASE_WORKFLOW.get(id);response=json({ok:true,instanceId:id,workflow:await instance.status()})}catch{response=json({error:'Workflow instance not found'},404)}}}
     writeRequestAnalytics(runtimeEnv,request,response,startedAt);return response
