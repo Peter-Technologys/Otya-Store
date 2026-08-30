@@ -1,5 +1,6 @@
 import { generateRefreshToken, signJwt, verifyJwt } from './crypto'
 import { ensureSchema, getUserById, type D1Database, type UserRow } from './db'
+import { adminTelegramPending, markAdminTelegramComplete } from './admin-mfa'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -14,6 +15,7 @@ export interface TelegramLoginEnv {
   TELEGRAM_LOGIN_CLIENT_ID?: string
   TELEGRAM_LOGIN_CLIENT_SECRET?: string
   TELEGRAM_LOGIN_REDIRECT_URI?: string
+  ADMIN_EMAILS?: string
 }
 
 type TelegramClaims = {
@@ -30,7 +32,7 @@ type TelegramClaims = {
 
 type JoseWebKey = JsonWebKey & { kid?: string }
 type StoredTelegramState = {
-  mode: 'login' | 'link'
+  mode: 'login' | 'link' | 'admin'
   userId?: string
   verifier: string
   nonce: string
@@ -174,9 +176,13 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
 
   if (url.pathname === '/auth/telegram/start') {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-    const mode: 'login' | 'link' = url.searchParams.get('mode') === 'login' ? 'login' : 'link'
-    const userId = mode === 'link' ? await requireUser(request, env) : null
-    if (mode === 'link' && !userId) return json({ error: 'Sign in to OTYA first' }, 401)
+    const requested = url.searchParams.get('mode')
+    const mode: 'login' | 'link' | 'admin' = requested === 'login' ? 'login' : requested === 'admin' ? 'admin' : 'link'
+    const userId = mode === 'login' ? null : await requireUser(request, env)
+    if (mode !== 'login' && !userId) return json({ error: 'Sign in to OTYA first' }, 401)
+    if (mode === 'admin' && userId && !(await adminTelegramPending(env, userId))) {
+      return json({ error: 'Verify your admin email code first.' }, 401)
+    }
 
     const state = randomUrlSafe(24)
     const verifier = randomUrlSafe(48)
@@ -250,6 +256,7 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
         refresh_token: tokens.refreshToken,
         user: {
           id: user.id,
+          otya_id: user.otya_id,
           email: user.email,
           name: user.name,
           avatar_url: user.avatar_url,
@@ -259,8 +266,37 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
     }
 
     const userId = stored.userId
-    if (!userId) throw new Error('Telegram link state is missing the OTYA account')
+    if (!userId) throw new Error('Telegram state is missing the OTYA account')
     if (existingIdentity && existingIdentity.user_id !== userId) throw new Error('This Telegram account is already linked to another OTYA account')
+
+    if (stored.mode === 'admin') {
+      if (!existingIdentity || existingIdentity.user_id !== userId) {
+        return Response.redirect('https://petersmartlink.com/admin?telegram=not-linked', 302)
+      }
+      const user = await getUserById(env.AUTH_DB, userId)
+      if (!user) return Response.redirect('https://petersmartlink.com/admin?telegram=account-missing', 302)
+      await env.AUTH_DB.prepare(
+        `UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?`,
+      ).bind(claims.preferred_username ?? null, claims.sub).run()
+      await applyVerifiedPhone(env, user.id, claims)
+      await markAdminTelegramComplete(env, userId)
+      const tokens = await issueBrowserTokens(user, env)
+      return json({
+        ok: true,
+        telegram_login: true,
+        admin_mfa: true,
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        user: {
+          id: user.id,
+          otya_id: user.otya_id,
+          email: user.email,
+          name: user.name,
+          avatar_url: user.avatar_url,
+          is_verified: user.is_verified,
+        },
+      })
+    }
 
     await env.AUTH_DB.prepare(`
       INSERT INTO linked_identities (user_id, provider, provider_subject, provider_username)
