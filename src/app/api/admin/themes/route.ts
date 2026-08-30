@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
-import { isAdminAuthorized } from '@/lib/admin_auth'
+import { verifyAdminSession } from '@/lib/admin_auth'
 
 const KEY = 'themes:catalog'
 const MAX_BYTES = 128 * 1024
@@ -9,7 +9,7 @@ const MAX_BYTES = 128 * 1024
 async function context(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
-  if (!await isAdminAuthorized(req, recordEnv)) return null
+  if (!await verifyAdminSession(req, recordEnv)) return null
   return recordEnv
 }
 
