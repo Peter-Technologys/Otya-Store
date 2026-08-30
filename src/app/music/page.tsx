@@ -37,7 +37,21 @@ export default function MusicPage() {
   useEffect(()=>{ const params=new URLSearchParams(window.location.search); const initial=params.get('q')||''; setQuery(initial); void loadMusic(initial) },[])
 
   function submit(event:FormEvent){ event.preventDefault(); const next=query.trim(); window.history.replaceState(null,'',next?`/music?q=${encodeURIComponent(next)}`:'/music'); void loadMusic(next) }
-  function play(track:Track){ const audio=audioRef.current; if(!audio)return; if(current?.id===track.id){ if(audio.paused)void audio.play().catch(()=>setPlaying(false)); else audio.pause(); return } setCurrent(track); audio.src=track.streamUrl; audio.load(); void audio.play().catch(()=>setPlaying(false)) }
+
+  function play(track: Track) {
+    const audio = audioRef.current
+    if (!audio) return
+    if (current?.id === track.id) {
+      if (audio.paused) void audio.play().catch(() => setPlaying(false))
+      else audio.pause()
+      return
+    }
+    setCurrent(track)
+    audio.src = track.streamUrl
+    audio.load()
+    void audio.play().catch(() => setPlaying(false))
+  }
+
   const downloadHref=(track:Track)=>`/api/music/jamendo/download/${encodeURIComponent(track.id)}`
 
   return <div className="min-h-screen flex flex-col otya-ambient" style={{color:'var(--cosmos-text-primary)'}}>
