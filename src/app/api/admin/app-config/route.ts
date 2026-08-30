@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
-import { isAdminAuthorized } from '@/lib/admin_auth'
+import { verifyAdminSession } from '@/lib/admin_auth'
 import { extractFirebaseOwnedClientConfig } from '@/lib/client_config'
 import { publishOtyaClientConfig } from '@/lib/firebase_remote_config'
 
@@ -56,7 +56,7 @@ async function syncFirebaseClientConfig(
 async function context(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
-  if (!await isAdminAuthorized(req, recordEnv)) return null
+  if (!await verifyAdminSession(req, recordEnv)) return null
   return recordEnv
 }
 
