@@ -2,8 +2,6 @@
 
 import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { SiteNav } from '@/components/SiteNav'
-import { SiteFooter } from '@/components/SiteFooter'
 import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
 const API = '/api/account-session'
@@ -11,7 +9,7 @@ const GOOGLE_WEB_CLIENT_ID = '82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.
 const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
 
-type Mode = 'signin' | 'register' | 'twofactor' | 'forgot' | 'reset'
+type Mode = 'signin' | 'register' | 'forgot' | 'reset' | 'twofactor'
 type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
 type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
@@ -28,9 +26,9 @@ export default function SignInPage() {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [name, setName] = useState('')
   const [otp, setOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [secondFactor, setSecondFactor] = useState('')
   const [useRecovery, setUseRecovery] = useState(false)
   const [terms, setTerms] = useState(false)
@@ -50,7 +48,7 @@ export default function SignInPage() {
     }).catch(() => undefined)
 
     const telegram = new URLSearchParams(window.location.search).get('telegram')
-    if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then link Telegram from Account.')
+    if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in first, then connect Telegram from your account.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
     else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
     else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
@@ -76,7 +74,7 @@ export default function SignInPage() {
       script.defer = true
       script.dataset.otyaGoogle = 'true'
       script.addEventListener('load', setup, { once: true })
-      script.addEventListener('error', () => setError('Google Sign-In could not be loaded. You can still use email below.'), { once: true })
+      script.addEventListener('error', () => setError('Google Sign-In could not be loaded. You can still use email.'), { once: true })
       document.head.appendChild(script)
     }
     return () => { cancelled = true }
@@ -90,7 +88,7 @@ export default function SignInPage() {
   async function completeGoogle(response: GoogleCredentialResponse) {
     const idToken = response.credential || ''
     if (!idToken) return setError('Google did not return a valid sign-in credential.')
-    if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy before creating an Otya account with Google.')
+    if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy before creating your account.')
     setBusy(true); setError(''); setNotice('')
     try {
       const result = await authFetch('google', { method: 'POST', body: JSON.stringify({ id_token: idToken, ...(registration ? { terms_accepted: true, terms_version: TERMS_VERSION, privacy_accepted: true, privacy_version: PRIVACY_VERSION, marketing_consent: marketing } : {}) }) })
@@ -121,11 +119,11 @@ export default function SignInPage() {
     }
   }
 
-  async function submitEmail(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault()
     if (!email.trim()) return setError('Enter your email address.')
     if ((mode === 'signin' || mode === 'register' || mode === 'twofactor') && !password) return setError('Enter your password.')
-    if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your Otya account.')
+    if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your account.')
     if (mode === 'twofactor' && !secondFactor.trim()) return setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
     if (mode === 'reset' && (!otp.trim() || newPassword.length < 8)) return setError('Enter the reset code and a new password of at least 8 characters.')
 
@@ -166,62 +164,65 @@ export default function SignInPage() {
     finally { setBusy(false) }
   }
 
-  const title = mode === 'register' ? 'Create your Otya account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Welcome back'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your account email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and your new password.' : registration ? 'One Otya account for your identity and connected features.' : 'Sign in once to your Otya account.'
+  const title = mode === 'register' ? 'Create your Otya account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to Otya'
+  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use Google, Telegram, or your email.'
 
-  return <div className="min-h-screen flex flex-col bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)]">
-    <SiteNav />
-    <main className="flex-1 grid lg:grid-cols-[1fr_1fr]">
-      <section className="hidden lg:flex relative overflow-hidden m-4 mr-0 rounded-[34px] bg-[linear-gradient(145deg,#17131f,#252050_52%,#15303c)] text-white p-10 xl:p-14 flex-col justify-between">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_16%,rgba(185,119,255,.34),transparent_30%),radial-gradient(circle_at_83%_18%,rgba(68,190,255,.22),transparent_28%),radial-gradient(circle_at_52%_90%,rgba(227,94,177,.20),transparent_32%)]" />
-        <div className="relative"><div className="text-[11px] uppercase tracking-[.16em] font-black text-white/55">Otya account</div><h2 className="mt-5 text-5xl xl:text-6xl font-black tracking-[-.06em] leading-[.94] max-w-[560px]">One account. Everything connected.</h2></div>
-        <div className="relative max-w-[520px]"><p className="text-base leading-7 text-white/65">Your identity stays the same across Otya. Administrator capabilities are permissions on the same account, not a second account.</p><div className="mt-7 flex items-center gap-3 text-sm font-bold"><span className="w-2 h-2 rounded-full bg-emerald-400"/> Local playback stays offline-first</div></div>
-      </section>
+  return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
+    <section className="w-full max-w-[460px]">
+      <Link href="/" aria-label="Otya home" className="inline-flex items-center gap-1.5 mb-8">
+        <OtyaBrandMark size={42} />
+        <span className="font-black text-[22px] tracking-[-.05em]">tya</span>
+      </Link>
 
-      <section className="grid place-items-center px-4 py-10 sm:px-7 sm:py-14">
-        <div className="w-full max-w-[440px]">
-          <div className="flex items-center gap-2 mb-8 lg:hidden"><OtyaBrandMark size={42} label="Otya"/><span className="font-black text-xl tracking-[-.04em]">tya</span></div>
+      <div className="rounded-[30px] border border-black/[.07] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] p-5 sm:p-7 shadow-[0_24px_80px_rgba(20,16,35,.09)]">
+        <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
+        <p className="mt-2 mb-6 text-sm leading-6 otya-muted">{subtitle}</p>
 
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
-          <p className="mt-2 mb-7 text-sm leading-6 otya-muted">{subtitle}</p>
+        {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
+        {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
 
-          {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
-          {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
+        {providerMode && <>
+          <div className={busy ? 'pointer-events-none opacity-55' : ''}><div ref={googleButtonRef} className="w-full min-h-[44px] flex justify-center overflow-hidden rounded-full" aria-label="Continue with Google" /></div>
+          {!registration && <button type="button" onClick={()=>void startTelegram()} disabled={busy} className="mt-3 w-full min-h-11 rounded-full border border-black/[.08] dark:border-white/[.10] px-5 text-sm font-black disabled:opacity-55">Continue with Telegram</button>}
+          <div className="flex items-center gap-3 my-6"><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/><span className="text-[10px] font-black otya-muted">OR USE EMAIL</span><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/></div>
+        </>}
 
-          {providerMode && <>
-            <div className={busy ? 'pointer-events-none opacity-55' : ''}><div ref={googleButtonRef} className="w-full min-h-[44px] flex justify-center overflow-hidden rounded-full" aria-label="Continue with Google" /></div>
-            {!registration && <button type="button" onClick={()=>void startTelegram()} disabled={busy} className="mt-3 w-full min-h-11 rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent px-5 text-sm font-black disabled:opacity-55">Continue with Telegram</button>}
-            <div className="flex items-center gap-3 my-6"><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/><span className="text-[10px] font-black otya-muted">OR USE EMAIL</span><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/></div>
-          </>}
+        <form onSubmit={submit} className="space-y-3">
+          {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
+          <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />
+          {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
+          {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
+          {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/></>}
 
-          <form onSubmit={submitEmail} className="space-y-3">
-            {registration && <Field value={name} onChange={setName} placeholder="Name (optional)" autoComplete="name" />}
-            <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />
-            {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
-            {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
-            {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/></>}
+          {registration && <div className="space-y-3 py-2 text-sm otya-muted">
+            <Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check>
+            <Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check>
+            <Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check>
+          </div>}
 
-            {registration && <div className="space-y-3 py-2 text-sm otya-muted"><Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check><Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check><Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check></div>}
+          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
+        </form>
 
-            <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
-          </form>
-
-          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
-            {mode === 'signin' && <><button type="button" onClick={() => switchMode('register')}>Create account</button><button type="button" onClick={() => switchMode('forgot')}>Forgot password?</button></>}
-            {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
-            {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
-          </div>
-          <p className="mt-7 text-center text-[11px] leading-5 otya-muted">Secure browser sessions use HttpOnly cookies. Never share verification or reset codes.</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
+          {mode === 'signin' && <><button type="button" onClick={() => switchMode('register')}>Create account</button><button type="button" onClick={() => switchMode('forgot')}>Forgot password?</button></>}
+          {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
+          {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>
-      </section>
-    </main>
-    <SiteFooter />
-  </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted">
+        <Link href="/terms">Terms</Link>
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/help">Help</Link>
+      </div>
+    </section>
+  </main>
 }
 
 function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value:string; onChange:(value:string)=>void; placeholder:string; type?:string; autoComplete?:string; disabled?:boolean; autoFocus?:boolean }) {
-  return <input value={value} onChange={e=>onChange(e.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-white/80 dark:bg-white/[.025] placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" />
+  return <input value={value} onChange={e=>onChange(e.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" />
 }
+
 function Check({ checked,onChange,children }:{ checked:boolean; onChange:(value:boolean)=>void; children:React.ReactNode }) {
   return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label>
 }
