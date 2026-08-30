@@ -19,6 +19,7 @@ export interface D1Database {
 
 export interface UserRow {
   id:                         string
+  otya_id:                    string
   email:                      string
   password_hash:              string | null
   google_id:                  string | null
@@ -40,6 +41,7 @@ export interface UserRow {
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id                         TEXT PRIMARY KEY,
+  otya_id                    TEXT,
   email                      TEXT UNIQUE NOT NULL,
   password_hash              TEXT,
   google_id                  TEXT UNIQUE,
@@ -87,6 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_linked_identities_user ON linked_identities(user_
 `.trim()
 
 const USER_COLUMN_DEFS: Record<string, string> = {
+  otya_id: 'TEXT',
   phone_number: 'TEXT',
   phone_verified_at: 'TEXT',
   phone_verification_method: 'TEXT',
@@ -97,6 +100,29 @@ const USER_COLUMN_DEFS: Record<string, string> = {
   timezone: 'TEXT',
 }
 
+/**
+ * Public Otya account identifier.
+ *
+ * Format: IS######## (fixed IS prefix + exactly eight cryptographically random
+ * decimal digits). This identifier is public and human-friendly; users.id
+ * remains the private/internal primary key used for joins and authorization.
+ */
+export async function generateOtyaId(db: D1Database): Promise<string> {
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const bytes = crypto.getRandomValues(new Uint8Array(4))
+    const value = (
+      ((bytes[0] << 24) >>> 0)
+      + (bytes[1] << 16)
+      + (bytes[2] << 8)
+      + bytes[3]
+    ) % 100000000
+    const candidate = `IS${value.toString().padStart(8, '0')}`
+    const existing = await db.prepare('SELECT 1 FROM users WHERE otya_id = ? LIMIT 1').bind(candidate).first()
+    if (!existing) return candidate
+  }
+  throw new Error('Could not allocate a unique Otya ID')
+}
+
 async function ensureUserColumns(db: D1Database): Promise<void> {
   const { results } = await db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
   const existing = new Set(results.map(row => row.name))
@@ -105,6 +131,18 @@ async function ensureUserColumns(db: D1Database): Promise<void> {
       await db.prepare(`ALTER TABLE users ADD COLUMN ${name} ${type}`).run()
     }
   }
+
+  // Backfill every legacy account once. Public IDs are random rather than
+  // sequential so they do not reveal account count or signup order.
+  const missing = await db.prepare(
+    "SELECT id FROM users WHERE otya_id IS NULL OR trim(otya_id) = ''",
+  ).all<{ id: string }>()
+  for (const row of missing.results) {
+    const otyaId = await generateOtyaId(db)
+    await db.prepare('UPDATE users SET otya_id = ? WHERE id = ?').bind(otyaId, row.id).run()
+  }
+
+  await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL').run()
   await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE phone_number IS NOT NULL').run()
 }
 
@@ -121,6 +159,10 @@ export async function getUserById(db: D1Database, id: string): Promise<UserRow |
   return db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>()
 }
 
+export async function getUserByOtyaId(db: D1Database, otyaId: string): Promise<UserRow | null> {
+  return db.prepare('SELECT * FROM users WHERE otya_id = ?').bind(otyaId.trim().toUpperCase()).first<UserRow>()
+}
+
 export async function getUserByGoogleId(db: D1Database, googleId: string): Promise<UserRow | null> {
   return db.prepare('SELECT * FROM users WHERE google_id = ?').bind(googleId).first<UserRow>()
 }
@@ -129,11 +171,13 @@ export async function insertUser(
   db: D1Database,
   user: Pick<UserRow, 'id' | 'email' | 'password_hash' | 'google_id' | 'name' | 'avatar_url'>,
 ): Promise<void> {
+  const otyaId = await generateOtyaId(db)
   await db.prepare(`
-    INSERT INTO users (id, email, password_hash, google_id, name, avatar_url)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, otya_id, email, password_hash, google_id, name, avatar_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(
     user.id,
+    otyaId,
     user.email,
     user.password_hash ?? null,
     user.google_id     ?? null,
@@ -146,9 +190,10 @@ export async function upsertGoogleUser(
   db: D1Database,
   user: Pick<UserRow, 'id' | 'email' | 'google_id' | 'name' | 'avatar_url'>,
 ): Promise<UserRow | null> {
+  const otyaId = await generateOtyaId(db)
   await db.prepare(`
-    INSERT INTO users (id, email, google_id, name, avatar_url, is_verified)
-    VALUES (?, ?, ?, ?, ?, 1)
+    INSERT INTO users (id, otya_id, email, google_id, name, avatar_url, is_verified)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(email) DO UPDATE SET
       google_id  = excluded.google_id,
       name       = COALESCE(excluded.name, users.name),
@@ -157,6 +202,7 @@ export async function upsertGoogleUser(
       updated_at = datetime('now')
   `).bind(
     user.id,
+    otyaId,
     user.email,
     user.google_id  ?? null,
     user.name       ?? null,
