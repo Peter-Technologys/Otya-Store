@@ -126,7 +126,7 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
     }
 
     const user = await env.AUTH_DB.prepare(`
-      SELECT id, email, name, avatar_url, is_verified, phone_number, phone_verified_at,
+      SELECT id, otya_id, email, name, avatar_url, is_verified, phone_number, phone_verified_at,
              phone_verification_method, recovery_email, recovery_email_verified_at,
              country_code, locale, timezone, created_at, updated_at
       FROM users WHERE id = ?
