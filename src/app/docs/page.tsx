@@ -5,7 +5,7 @@ import { OtyaAssistPrompt } from '@/components/OtyaAssistPrompt'
 
 export const metadata = {
   title: 'Docs | OTYA',
-  description: 'Official OTYA help for playback, account, security, privacy, support and releases.',
+  description: 'Official OTYA help for playback, music, account, security, privacy, support and releases.',
   alternates: { canonical: 'https://petersmartlink.com/docs' },
 }
 
@@ -14,15 +14,17 @@ const groups = [
     title: 'Using OTYA',
     items: [
       ['OTYA overview','See the main app features and how they fit together.','/otya-player'],
+      ['Online Music','How online discovery, playback and provider-authorized downloads work across Android, web and Telegram.','/docs/online-music'],
       ['Support & FAQ','Fix common playback, permission, transfer and library problems.','/apps/otya-player/support'],
       ['Download & updates','Get the latest Android build and release information.','/download/otya-player'],
       ['Security','Read OTYA security guidance.','/apps/otya-player/security'],
     ],
   },
   {
-    title: 'Account',
+    title: 'Account & platform',
     items: [
       ['My account','Profile, recovery, sessions, backup and connected identities.','/account'],
+      ['Developers','Developer APIs, platform guidance and integration documentation.','/developers'],
       ['Privacy','How OTYA handles account and service information.','/privacy'],
       ['Terms','Terms for using OTYA and connected services.','/terms'],
     ],
@@ -45,13 +47,13 @@ export default function DocsPage(){
         <div className="grid lg:grid-cols-[180px_1fr] gap-8 lg:gap-12">
           <aside className="hidden lg:block text-sm">
             <nav className="sticky top-20 space-y-1">
-              {groups.map(group=><a key={group.title} href={`#${group.title.toLowerCase().replaceAll(' ','-')}`} className="block py-1.5 otya-muted">{group.title}</a>)}
+              {groups.map(group=><a key={group.title} href={`#${group.title.toLowerCase().replaceAll(' ','-').replace('&','and')}`} className="block py-1.5 otya-muted">{group.title}</a>)}
               <a href="#data" className="block py-1.5 otya-muted">My data</a>
             </nav>
           </aside>
 
           <div className="max-w-3xl">
-            {groups.map(group=><section key={group.title} id={group.title.toLowerCase().replaceAll(' ','-')} className="mb-10 scroll-mt-24">
+            {groups.map(group=><section key={group.title} id={group.title.toLowerCase().replaceAll(' ','-').replace('&','and')} className="mb-10 scroll-mt-24">
               <h2 className="text-base font-semibold mb-2">{group.title}</h2>
               <div className="border-y" style={{borderColor:'var(--cosmos-divider)'}}>
                 {group.items.map(([title,description,href],index)=><Link key={title} href={href} className={`grid sm:grid-cols-[190px_1fr_auto] gap-1 sm:gap-5 items-start py-4 ${index<group.items.length-1?'border-b':''}`} style={{borderColor:'var(--cosmos-divider)'}}>
