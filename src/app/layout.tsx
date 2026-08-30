@@ -11,26 +11,30 @@ const ADSENSE_ID = 'ca-pub-2517163652161686'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Otya — Music first. Player everywhere.', template: '%s | Otya' },
-  description: 'Discover and play music online with Otya, then take your own music and videos offline with Otya Player for Android.',
-  keywords: ['Otya', 'Otya Player', 'Otya Music', 'Ask Otya', 'offline media player Android', 'music player Uganda', 'video player Android', 'Ugandan music'],
+  title: { default: 'Otya — Media, music and intelligent assistance', template: '%s | Otya' },
+  description: 'Otya is a modern media and AI experience for Android and the web: play your own music and videos, discover music online, transfer files, protect private media and use Otya when you need intelligent help.',
+  keywords: ['Otya', 'Otya Android', 'Otya media player', 'Otya AI', 'offline music player', 'offline video player', 'music discovery', 'file transfer Android', 'private media', 'Uganda technology'],
   authors: [{ name: 'Otya', url: SITE_URL }],
   creator: 'Otya',
   publisher: 'Otya',
   applicationName: 'Otya',
-  category: 'music',
-  alternates: { canonical: SITE_URL },
+  category: 'multimedia',
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
   openGraph: {
     type: 'website', locale: 'en_UG', url: SITE_URL, siteName: 'Otya',
-    title: 'Otya — Music first. Player everywhere.',
-    description: 'Music discovery on the web and an offline-first Android player for your own library.',
+    title: 'Otya — Media, music and intelligent assistance',
+    description: 'A modern Android and web experience for media, music discovery, transfer, private content and Otya intelligence.',
     images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Otya', type: 'image/jpeg' }],
   },
-  twitter: { card: 'summary_large_image', title: 'Otya — Music first. Player everywhere.', description: 'Music discovery on the web and an offline-first Android player.', images: ['/og-image.jpg'] },
+  twitter: { card: 'summary_large_image', title: 'Otya — Media, music and intelligent assistance', description: 'Media, music discovery, transfer, private content and intelligent help.', images: ['/og-image.jpg'] },
   icons: {
-    icon: [{ url: '/favicon.ico' }, { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' }, { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' }],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }], shortcut: '/favicon.ico',
+    icon: [
+      { url: '/otya-icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/favicon.ico',
   },
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'Otya', statusBarStyle: 'black-translucent' },
@@ -38,8 +42,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#eee9fb' },
-    { media: '(prefers-color-scheme: dark)', color: '#090812' },
+    { media: '(prefers-color-scheme: light)', color: '#F7F7F8' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090B' },
   ],
   width: 'device-width', initialScale: 1, maximumScale: 5,
 }
@@ -47,9 +51,37 @@ export const viewport: Viewport = {
 const schemaOrg = {
   '@context': 'https://schema.org',
   '@graph': [
-    { '@type': 'Organization', '@id': `${SITE_URL}/#organization`, name: 'Otya', url: SITE_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/android-chrome-512x512.png`, width: 512, height: 512 } },
-    { '@type': 'MobileApplication', '@id': `${SITE_URL}/#otyaplayer`, name: 'Otya Player', alternateName: 'com.otyaplayer.app', operatingSystem: 'Android', applicationCategory: 'MultimediaApplication', softwareVersion: APP_VERSION, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, url: `${SITE_URL}/otya-player`, downloadUrl: `${SITE_URL}/download/otya-player`, author: { '@id': `${SITE_URL}/#organization` }, description: 'Offline-first Android music and video player with Transfer, Private media and optional connected features.', image: `${SITE_URL}/android-chrome-512x512.png` },
-    { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, url: SITE_URL, name: 'Otya', publisher: { '@id': `${SITE_URL}/#organization` }, potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/music?q={search_term_string}`, 'query-input': 'required name=search_term_string' } },
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#organization`,
+      name: 'Otya',
+      url: SITE_URL,
+      logo: `${SITE_URL}/otya-icon.svg`,
+      email: 'support@petersmartlink.com',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${SITE_URL}/#otya`,
+      name: 'Otya',
+      alternateName: 'com.otyaplayer.app',
+      operatingSystem: 'Android',
+      applicationCategory: 'MultimediaApplication',
+      softwareVersion: APP_VERSION,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      url: `${SITE_URL}/otya-player`,
+      downloadUrl: `${SITE_URL}/download/otya-player`,
+      author: { '@id': `${SITE_URL}/#organization` },
+      description: 'Modern Android media experience with offline music and video playback, online music discovery, file transfer, private media and Otya intelligence.',
+      image: `${SITE_URL}/otya-icon.svg`,
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: 'Otya',
+      publisher: { '@id': `${SITE_URL}/#organization` },
+      potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/music?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
+    },
   ],
 }
 
