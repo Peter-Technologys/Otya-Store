@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
   { label: 'OTYA', href: '/otya-player' },
+  { label: 'Music', href: '/music' },
   { label: 'Ask OTYA', href: '/ask' },
-  { label: 'Developers', href: '/developers' },
   { label: 'Docs', href: '/docs' },
   { label: 'Support', href: '/apps/otya-player/support' },
 ]
@@ -43,6 +43,7 @@ export function SiteNav() {
       <div className="px-3 py-2">
         {NAV_LINKS.map(({ label, href }) => <Link key={href} href={href} onClick={() => setOpen(false)} className="block px-2 py-2.5 rounded-lg text-sm font-medium" style={{ color: 'var(--cosmos-text-primary)' }}>{label}</Link>)}
         <Link href="/account" onClick={() => setOpen(false)} className="block px-2 py-2.5 rounded-lg text-sm font-medium">Account</Link>
+        <Link href="/developers" onClick={() => setOpen(false)} className="block px-2 py-2.5 rounded-lg text-sm font-medium">Developers</Link>
         <Link href="/download/otya-player" onClick={() => setOpen(false)} className="cosmos-button flex justify-center px-4 py-2.5 rounded-lg text-sm font-semibold mt-1">Download OTYA</Link>
       </div>
     </div>}
