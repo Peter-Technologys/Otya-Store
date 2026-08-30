@@ -62,6 +62,24 @@ function randomToken(bytes = 24): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+async function otpDigest(userId: string, otp: string): Promise<string> {
+  const normalized = otp.trim().toUpperCase()
+  const data = new TextEncoder().encode(`otya-admin-mfa:${userId}:${normalized}`)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return toHex(new Uint8Array(digest))
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 async function requireAllowedAdmin(request: Request, env: AdminMfaEnv) {
   const user = await currentUser(request, env)
   if (!user || !allowlist(env).has(user.email.toLowerCase())) return null
@@ -103,7 +121,7 @@ export async function handleAdminMfa(request: Request, env: AdminMfaEnv): Promis
     }
 
     const otp = generateOtp()
-    await env.AUTH_KV.put(`admin_mfa_otp:${user.id}`, otp, { expirationTtl: OTP_TTL })
+    await env.AUTH_KV.put(`admin_mfa_otp:${user.id}`, await otpDigest(user.id, otp), { expirationTtl: OTP_TTL })
     await sendResendEmail(env.RESEND_API_KEY, {
       from: 'OTYA <noreply@petersmartlink.com>',
       to: [user.email],
@@ -127,8 +145,13 @@ export async function handleAdminMfa(request: Request, env: AdminMfaEnv): Promis
     }
     const body = await request.json().catch(() => ({})) as { otp?: string }
     const supplied = String(body.otp ?? '').trim().toUpperCase()
-    const stored = (await env.AUTH_KV.get(`admin_mfa_otp:${user.id}`))?.trim().toUpperCase()
-    if (!stored || supplied !== stored) return json({ error: 'Invalid or expired verification code.' }, 401)
+    if (!/^[A-Z][0-9]{4}$/.test(supplied)) return json({ error: 'Invalid or expired verification code.' }, 401)
+
+    const storedDigest = await env.AUTH_KV.get(`admin_mfa_otp:${user.id}`)
+    const suppliedDigest = await otpDigest(user.id, supplied)
+    if (!storedDigest || !timingSafeEqual(suppliedDigest, storedDigest)) {
+      return json({ error: 'Invalid or expired verification code.' }, 401)
+    }
 
     await env.AUTH_KV.delete(`admin_mfa_otp:${user.id}`)
     await env.AUTH_KV.delete(`admin_mfa_attempt:${user.id}`)
