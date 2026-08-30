@@ -8,21 +8,23 @@ export const OTYA = {
   website: 'https://petersmartlink.com',
   supportEmail: 'support@petersmartlink.com',
   noReplyEmail: 'noreply@petersmartlink.com',
+  telegramChannel: 'https://t.me/otyaplayer',
+  telegramSupport: 'https://t.me/OtyaPlayerBot',
   description:
     'OTYA connects OTYA Player, OTYA AI, one shared account, support, downloads and future OTYA apps.',
 } as const;
 
 // PeterSmart Link remains the legal/business owner identity where required for
 // business contact, address, billing and legal disclosures. Product-facing
-// umbrella identity is OTYA.
+// umbrella identity is OTYA. Public support avoids personal phone exposure.
 export const SITE_CONFIG = {
   name: OTYA.name,
   ownerName: 'PeterSmart Link',
   url: OTYA.website,
   description: OTYA.description,
-  phone: '+256775912582',
-  whatsapp: 'https://wa.me/256775912582',
   email: OTYA.supportEmail,
+  telegram: OTYA.telegramSupport,
+  telegramChannel: OTYA.telegramChannel,
   address: 'Mbirizi Town Council, Lwengo District, Uganda',
   social: {
     facebook: 'https://www.facebook.com/PeterSmartLink',
