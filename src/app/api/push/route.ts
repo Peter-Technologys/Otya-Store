@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 import { getFcmAccessToken, sendFcmWithToken } from '@/lib/fcm'
-import { isAdminAuthorized } from '@/lib/admin_auth'
+import { verifyAdminSession } from '@/lib/admin_auth'
 
 const CHUNK_SIZE = 100
 const OTYA_DOWNLOAD_URL = 'https://petersmartlink.com/download/otya-player'
@@ -17,7 +17,7 @@ const CORS_HEADERS = {
 export async function POST(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
-  if (!await isAdminAuthorized(req, recordEnv)) return errorJson('Unauthorized', 401)
+  if (!await verifyAdminSession(req, recordEnv)) return errorJson('Unauthorized', 401)
 
   const serviceAccountJson = recordEnv.FCM_SERVICE_ACCOUNT_JSON as string | undefined
   if (!serviceAccountJson) return errorJson('FCM_SERVICE_ACCOUNT_JSON not configured', 503)
