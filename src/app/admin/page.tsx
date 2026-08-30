@@ -22,7 +22,7 @@ type Feedback = {
 }
 type CrashGroup = { group_id?: string | null; error_type?: string | null; count?: number; latest?: string | null }
 type FirebaseSync = { configured?: boolean; synced?: boolean; revision?: number; updatedAt?: string }
-type SessionState = { loading: boolean; configured: boolean; authenticated: boolean }
+type SessionState = { loading: boolean; configured: boolean; authenticated: boolean; accountAdmin: boolean }
 type Latest = { version?: string; versionCode?: number; changelog?: string; date?: string }
 
 const card = 'rounded-2xl border p-4 sm:p-5'
@@ -40,35 +40,67 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   </div>
 }
 
-function Login({ configured, onSuccess }: { configured: boolean; onSuccess: () => void }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+function AdminGate({ configured, accountAdmin, onSuccess }: { configured: boolean; accountAdmin: boolean; onSuccess: () => void }) {
+  const [otp, setOtp] = useState('')
+  const [stage, setStage] = useState<'start' | 'otp' | 'telegram'>('start')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    if (!email.trim() || !password) return
+  const post = useCallback(async (body: Record<string, unknown>) => {
+    const res = await fetch('/api/admin/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({})) as { error?: string; ok?: boolean }
+    if (!res.ok) throw new Error(data.error ?? 'Admin verification failed')
+    return data
+  }, [])
+
+  useEffect(() => {
+    if (!accountAdmin || typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const telegram = params.get('telegram')
+    if (telegram === 'verified') {
+      setLoading(true)
+      post({ action: 'complete' })
+        .then(() => {
+          window.history.replaceState({}, '', '/admin')
+          onSuccess()
+        })
+        .catch(e => setError((e as Error).message))
+        .finally(() => setLoading(false))
+    } else if (telegram === 'not-linked') {
+      setStage('telegram')
+      setError('Link your Telegram account to this Otya account before using it for admin verification.')
+    } else if (telegram === 'error' || telegram === 'expired' || telegram === 'cancelled') {
+      setStage('telegram')
+      setError('Telegram verification was not completed. Try again.')
+    }
+  }, [accountAdmin, onSuccess, post])
+
+  async function sendOtp() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/admin/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ email: email.trim(), password }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        setError(body.error ?? 'Sign in failed')
-        return
-      }
-      setPassword('')
-      onSuccess()
-    } catch {
-      setError('Could not reach OTYA Admin.')
-    } finally {
-      setLoading(false)
-    }
+      await post({ action: 'start' })
+      setStage('otp')
+    } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
+  }
+
+  async function verifyOtp(e: FormEvent) {
+    e.preventDefault()
+    if (!otp.trim()) return
+    setLoading(true); setError('')
+    try {
+      await post({ action: 'verify-otp', otp: otp.trim() })
+      setOtp('')
+      setStage('telegram')
+      const res = await fetch('/api/auth/telegram/start?mode=admin', { method: 'POST', credentials: 'same-origin' })
+      const data = await res.json().catch(() => ({})) as { authorization_url?: string; error?: string }
+      if (!res.ok || !data.authorization_url) throw new Error(data.error ?? 'Telegram verification could not start.')
+      window.location.assign(data.authorization_url)
+    } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
   }
 
   return <main className="min-h-screen grid place-items-center px-4 py-10" style={{ background: 'var(--cosmos-scaffold)' }}>
@@ -78,18 +110,35 @@ function Login({ configured, onSuccess }: { configured: boolean; onSuccess: () =
       </div>
       <h1 className="text-center text-2xl font-black">OTYA Admin</h1>
       <p className="mt-2 text-center text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>
-        {configured ? 'Sign in with your private administrator account.' : 'Admin login has not been configured on the server yet.'}
+        Admin access uses your normal Otya account plus fresh email and Telegram verification.
       </p>
+
       {!configured ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
-        Configure <b>ADMIN_EMAIL</b>, <b>ADMIN_PASSWORD</b> and <b>ADMIN_SESSION_SECRET</b> as Cloudflare/GitHub secrets, then redeploy the existing OTYA server.
-      </div> : <form onSubmit={submit} className="mt-6 space-y-3">
-        <input className={input} style={surfaceStyle()} type="email" autoComplete="username" placeholder="Admin email" value={email} onChange={e => setEmail(e.target.value)} />
-        <input className={input} style={surfaceStyle()} type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button disabled={loading || !email.trim() || !password} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>}
+        Admin MFA is not fully configured on the server.
+      </div> : !accountAdmin ? <div className="mt-6 space-y-3">
+        <p className="text-sm text-center" style={{ color: 'var(--cosmos-text-secondary)' }}>Sign in to your Otya account first. Only allowlisted accounts can continue to Admin.</p>
+        <a href="/sign-in?next=/admin" className="block w-full rounded-xl bg-violet-500 px-4 py-3 text-center text-sm font-black text-white">Sign in to Otya</a>
+      </div> : stage === 'start' ? <div className="mt-6 space-y-3">
+        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>We will send a single-use code to the email already verified on this Otya account. Telegram is required after the code.</p>
+        <button onClick={sendOtp} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Sending…' : 'Verify admin access'}</button>
+      </div> : stage === 'otp' ? <form onSubmit={verifyOtp} className="mt-6 space-y-3">
+        <input className={input} style={surfaceStyle()} autoComplete="one-time-code" inputMode="text" placeholder="Email verification code" value={otp} onChange={e => setOtp(e.target.value.toUpperCase().slice(0, 5))} />
+        <button disabled={loading || otp.trim().length !== 5} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Checking…' : 'Continue with Telegram'}</button>
+        <button type="button" onClick={sendOtp} disabled={loading} className="w-full rounded-xl border px-4 py-2.5 text-sm font-bold" style={{ borderColor: 'var(--cosmos-divider)' }}>Send a new code</button>
+      </form> : <div className="mt-6 space-y-3">
+        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Email verification passed. Complete verification with the Telegram identity linked to this same Otya account.</p>
+        <button onClick={() => verifyOtp({ preventDefault() {} } as FormEvent)} disabled className="hidden" />
+        <button onClick={async () => {
+          setLoading(true); setError('')
+          try {
+            const res = await fetch('/api/auth/telegram/start?mode=admin', { method: 'POST', credentials: 'same-origin' })
+            const data = await res.json().catch(() => ({})) as { authorization_url?: string; error?: string }
+            if (!res.ok || !data.authorization_url) throw new Error(data.error ?? 'Telegram verification could not start.')
+            window.location.assign(data.authorization_url)
+          } catch (e) { setError((e as Error).message); setLoading(false) }
+        }} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Opening Telegram…' : 'Continue with Telegram'}</button>
+      </div>}
+      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
     </div>
   </main>
 }
@@ -102,7 +151,7 @@ const sections = [
 type Section = typeof sections[number][0]
 
 export default function AdminPage() {
-  const [session, setSession] = useState<SessionState>({ loading: true, configured: false, authenticated: false })
+  const [session, setSession] = useState<SessionState>({ loading: true, configured: false, authenticated: false, accountAdmin: false })
   const [section, setSection] = useState<Section>('overview')
   const [stats, setStats] = useState<Stats | null>(null)
   const [feedback, setFeedback] = useState<Feedback[]>([])
@@ -117,10 +166,10 @@ export default function AdminPage() {
   const refreshSession = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' })
-      const body = await res.json() as { configured?: boolean; authenticated?: boolean }
-      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true })
+      const body = await res.json() as { configured?: boolean; authenticated?: boolean; accountAdmin?: boolean }
+      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true, accountAdmin: body.accountAdmin === true })
     } catch {
-      setSession({ loading: false, configured: false, authenticated: false })
+      setSession({ loading: false, configured: false, authenticated: false, accountAdmin: false })
     }
   }, [])
 
@@ -202,7 +251,7 @@ export default function AdminPage() {
   }
 
   if (session.loading) return <div className="min-h-screen grid place-items-center">Loading OTYA Admin…</div>
-  if (!session.authenticated) return <Login configured={session.configured} onSuccess={refreshSession} />
+  if (!session.authenticated) return <AdminGate configured={session.configured} accountAdmin={session.accountAdmin} onSuccess={refreshSession} />
 
   return <div className="min-h-screen" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
     <header className="sticky top-0 z-40 border-b" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)' }}>
