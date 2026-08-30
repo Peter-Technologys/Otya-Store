@@ -55,18 +55,6 @@ export function adminConfigured(env: AdminEnv): boolean {
     && Boolean(text(env.ADMIN_SESSION_SECRET))
 }
 
-export function adminEmail(env: AdminEnv): string {
-  return text(env.ADMIN_EMAIL).toLowerCase()
-}
-
-export function validAdminCredentials(env: AdminEnv, email: string, password: string): boolean {
-  const expectedEmail = adminEmail(env)
-  const expectedPassword = text(env.ADMIN_PASSWORD)
-  return Boolean(expectedEmail && expectedPassword)
-    && timingSafeEqual(email.trim().toLowerCase(), expectedEmail)
-    && timingSafeEqual(password, expectedPassword)
-}
-
 export async function createAdminSession(env: AdminEnv, email: string): Promise<string> {
   const secret = text(env.ADMIN_SESSION_SECRET)
   if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured')
@@ -132,6 +120,10 @@ function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
   return Boolean(actual) && timingSafeEqual(actual, expected)
 }
 
+/**
+ * Compatibility authorization for non-interactive operational endpoints.
+ * Privileged Otya Admin UI/API routes should use verifyAdminSession directly.
+ */
 export async function isAdminAuthorized(request: Request, env: AdminEnv): Promise<boolean> {
   if (await verifyAdminSession(request, env)) return true
   return legacyAdminTokenAuthorized(request, env)
