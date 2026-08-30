@@ -100,7 +100,7 @@ section, div, nav, footer, main { max-width: 100%; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--cosmos-text-secondary) 30%, transparent); border-radius: 999px; }
-a, button { transition: color .14s ease, opacity .14s ease, background-color .14s ease, border-color .14s ease; }
+a, button { transition: color .14s ease, opacity .14s ease, background-color .14s ease, border-color .14s ease, transform .14s ease; }
 a:hover, button:hover { opacity: .88; }
 :focus-visible { outline: 2px solid color-mix(in srgb, var(--cosmos-primary) 75%, white); outline-offset: 2px; border-radius: 5px; }
 
@@ -136,6 +136,57 @@ a:hover, button:hover { opacity: .88; }
 .otya-quiet-button { background: transparent; border: 1px solid var(--cosmos-divider); color: var(--cosmos-text-primary); }
 .otya-divider { border-color: var(--cosmos-divider); }
 .cosmos-stars { display: none; }
+
+/* App-like phone navigation. Kept above browser safe areas and large enough for WCAG touch targets. */
+.otya-mobile-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.otya-mobile-dock-inner {
+  pointer-events: auto;
+  width: min(430px, 100%);
+  min-height: 58px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: stretch;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--cosmos-divider) 88%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--cosmos-app-bar) 94%, transparent);
+  box-shadow: 0 10px 36px rgba(0,0,0,.14);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+}
+.otya-dock-item {
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 16px;
+  color: var(--cosmos-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.otya-dock-item.is-active {
+  color: var(--cosmos-text-primary);
+  background: color-mix(in srgb, var(--cosmos-primary) 12%, transparent);
+}
+.otya-dock-icon { font-size: 18px; line-height: 1; }
+
+/* Let the browser skip paint/layout work for long offscreen content surfaces. */
+.otya-defer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
 
 /* OTYA Account: flatten the old nested-card dashboard into an account document. */
 #home, #personal, #security, #sessions, #privacy, #connected, #products, #ai {
@@ -174,6 +225,10 @@ a:hover, button:hover { opacity: .88; }
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+@media (max-width: 767px) {
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 640px) {
