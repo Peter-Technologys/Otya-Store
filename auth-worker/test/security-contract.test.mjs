@@ -27,6 +27,19 @@ test('production auth remains on verified Firebase project and Resend path', () 
   assert.doesNotMatch(config, /binding\s*=\s*"EMAIL"|\[\[send_email\]\]/i)
   assert.match(entrypoint, /createEmailAdapter\(env\.RESEND_API_KEY\)/)
   assert.match(resend, /https:\/\/api\.resend\.com\/emails/)
+  assert.match(resend, /if\(!apiKey\)throw new Error\('RESEND_API_KEY is not configured'\)/)
+})
+
+test('password reset stays generic, single-use, expiring and revokes existing sessions', () => {
+  const auth = read('src/index.ts')
+
+  assert.match(auth, /If that email exists, an OTP has been sent\./)
+  assert.match(auth, /otp:\$\{normalizedEmail\}/)
+  assert.match(auth, /expirationTtl: OTP_TTL_SECS/)
+  assert.match(auth, /storedOtp\.toUpperCase\(\) !== otp\.trim\(\)\.toUpperCase\(\)/)
+  assert.match(auth, /await env\.AUTH_KV\.delete\(`otp:\$\{normalizedEmail\}`\)/)
+  assert.match(auth, /await revokeAllRefreshTokens\(env\.AUTH_KV, user\.id\)/)
+  assert.match(auth, /Password updated successfully\. Please sign in again\./)
 })
 
 test('server credentials are never configured as source values', () => {
