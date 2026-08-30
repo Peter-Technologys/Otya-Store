@@ -22,7 +22,10 @@ function cookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict' as const,
+    // OAuth/OIDC returns arrive as top-level navigations from another origin.
+    // Lax keeps the session protected from normal cross-site subrequests while
+    // allowing the browser to complete Google/Telegram-style sign-in returns.
+    sameSite: 'lax' as const,
     path: '/',
     maxAge,
   }
