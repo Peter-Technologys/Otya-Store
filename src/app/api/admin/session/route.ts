@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import {
   adminConfigured,
+  adminEmail,
   adminSessionCookie,
   clearAdminSessionCookie,
   createAdminSession,
@@ -11,13 +12,21 @@ import {
 
 export async function GET(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
-  const configured = adminConfigured(env as Record<string, unknown>)
+  const recordEnv = env as Record<string, unknown>
+  const configured = adminConfigured(recordEnv)
   const authenticated = configured
-    ? await verifyAdminSession(request, env as Record<string, unknown>)
+    ? await verifyAdminSession(request, recordEnv)
     : false
-  return NextResponse.json({ ok: true, configured, authenticated }, {
-    headers: { 'Cache-Control': 'no-store' },
-  })
+
+  const headers: Record<string, string> = { 'Cache-Control': 'no-store' }
+  if (authenticated) {
+    // Sliding renewal: only a session that has already passed signature, email,
+    // and expiry verification receives a fresh signed cookie.
+    const renewed = await createAdminSession(recordEnv, adminEmail(recordEnv))
+    headers['Set-Cookie'] = adminSessionCookie(renewed)
+  }
+
+  return NextResponse.json({ ok: true, configured, authenticated }, { headers })
 }
 
 export async function POST(request: NextRequest) {
