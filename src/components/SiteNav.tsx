@@ -18,8 +18,10 @@ export function SiteNav() {
 
   return <nav className="sticky top-0 z-50 border-b backdrop-blur-xl" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--nav-bg)' }}>
     <div className="otya-shell h-14 flex items-center justify-between gap-4">
-      <Link href="/" className="flex items-center gap-2 shrink-0" onClick={() => setOpen(false)}>
-        <Image src="/web-app-manifest-192x192.png" alt="OTYA" width={28} height={28} className="rounded-lg" priority />
+      <Link href="/" className="flex items-center gap-2.5 shrink-0" onClick={() => setOpen(false)} aria-label="OTYA home">
+        <span className="w-8 h-8 rounded-xl overflow-hidden grid place-items-center" style={{ background: '#030516' }}>
+          <Image src="/otya-icon.svg" alt="" width={32} height={32} priority className="w-full h-full" />
+        </span>
         <span className="font-semibold text-[15px] tracking-[-0.02em]" style={{ color: 'var(--cosmos-text-primary)' }}>OTYA</span>
       </Link>
 
