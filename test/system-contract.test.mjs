@@ -14,6 +14,35 @@ test('Admin browser session stays cookie-based and URL-safe', () => {
   assert.doesNotMatch(source, /queryParameters[^\n]*token/i)
 })
 
+test('Interactive admin APIs require the elevated MFA session', () => {
+  const routes = [
+    'src/app/api/admin/stats/route.ts',
+    'src/app/api/admin/themes/route.ts',
+    'src/app/api/admin/crashes/route.ts',
+    'src/app/api/admin/feedback/route.ts',
+    'src/app/api/admin/release/route.ts',
+    'src/app/api/admin/app-config/route.ts',
+    'src/app/api/push/route.ts',
+    'src/app/api/notifications/reengage/route.ts',
+    'src/app/api/blog/route.ts',
+  ]
+  for (const path of routes) {
+    const source = read(path)
+    assert.match(source, /verifyAdminSession/, `${path} must verify the elevated admin session`)
+    assert.doesNotMatch(source, /isAdminAuthorized/, `${path} must not use legacy compatibility auth`)
+    assert.doesNotMatch(source, /ADMIN_TOKEN/, `${path} must not accept ADMIN_TOKEN directly`)
+  }
+})
+
+test('Worker-level admin AI and release workflow require elevated admin verification', () => {
+  const source = read('src/entrypoint.mjs')
+  assert.match(source, /hasElevatedAdminSession/)
+  assert.match(source, /Elevated administrator verification required/)
+  assert.match(source, /ACCESS_COOKIE = '__Host-otya_access'/)
+  assert.match(source, /ADMIN_COOKIE = 'otya_admin_session'/)
+  assert.match(source, /authorizeReleaseWorkflow/)
+})
+
 test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
