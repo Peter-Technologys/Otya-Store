@@ -73,6 +73,36 @@ async function validateAccessToken(auth: AuthBinding, accessToken: string) {
   }))
 }
 
+async function verifiedIdentityFallback(auth: AuthBinding, accessToken: string): Promise<JsonRecord> {
+  // /auth/verify is JWT-only. It gives Space a stable minimal identity even when
+  // a profile migration/read is temporarily unavailable. This prevents a valid
+  // signed-in browser from being rendered as the old sign-in screen.
+  try {
+    const verified = await auth.fetch(new Request('https://auth/auth/verify', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    }))
+    if (!verified.ok) return {}
+    const data = await decode(verified)
+    const id = typeof data.user_id === 'string' ? data.user_id : ''
+    const email = typeof data.email === 'string' ? data.email : ''
+    if (!id || !email) return {}
+    return {
+      user: {
+        id,
+        email,
+        name: null,
+        avatar_url: null,
+        is_verified: true,
+      },
+      identities: [],
+      profile_limited: true,
+    }
+  } catch {
+    return {}
+  }
+}
+
 export async function GET(request: NextRequest) {
   const auth = await getAuthBinding()
   if (!auth) {
@@ -118,8 +148,9 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // The full profile is useful metadata, but it is deliberately optional here.
-  // A D1/profile migration problem must not invalidate an otherwise valid login.
+  // Full account data is preferred. If it is temporarily unavailable, use the
+  // JWT-verified minimal identity rather than presenting an authenticated user
+  // with a second login form.
   let profile: JsonRecord = {}
   try {
     const account = await auth.fetch(new Request('https://auth/auth/account', {
@@ -127,6 +158,11 @@ export async function GET(request: NextRequest) {
     }))
     if (account.ok) profile = await decode(account)
   } catch {}
+
+  const profileUser = profile.user
+  if (!profileUser || typeof profileUser !== 'object' || Array.isArray(profileUser)) {
+    profile = await verifiedIdentityFallback(auth, accessToken)
+  }
 
   const response = NextResponse.json({ ok: true, authenticated: true, ...profile })
   setSessionCookies(response, accessToken, refreshed?.refreshToken)
