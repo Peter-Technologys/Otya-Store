@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 }
 
 const SERVICES = [
-  { id: '1', name: 'Mobile Money — MTN & Airtel', description: 'Deposits, withdrawals, transfers and bill payments. Fast and reliable every day.', price: 0 },
-  { id: '2', name: 'Phone Loans', description: 'Ask about currently available smartphone financing options and repayment terms.', price: 0 },
-  { id: '3', name: 'Data Bundles & Airtime', description: 'MTN and Airtel data bundles and airtime top-up.', price: 0 },
-  { id: '4', name: 'Phones & Accessories', description: 'Smartphones, feature phones, accessories and selected small electronics available locally.', price: 0 },
+  { id: '1', name: 'Mobile Money — MTN & Airtel', description: 'Deposits, withdrawals, transfers and bill payments. Fast and reliable every day.' },
+  { id: '2', name: 'Phone Loans', description: 'Ask about currently available smartphone financing options and repayment terms.' },
+  { id: '3', name: 'Data Bundles & Airtime', description: 'MTN and Airtel data bundles and airtime top-up.' },
+  { id: '4', name: 'Phones & Accessories', description: 'Smartphones, feature phones, accessories and selected small electronics available locally.' },
 ]
 
 export default function ServicesPage() {
@@ -36,10 +36,9 @@ export default function ServicesPage() {
                 style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }}>
                 <h2 className="font-bold text-sm mb-2">{s.name}</h2>
                 <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--cosmos-text-secondary)' }}>{s.description}</p>
-                <a href={`https://wa.me/256775912582?text=Hi! I need: ${encodeURIComponent(s.name)}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="inline-flex text-xs font-semibold px-3 py-2 rounded-lg text-white"
-                  style={{ background: '#25d366' }}>Ask about availability</a>
+                <a href={`mailto:support@petersmartlink.com?subject=${encodeURIComponent(`PeterSmart Link service enquiry: ${s.name}`)}`}
+                  className="inline-flex text-xs font-semibold px-3 py-2 rounded-lg border"
+                  style={{ borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }}>Ask about availability</a>
               </div>
             ))}
           </div>
