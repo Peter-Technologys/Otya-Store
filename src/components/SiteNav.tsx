@@ -17,7 +17,8 @@ export function SiteNav() {
   return <header className="sticky top-0 z-50 border-b border-black/[.06] dark:border-white/[.08] bg-[color:var(--nav-bg)] backdrop-blur-2xl">
     <div className="otya-shell h-[64px] flex items-center gap-3">
       <Link href="/" className="inline-flex items-center gap-1.5 shrink-0" aria-label="Otya home">
-        <Image src="/otya-icon.svg" alt="" width={34} height={34} priority className="w-[34px] h-[34px] object-contain shrink-0" />
+        <Image src="/otya-icon.svg" alt="" width={34} height={34} priority className="w-[34px] h-[34px] object-contain shrink-0 dark:hidden" />
+        <Image src="/otya-icon-dark.svg" alt="" width={34} height={34} priority className="hidden dark:block w-[34px] h-[34px] object-contain shrink-0" />
         <span className="font-black text-[19px] tracking-[-.045em] leading-none">tya</span>
       </Link>
 
