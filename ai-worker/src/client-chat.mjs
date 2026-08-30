@@ -68,12 +68,19 @@ async function publicOtyaContext(env){
   const base=(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')
   const facts=[
     'OTYA is an offline-first Android music and video player by PeterSmart Link.',
+    'OTYA has three permanent top-level destinations: Video, Music and Me. Advanced utilities should appear contextually or under organized Tools/Settings rather than as duplicate top-level screens.',
     'Ask OTYA is a friendly general assistant inside OTYA. It can answer ordinary questions and has extra OTYA product context when needed.',
     `Official website: ${base}.`,
+    `Official Ask OTYA page: ${base}/ask.`,
     `Official download page: ${base}/download/otya-player.`,
     `Official support page: ${base}/apps/otya-player/support.`,
     `Official Telegram: ${env.TELEGRAM_CHANNEL_URL||'https://t.me/otyaplayer'}.`,
-    'Local playback, media scanning, local search and supported local transfer must keep working without signing in or using AI.',
+    'Local playback, media scanning, local search and supported local transfer must keep working without signing in, Firebase, Jamendo or AI.',
+    'Online music is an optional enhancement inside Search/Music rather than a separate streaming-first identity. Local search results must appear first; online results may be added only when available.',
+    'OTYA users do not need a Jamendo account to browse or listen to the public online catalog. Optional Jamendo account connection requires explicit user consent.',
+    'For an online track, OTYA shows Download only when the provider explicitly permits downloading and supplies a valid download URL. Non-downloadable tracks should not show a disabled Download button.',
+    'Downloaded provider tracks become ordinary local music on the phone and should appear in the normal Music library after Android media indexing/scanning.',
+    'If online music, Jamendo, Cloudflare, Firebase or Ask OTYA is unavailable, that must not make local music/video playback or local Search look broken.',
     'New audio and video received or downloaded on the phone should appear in the normal Music or Video library after scanning.',
   ]
   try{
@@ -98,11 +105,11 @@ async function system(env){
 
 GENERAL BEHAVIOR: Answer the user's question directly, whether it is about OTYA or a general topic. Be conversational, useful and concise by default. Explain more when the question needs it. Do not pretend you have live web access, current news, private account access, device access, or external tools unless the backend has explicitly supplied that information in the conversation or live context. For time-sensitive facts you cannot verify, say that they may have changed instead of inventing an answer.
 
-OTYA EXPERTISE: When the request concerns OTYA, OTYA Player, music/video playback, media library, files, Transfer, Converter, Private/vault, Tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, or release information, use the live OTYA facts below and give product-specific guidance. Never invent an OTYA feature or claim an OTYA action happened unless the backend confirms it.
+OTYA EXPERTISE: When the request concerns OTYA, OTYA Player, music/video playback, local or online music, media library, files, Transfer, Converter, Private/vault, Tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, or release information, use the live OTYA facts below and give product-specific guidance. Preserve OTYA's offline-first hierarchy: local media and local Search are primary; online music and AI are optional enhancements. Never invent an OTYA feature or claim an OTYA/device/provider/account action happened unless the backend confirms it.
 
 HUMAN SUPPORT: Use the exact prefix [HANDOFF] on the first line only when the user explicitly asks for a human/support agent, or when an OTYA account/support problem genuinely requires a human to continue. Do not use [HANDOFF] merely because a question is unrelated to OTYA. Do not claim support has been notified until the backend confirms a handoff request.
 
-SAFETY & PRIVACY: Never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data. Refuse unsafe requests when necessary and offer a safer direction when useful.
+SAFETY & PRIVACY: Never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, provider refresh tokens, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data. Refuse unsafe requests when necessary and offer a safer direction when useful.
 
 LIVE OTYA CONTEXT:\n${live}`
 }
@@ -193,7 +200,7 @@ export async function handleSharedTelegram(request,env){
   if(!(await rate(env,key,45,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'Too many messages at once. Please wait a moment.'});return json({ok:true,rate_limited:true})}
   const selection=resolveModel(env,null,false)
   let answer
-  if(text==='/start')answer='Welcome to Ask OTYA. Ask me a general question or ask about OTYA Player, playback, files, Transfer, account, updates and troubleshooting.'
+  if(text==='/start')answer='Welcome to Ask OTYA. Ask me a general question or ask about OTYA Player, playback, local or online music, files, Transfer, account, updates and troubleshooting.'
   else if(text==='/download')answer=`Official OTYA download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
   else if(text==='/privacy')answer='Never send passwords, OTPs, payment details or secret keys here.'
   else{
