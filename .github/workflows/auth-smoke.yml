@@ -1,0 +1,43 @@
+name: Otya Auth Smoke
+
+on:
+  push:
+    branches: [design/otya-web-professional-20260830]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check live website and CSP
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(curl -fsSIL --max-time 20 https://petersmartlink.com/sign-in)"
+          printf '%s\n' "$headers"
+          printf '%s\n' "$headers" | grep -i '^content-security-policy:' >/dev/null
+          printf '%s\n' "$headers" | grep -i 'accounts.google.com' >/dev/null
+
+      - name: Check browser account session route
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl -fsS --max-time 20 https://petersmartlink.com/api/account-session/session)"
+          printf '%s\n' "$body"
+          printf '%s\n' "$body" | grep -E '"authenticated"|"error"' >/dev/null
+
+      - name: Check Telegram authorization start
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' -X POST -H 'Accept: application/json' 'https://petersmartlink.com/api/auth/telegram/start?mode=login')"
+          cat "$response"
+          echo
+          echo "HTTP $status"
+          test "$status" = "200"
+          grep -q 'authorization_url' "$response"
