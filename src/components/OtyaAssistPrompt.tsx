@@ -6,7 +6,7 @@ type ChatMessage = { role:'user'|'assistant'; content:string; handoff?:boolean; 
 const prompts=['Find music for tonight','Help with my Otya account','Why has my video got no sound?','Explain something simply']
 
 function OtyaMark({thinking=false}:{thinking?:boolean}){
-  return <span aria-hidden="true" className={`inline-flex h-8 w-8 items-center justify-center rounded-xl bg-black/[.035] dark:bg-white/[.055] ${thinking?'animate-pulse':''}`}><img src="/otya-icon.svg" alt="" width={24} height={24} className="h-6 w-6"/></span>
+  return <span aria-hidden="true" className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-black/[.035] dark:bg-white/[.055]"><img src={thinking?'/otya-ai-thinking.svg':'/otya-icon.svg'} alt="" width={24} height={24} className="h-6 w-6"/></span>
 }
 
 export function OtyaAssistPrompt({compact=false}:{compact?:boolean}){
@@ -26,8 +26,8 @@ export function OtyaAssistPrompt({compact=false}:{compact?:boolean}){
 
   return <section className={`${compact?'flex-1 min-h-0':'my-6 h-[min(720px,72dvh)]'} flex flex-col overflow-hidden rounded-[28px] border border-black/[.06] dark:border-white/[.08] bg-white/75 dark:bg-white/[.025] shadow-[0_20px_70px_rgba(20,14,38,.07)] backdrop-blur-xl`}>
     <div className="shrink-0 flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-black/[.05] dark:border-white/[.07]">
-      <OtyaMark/>
-      <div className="min-w-0 flex-1"><div className="font-black tracking-[-.025em]">Ask Otya</div><div className="text-[11px] otya-muted">Ask naturally. Follow up anytime.</div></div>
+      <OtyaMark thinking={loading}/>
+      <div className="min-w-0 flex-1"><div className="font-black tracking-[-.025em]">Ask Otya</div><div className="text-[11px] otya-muted">{loading?'Thinking…':'Ask naturally. Follow up anytime.'}</div></div>
       {messages.length>0&&<button type="button" onClick={newChat} disabled={loading} className="min-h-9 rounded-full border border-black/[.06] dark:border-white/[.08] px-3 text-[11px] font-black disabled:opacity-50">New chat</button>}
     </div>
 
