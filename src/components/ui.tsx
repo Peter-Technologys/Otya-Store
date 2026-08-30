@@ -58,13 +58,13 @@ export function SiteNav({ back }: { back?: { href: string; label: string } }) {
             </Link>
           )}
           <a
-            href="https://wa.me/256775912582"
+            href="https://t.me/OtyaPlayerBot"
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold hover:bg-white/5"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
-            WhatsApp
+            Telegram
           </a>
           <button
             onClick={() => setOpen(!open)}
@@ -97,13 +97,13 @@ export function SiteNav({ back }: { back?: { href: string; label: string } }) {
             </a>
           ))}
           <a
-            href="https://wa.me/256775912582"
+            href="https://t.me/OtyaPlayerBot"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 mt-2 px-4 py-2.5 rounded-xl border text-sm font-semibold"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
-            WhatsApp Us
+            Telegram Support
           </a>
         </div>
       )}
