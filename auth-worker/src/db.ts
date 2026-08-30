@@ -103,9 +103,9 @@ const USER_COLUMN_DEFS: Record<string, string> = {
 /**
  * Public Otya account identifier.
  *
- * Format: IS######## (fixed IS prefix + exactly eight cryptographically random
- * decimal digits). This identifier is public and human-friendly; users.id
- * remains the private/internal primary key used for joins and authorization.
+ * Format: 2IS######## (fixed 2IS prefix + exactly eight cryptographically
+ * random decimal digits). This identifier is public and human-friendly;
+ * users.id remains the private/internal primary key used for joins and auth.
  */
 export async function generateOtyaId(db: D1Database): Promise<string> {
   for (let attempt = 0; attempt < 32; attempt++) {
@@ -116,7 +116,7 @@ export async function generateOtyaId(db: D1Database): Promise<string> {
       + (bytes[2] << 8)
       + bytes[3]
     ) % 100000000
-    const candidate = `IS${value.toString().padStart(8, '0')}`
+    const candidate = `2IS${value.toString().padStart(8, '0')}`
     const existing = await db.prepare('SELECT 1 FROM users WHERE otya_id = ? LIMIT 1').bind(candidate).first()
     if (!existing) return candidate
   }
@@ -132,8 +132,16 @@ async function ensureUserColumns(db: D1Database): Promise<void> {
     }
   }
 
-  // Backfill every legacy account once. Public IDs are random rather than
-  // sequential so they do not reveal account count or signup order.
+  // Preserve the eight random digits already allocated during the short-lived
+  // IS######## format while moving those accounts to the final 2IS########
+  // public format. IDs that were never allocated are generated below.
+  await db.prepare(`
+    UPDATE users
+    SET otya_id = '2' || otya_id
+    WHERE length(otya_id) = 10
+      AND otya_id GLOB 'IS[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+  `).run()
+
   const missing = await db.prepare(
     "SELECT id FROM users WHERE otya_id IS NULL OR trim(otya_id) = ''",
   ).all<{ id: string }>()
