@@ -28,15 +28,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const inAi = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/')
       const atAdminHome = pathname === '/admin' || pathname === '/admin/'
 
-      // The AI command surface is privileged. If step-up MFA has not been
-      // completed, send the account through the single admin gate first.
-      if (inAi && state.authenticated !== true) {
+      // Never render privileged admin surfaces unless the server positively
+      // confirms an elevated admin session. UI state is not authorization.
+      if (inAi && (response.ok !== true || state.authenticated !== true)) {
         window.location.replace('/admin')
         return
       }
 
       // Once elevated, the conversational command center is the admin home.
-      // Structured admin pages remain reachable from inside that interface.
       if (atAdminHome && state.authenticated === true) {
         window.location.replace('/admin/ai')
         return
@@ -44,7 +43,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       setChecking(false)
     }).catch(() => {
-      if (!cancelled) setChecking(false)
+      if (cancelled) return
+      const inAi = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/')
+      if (inAi) {
+        // Deny by default if the authorization service cannot be reached.
+        window.location.replace('/admin')
+        return
+      }
+      setChecking(false)
     })
 
     return () => { cancelled = true }
