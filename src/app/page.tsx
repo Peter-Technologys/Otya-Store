@@ -1,234 +1,86 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
-import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
-  title: 'OTYA — Video, Music, Transfer and Private media',
-  description:
-    'OTYA is an offline-first Android media app for video and music, with local Transfer, Private media, useful tools and Ask OTYA when you want help.',
+  title: 'OTYA — Music first. Player everywhere.',
+  description: 'Discover and play music online, then take OTYA with you for private offline-first video and music playback on Android.',
   alternates: { canonical: 'https://petersmartlink.com' },
 }
 
-export default async function HomePage() {
-  // The website must remain truthful even when KV is unavailable. OTYA's v1
-  // rebuild starts at 1.0.0; live release metadata replaces this when present.
-  let appVersion = '1.0.0'
-  try {
-    const { env } = await getCloudflareContext()
-    const kv = getKV(env as Record<string, unknown>)
-    const raw = await kv.get('LATEST_BUILD_INFO')
-    if (raw) appVersion = (JSON.parse(raw) as { version?: string }).version || appVersion
-  } catch {}
+const DISCOVERY = [
+  ['Ugandan Music', 'uganda'],
+  ['New Music', 'new music'],
+  ['Afrobeats', 'afrobeats'],
+  ['Gospel', 'gospel'],
+  ['R&B', 'rnb'],
+  ['International', 'pop'],
+]
 
+export default function HomePage() {
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{
-        background: 'var(--cosmos-scaffold)',
-        color: 'var(--cosmos-text-primary)',
-      }}
-    >
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
       <SiteNav />
-
       <main className="flex-1">
-        <section
-          className="border-b overflow-hidden"
-          style={{ borderColor: 'var(--cosmos-divider)' }}
-        >
-          <div className="otya-shell py-12 sm:py-20 lg:py-24 grid lg:grid-cols-[.92fr_1.08fr] gap-9 lg:gap-16 items-center">
-            <div>
-              <div className="otya-kicker mb-4">OTYA for Android</div>
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-[-.055em] leading-[.96] max-w-3xl">
-                Your videos and music. One private, offline-first app.
-              </h1>
-              <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed otya-muted">
-                Play local video and music, move files directly between nearby
-                phones, protect private media and use practical media tools —
-                without making an internet connection a requirement.
-              </p>
+        <section className="otya-shell pt-10 sm:pt-16 pb-8 sm:pb-12">
+          <div className="max-w-4xl">
+            <div className="otya-kicker mb-3">OTYA Music</div>
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-[-.055em] leading-[.95]">Find something worth playing.</h1>
+            <p className="mt-4 text-base sm:text-lg otya-muted max-w-2xl">Search music, discover new artists and play from supported providers in one clean OTYA experience.</p>
 
-              <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:items-center">
-                <Link
-                  href="/download/otya-player"
-                  className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold text-center"
-                >
-                  Download OTYA
-                </Link>
-                <Link
-                  href="/otya-player"
-                  className="otya-quiet-button rounded-xl px-5 py-3 text-sm font-bold text-center"
-                >
-                  See what it does
-                </Link>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs sm:text-sm otya-muted">
-                <span>Offline-first</span>
-                <span>No account required for playback</span>
-                <span>Local Transfer</span>
-              </div>
-            </div>
-
-            <Image
-              src="/brand/otya-app-preview.svg"
-              alt="OTYA app showing its Video, Music and Me experience"
-              width={1200}
-              height={820}
-              priority
-              className="w-full h-auto rounded-[28px]"
-            />
+            <form action="/music" className="mt-7 max-w-3xl flex gap-2">
+              <input name="q" placeholder="Search songs, artists or albums" aria-label="Search music" className="min-h-14 min-w-0 flex-1 rounded-2xl border px-5 outline-none text-base" style={{ background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)', color: 'var(--cosmos-text-primary)' }} />
+              <button className="cosmos-button min-h-14 rounded-2xl px-5 sm:px-7 font-bold">Search</button>
+            </form>
           </div>
         </section>
 
-        <section className="otya-shell py-12 sm:py-16">
-          <div className="max-w-2xl mb-8">
-            <div className="otya-kicker mb-2">What OTYA does</div>
-            <h2 className="otya-section-title">Three simple places. Everything stays organized.</h2>
+        <section className="otya-shell pb-10 sm:pb-14">
+          <div className="flex items-end justify-between gap-4 mb-4">
+            <div>
+              <div className="otya-kicker mb-1">Explore</div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-[-.035em]">Start with a sound</h2>
+            </div>
+            <Link href="/music" className="text-sm font-semibold otya-muted">Open player →</Link>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-4 sm:gap-5">
-            <FeatureCard
-              title="Video"
-              text="Browse local videos and folders, use gestures, subtitles, audio tracks, PiP, speed controls, trim and audio extraction."
-              href="/otya-player"
-              linkLabel="Explore video"
-            />
-            <FeatureCard
-              title="Music"
-              text="Songs, albums, artists, folders and playlists with queue, favorites, lyrics, EQ, sleep timer and background playback."
-              href="/otya-player"
-              linkLabel="Explore music"
-            />
-            <FeatureCard
-              title="Me"
-              text="Transfer, Files, Private, Converter, Playlists, History, Tools, Personalize and Storage in one clear home for utilities."
-              href="/otya-player"
-              linkLabel="Explore tools"
-            />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {DISCOVERY.map(([label, query], index) => (
+              <Link key={label} href={`/music?q=${encodeURIComponent(query)}`} className="group min-h-32 rounded-2xl border p-4 flex items-end overflow-hidden" style={{ borderColor: 'var(--cosmos-divider)', background: `linear-gradient(145deg, color-mix(in srgb, var(--cosmos-primary) ${12 + index * 2}%, var(--cosmos-card)), var(--cosmos-card))` }}>
+                <span className="font-black tracking-[-.025em] leading-tight">{label}</span>
+              </Link>
+            ))}
           </div>
         </section>
 
-        <section
-          className="border-y"
-          style={{
-            borderColor: 'var(--cosmos-divider)',
-            background: 'var(--cosmos-surface)',
-          }}
-        >
-          <div className="otya-shell py-12 sm:py-16 grid lg:grid-cols-2 gap-8 lg:gap-14 items-start">
+        <section className="border-y" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }}>
+          <div className="otya-shell py-10 sm:py-14 grid lg:grid-cols-[1fr_.8fr] gap-7 lg:gap-14 items-center">
             <div>
-              <div className="otya-kicker mb-2">Built around your phone</div>
-              <h2 className="otya-section-title">Useful online. Still useful offline.</h2>
+              <div className="otya-kicker mb-2">Take OTYA with you</div>
+              <h2 className="text-3xl sm:text-4xl font-black tracking-[-.04em]">Your own music and videos stay yours.</h2>
+              <p className="mt-3 otya-muted max-w-2xl">The Android app plays your local library offline, handles video, Transfer and Private media, and does not require an account just to play your files.</p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <MiniPoint
-                title="Playback stays local"
-                text="Video, Music, Search and your local library do not depend on Cloudflare, Firebase, account services or Ask OTYA."
-              />
-              <MiniPoint
-                title="Transfer stays nearby"
-                text="Send files directly over local Wi-Fi or hotspot instead of uploading them to a cloud drive first."
-              />
-              <MiniPoint
-                title="Private stays on-device"
-                text="Protected media uses OTYA's app-private storage and device authentication controls."
-              />
-              <MiniPoint
-                title="Account is optional for playback"
-                text="Sign in only when you want supported account, backup, recovery or cloud-assisted features."
-              />
+            <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:items-stretch">
+              <Link href="/download/otya-player" className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold text-center">Get OTYA for Android</Link>
+              <Link href="/otya-player" className="otya-quiet-button rounded-xl px-5 py-3 text-sm font-bold text-center">See the player</Link>
             </div>
           </div>
         </section>
 
-        <section className="otya-shell py-12 sm:py-16">
-          <div className="grid lg:grid-cols-[.8fr_1.2fr] gap-8 lg:gap-14">
-            <div>
-              <div className="otya-kicker mb-2">Ask OTYA</div>
-              <h2 className="otya-section-title">Help when you want it. Never a playback dependency.</h2>
-            </div>
-            <div>
-              <p className="otya-muted max-w-2xl leading-relaxed">
-                Ask general questions or get OTYA-specific help when you are
-                online. Signed-in users can use supported AI models, while local
-                playback and media tools keep working when AI or the internet is
-                unavailable.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
-                <Link href="/apps/otya-player/support">Open support →</Link>
-                <Link href="/account">OTYA Account →</Link>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="border-t"
-          style={{ borderColor: 'var(--cosmos-divider)' }}
-        >
-          <div className="otya-shell py-12 sm:py-16 grid lg:grid-cols-[.8fr_1.2fr] gap-8 lg:gap-14 items-start">
-            <div>
-              <div className="otya-kicker mb-2">Current release</div>
-              <h2 className="otya-section-title">OTYA v{appVersion}</h2>
-            </div>
-            <div>
-              <p className="otya-muted max-w-2xl">
-                Built by PeterSmart Link for Android, with offline-first local
-                media playback and resilient device-first behavior at the center.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
-                <Link href="/download/otya-player">Official download →</Link>
-                <Link href="/apps/otya-player/changelog">Changelog →</Link>
-                <Link href="/apps/otya-player/security">Security →</Link>
-                <Link href="/developers">Developers →</Link>
-              </div>
-            </div>
+        <section className="otya-shell py-10 sm:py-14">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Link href="/ask" className="rounded-2xl border p-5 sm:p-6" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
+              <div className="text-lg font-black">Ask OTYA</div>
+              <div className="mt-1 text-sm otya-muted">Help with OTYA, music discovery and common questions.</div>
+            </Link>
+            <Link href="/account" className="rounded-2xl border p-5 sm:p-6" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
+              <div className="text-lg font-black">Your account</div>
+              <div className="mt-1 text-sm otya-muted">Sign in only when you need account-connected features.</div>
+            </Link>
           </div>
         </section>
       </main>
-
       <SiteFooter />
-    </div>
-  )
-}
-
-function FeatureCard({
-  title,
-  text,
-  href,
-  linkLabel,
-}: {
-  title: string
-  text: string
-  href: string
-  linkLabel: string
-}) {
-  return (
-    <div
-      className="rounded-2xl border p-5 sm:p-6"
-      style={{
-        borderColor: 'var(--cosmos-divider)',
-        background: 'var(--cosmos-surface)',
-      }}
-    >
-      <div className="text-lg font-extrabold tracking-[-.02em] mb-2">{title}</div>
-      <p className="text-sm leading-relaxed otya-muted">{text}</p>
-      <Link href={href} className="inline-block mt-4 text-sm font-semibold">
-        {linkLabel} →
-      </Link>
-    </div>
-  )
-}
-
-function MiniPoint({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <div className="text-sm font-bold mb-1">{title}</div>
-      <p className="text-sm leading-relaxed otya-muted">{text}</p>
     </div>
   )
 }
