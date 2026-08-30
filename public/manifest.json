@@ -1,11 +1,11 @@
 {
-  "name": "OTYA",
-  "short_name": "OTYA",
-  "description": "OTYA — OTYA Player, OTYA AI, shared account and connected services.",
+  "name": "Otya",
+  "short_name": "Otya",
+  "description": "Otya — media, music discovery, transfer, private content and intelligent assistance.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F7F7FB",
-  "theme_color": "#7C3AED",
+  "background_color": "#F7F7F8",
+  "theme_color": "#101114",
   "orientation": "portrait",
   "icons": [
     {
