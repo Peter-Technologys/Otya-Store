@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
       - name: Validate store/web
         run: |
           npm install --no-package-lock --ignore-scripts
@@ -46,9 +46,9 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
       - working-directory: auth-worker
         run: npm install --no-package-lock --ignore-scripts
       - name: Configure and deploy auth
@@ -92,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
       - run: npm install --no-package-lock --ignore-scripts
       - name: Build and deploy OTYA backend
         env:
@@ -136,9 +136,9 @@ jobs:
     needs: deploy-store
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
       - working-directory: ai-worker
         run: npm install --no-package-lock --ignore-scripts
       - name: Remove obsolete store AI queue consumer
