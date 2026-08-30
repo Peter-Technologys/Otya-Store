@@ -9,18 +9,18 @@ import { getKV } from '@/lib/d1'
 export const metadata: Metadata = {
   title: 'OTYA — Video, Music, Transfer & Private Media for Android',
   description:
-    'OTYA is an offline-first Android media app for video and music, with local Transfer, Private media, useful tools and optional Ask OTYA help.',
+    'OTYA is an offline-first Android media app for video and music, with local Transfer, Private media, useful tools, optional online music discovery and Ask OTYA help.',
   alternates: { canonical: 'https://petersmartlink.com/otya-player' },
 }
 
 const CAPABILITIES = [
   [
     'Video',
-    'Local playback, folders, subtitles, audio tracks, gestures, Picture-in-Picture, speed controls, trim and audio extraction.',
+    'Local playback, folders, subtitles, audio tracks, gestures, Picture-in-Picture, speed controls and contextual trim or audio extraction.',
   ],
   [
     'Music',
-    'Songs, albums, artists, folders, playlists, queue, favorites, lyrics, background playback, sleep timer and equalizer.',
+    'Songs, albums, artists, folders, playlists, queue, favorites, lyrics, background playback, sleep timer and equalizer. When online, Search can quietly add legal online music results without replacing your local library.',
   ],
   [
     'Transfer',
@@ -31,8 +31,8 @@ const CAPABILITIES = [
     'Browse local and received media, with protected files moved into OTYA app-private storage behind device authentication and Private PIN controls.',
   ],
   [
-    'Converter & Tools',
-    'Extract audio from video, trim local clips, tune playback and keep practical media utilities in one organized place.',
+    'Tools when needed',
+    'Extract audio, trim local clips, inspect storage and use practical media utilities from the selected media or organized Tools instead of a crowded home screen.',
   ],
   [
     'Ask OTYA',
@@ -82,10 +82,10 @@ export default async function OtyaPlayerPage() {
                   Download OTYA
                 </Link>
                 <Link
-                  href="/apps/otya-player/support"
+                  href="/ask"
                   className="otya-quiet-button rounded-xl px-5 py-3 text-sm font-bold text-center"
                 >
-                  Ask OTYA & support
+                  Ask OTYA
                 </Link>
               </div>
               <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted">
@@ -111,22 +111,22 @@ export default async function OtyaPlayerPage() {
             <div className="otya-kicker mb-2">One structure</div>
             <h2 className="otya-section-title">Video. Music. Me.</h2>
             <p className="mt-3 otya-muted">
-              The three main places stay predictable so powerful features do not
-              turn the app into a crowded dashboard.
+              The three main places stay predictable. More advanced actions
+              appear where they are useful instead of becoming duplicate home screens.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
             <CoreCard
               title="Video"
-              text="Your videos, folders, recent media and full player controls."
+              text="Your videos, folders, recent media and full player controls. Trim, share, Private and other actions appear in context."
             />
             <CoreCard
               title="Music"
-              text="Songs, artists, albums, playlists, queue and your now-playing experience."
+              text="Your songs, artists, albums, folders, playlists and now-playing experience. Search stays local-first and can add online matches only when available."
             />
             <CoreCard
               title="Me"
-              text="Transfer, Files, Private, Converter, Playlists, History, Tools, Personalize and Storage."
+              text="A clean personal area for Transfer, Files and Private, with activity, tools, account and settings organized underneath."
             />
           </div>
         </section>
@@ -157,12 +157,16 @@ export default async function OtyaPlayerPage() {
         <section className="otya-shell py-12 sm:py-16 grid lg:grid-cols-[.85fr_1.15fr] gap-9 lg:gap-16">
           <div>
             <div className="otya-kicker mb-2">Offline by design</div>
-            <h2 className="otya-section-title">The cloud is an enhancement, not a requirement.</h2>
+            <h2 className="otya-section-title">The internet is an enhancement, not a requirement.</h2>
           </div>
           <div className="space-y-7">
             <Principle
               title="Playback remains local"
-              text="Video, Music, local Search, playlists, themes, media scanning and core settings continue to work without an internet connection."
+              text="Video, Music, local Search, playlists, media scanning and core settings continue to work without an internet connection."
+            />
+            <Principle
+              title="Online music blends into Search"
+              text="When internet access is available, OTYA may add legal provider tracks beneath local Search results. If the provider is unavailable, that section simply disappears. Download is shown only for tracks whose provider explicitly allows it; downloaded tracks become normal local music on the phone."
             />
             <Principle
               title="Transfers remain local"
@@ -170,7 +174,7 @@ export default async function OtyaPlayerPage() {
             />
             <Principle
               title="Ask OTYA stays optional"
-              text="Use the assistant when you want online help. Your local library and playback do not wait for AI, Firebase or Cloudflare."
+              text="Use the assistant when you want online help. Your local library and playback do not wait for AI, Firebase, Jamendo or Cloudflare."
             />
           </div>
         </section>
