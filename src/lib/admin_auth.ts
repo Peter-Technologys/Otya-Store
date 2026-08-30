@@ -1,11 +1,11 @@
 const COOKIE_NAME = 'otya_admin_session'
-// A trusted admin device can remain signed in for up to seven days. The session
-// is renewed only after the server has successfully verified the existing
-// signed HttpOnly cookie, so active use slides the expiry without weakening the
-// authentication boundary.
+const ACCOUNT_ACCESS_COOKIE = '__Host-otya_access'
+// Legacy direct-admin sessions remain supported during migration. The preferred
+// browser path is now one Otya account whose email is granted the admin role.
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
-type AdminEnv = Record<string, unknown>
+type AuthBinding = { fetch(request: Request): Promise<Response> }
+type AdminEnv = Record<string, unknown> & { AUTH?: AuthBinding }
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -41,8 +41,20 @@ async function sign(value: string, secret: string): Promise<string> {
   return b64url(new Uint8Array(mac))
 }
 
+function cookieValue(request: Request, name: string): string {
+  const cookie = request.headers.get('cookie') ?? ''
+  return cookie.split(';').map(v => v.trim()).find(v => v.startsWith(`${name}=`))?.slice(name.length + 1) ?? ''
+}
+
+function adminEmails(env: AdminEnv): Set<string> {
+  const values = [text(env.ADMIN_EMAIL), ...text(env.ADMIN_EMAILS).split(',')]
+  return new Set(values.map(v => v.trim().toLowerCase()).filter(Boolean))
+}
+
 export function adminConfigured(env: AdminEnv): boolean {
-  return Boolean(text(env.ADMIN_EMAIL) && text(env.ADMIN_PASSWORD) && text(env.ADMIN_SESSION_SECRET))
+  // An admin identity can be authorized by the normal Otya account session even
+  // when the legacy direct-admin password is not configured.
+  return adminEmails(env).size > 0 && Boolean(env.AUTH?.fetch || (text(env.ADMIN_PASSWORD) && text(env.ADMIN_SESSION_SECRET)))
 }
 
 export function adminEmail(env: AdminEnv): string {
@@ -68,13 +80,12 @@ export async function createAdminSession(env: AdminEnv, email: string): Promise<
   return `${encoded}.${await sign(encoded, secret)}`
 }
 
-export async function verifyAdminSession(request: Request, env: AdminEnv): Promise<boolean> {
+async function verifyLegacyAdminCookie(request: Request, env: AdminEnv): Promise<boolean> {
   const secret = text(env.ADMIN_SESSION_SECRET)
   const expectedEmail = adminEmail(env)
   if (!secret || !expectedEmail) return false
 
-  const cookie = request.headers.get('cookie') ?? ''
-  const raw = cookie.split(';').map(v => v.trim()).find(v => v.startsWith(`${COOKIE_NAME}=`))?.slice(COOKIE_NAME.length + 1)
+  const raw = cookieValue(request, COOKIE_NAME)
   if (!raw) return false
   const [encoded, signature] = raw.split('.')
   if (!encoded || !signature) return false
@@ -91,6 +102,35 @@ export async function verifyAdminSession(request: Request, env: AdminEnv): Promi
   }
 }
 
+async function verifyOtyaAccountAdmin(request: Request, env: AdminEnv): Promise<boolean> {
+  const accessToken = cookieValue(request, ACCOUNT_ACCESS_COOKIE)
+  const allowed = adminEmails(env)
+  if (!accessToken || !allowed.size || !env.AUTH?.fetch) return false
+  try {
+    const upstream = await env.AUTH.fetch(new Request('https://auth/auth/account', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    }))
+    if (!upstream.ok) return false
+    const data = await upstream.json().catch(() => ({})) as { email?: string; user?: { email?: string } }
+    const email = String(data.user?.email ?? data.email ?? '').trim().toLowerCase()
+    return Boolean(email) && allowed.has(email)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Canonical browser authorization for Otya Admin.
+ *
+ * Preferred path: one normal Otya account session plus an admin email/role
+ * allowlist. Legacy signed admin cookies remain valid during migration.
+ */
+export async function verifyAdminSession(request: Request, env: AdminEnv): Promise<boolean> {
+  if (await verifyOtyaAccountAdmin(request, env)) return true
+  return verifyLegacyAdminCookie(request, env)
+}
+
 function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
   const expected = text(env.ADMIN_TOKEN)
   if (!expected) return false
@@ -98,14 +138,6 @@ function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
   return Boolean(actual) && timingSafeEqual(actual, expected)
 }
 
-/**
- * Canonical authorization for OTYA Admin HTTP routes.
- *
- * Browser/admin UI uses the signed HttpOnly session cookie. A bearer ADMIN_TOKEN
- * is retained temporarily for trusted automation that has not migrated yet.
- * Query-string tokens are intentionally never accepted because URLs leak into
- * browser history, logs and referrers.
- */
 export async function isAdminAuthorized(request: Request, env: AdminEnv): Promise<boolean> {
   if (await verifyAdminSession(request, env)) return true
   return legacyAdminTokenAuthorized(request, env)
