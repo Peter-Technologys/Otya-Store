@@ -1,5 +1,5 @@
-import { verifyJwt } from './crypto'
-import { ensureSchema, type D1Database } from './db'
+import { generateRefreshToken, signJwt, verifyJwt } from './crypto'
+import { ensureSchema, getUserById, type D1Database, type UserRow } from './db'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -29,12 +29,20 @@ type TelegramClaims = {
 }
 
 type JoseWebKey = JsonWebKey & { kid?: string }
+type StoredTelegramState = {
+  mode: 'login' | 'link'
+  userId?: string
+  verifier: string
+  nonce: string
+}
 
 const OIDC_AUTH = 'https://oauth.telegram.org/auth'
 const OIDC_TOKEN = 'https://oauth.telegram.org/token'
 const OIDC_JWKS = 'https://oauth.telegram.org/.well-known/jwks.json'
-const DEFAULT_REDIRECT = 'https://petersmartlink.com/auth/telegram/callback'
+const DEFAULT_REDIRECT = 'https://petersmartlink.com/api/auth/telegram/callback'
 const STATE_TTL = 10 * 60
+const ACCESS_TOKEN_TTL_SECS = 15 * 60
+const REFRESH_TOKEN_TTL_SECS = 30 * 24 * 60 * 60
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -123,12 +131,42 @@ async function validateIdToken(idToken: string, clientId: string, nonce: string)
   return claims
 }
 
+async function issueBrowserTokens(user: UserRow, env: TelegramLoginEnv) {
+  const now = Math.floor(Date.now() / 1000)
+  const accessToken = await signJwt({
+    sub: user.id,
+    email: user.email,
+    iat: now,
+    exp: now + ACCESS_TOKEN_TTL_SECS,
+  }, env.AUTH_JWT_SECRET)
+  const refreshToken = generateRefreshToken()
+  await env.AUTH_KV.put(`rt:${refreshToken}`, user.id, { expirationTtl: REFRESH_TOKEN_TTL_SECS })
+  await env.AUTH_KV.put(`rt_user:${user.id}:${refreshToken}`, '1', { expirationTtl: REFRESH_TOKEN_TTL_SECS })
+  return { accessToken, refreshToken }
+}
+
+async function applyVerifiedPhone(env: TelegramLoginEnv, userId: string, claims: TelegramClaims): Promise<string | null> {
+  const phone = claims.phone_number_verified === true ? normalizePhone(claims.phone_number) : null
+  if (!phone) return null
+  const owner = await env.AUTH_DB.prepare('SELECT id FROM users WHERE phone_number = ? AND id <> ? LIMIT 1').bind(phone, userId).first<{ id: string }>()
+  if (owner) return null
+  await env.AUTH_DB.prepare(`
+    UPDATE users SET
+      phone_number = ?,
+      phone_verified_at = datetime('now'),
+      phone_verification_method = 'telegram_oidc',
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(phone, userId).run()
+  return phone
+}
+
 export async function handleTelegramLogin(request: Request, env: TelegramLoginEnv): Promise<Response | null> {
   const url = new URL(request.url)
   if (url.pathname !== '/auth/telegram/start' && url.pathname !== '/auth/telegram/callback') return null
 
   if (!env.TELEGRAM_LOGIN_CLIENT_ID || !env.TELEGRAM_LOGIN_CLIENT_SECRET) {
-    return json({ error: 'Telegram account linking is not configured yet' }, 503)
+    return json({ error: 'Telegram Sign-In is not configured yet' }, 503)
   }
 
   await ensureSchema(env.AUTH_DB)
@@ -136,14 +174,16 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
 
   if (url.pathname === '/auth/telegram/start') {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-    const userId = await requireUser(request, env)
-    if (!userId) return json({ error: 'Sign in to OTYA first' }, 401)
+    const mode: 'login' | 'link' = url.searchParams.get('mode') === 'login' ? 'login' : 'link'
+    const userId = mode === 'link' ? await requireUser(request, env) : null
+    if (mode === 'link' && !userId) return json({ error: 'Sign in to OTYA first' }, 401)
 
     const state = randomUrlSafe(24)
     const verifier = randomUrlSafe(48)
     const nonce = randomUrlSafe(24)
     const challenge = await sha256Base64Url(verifier)
-    await env.AUTH_KV.put(`telegram_oidc:${state}`, JSON.stringify({ userId, verifier, nonce }), { expirationTtl: STATE_TTL })
+    const stored: StoredTelegramState = { mode, verifier, nonce, ...(userId ? { userId } : {}) }
+    await env.AUTH_KV.put(`telegram_oidc:${state}`, JSON.stringify(stored), { expirationTtl: STATE_TTL })
 
     const authUrl = new URL(OIDC_AUTH)
     authUrl.searchParams.set('client_id', env.TELEGRAM_LOGIN_CLIENT_ID)
@@ -154,20 +194,20 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
     authUrl.searchParams.set('nonce', nonce)
     authUrl.searchParams.set('code_challenge', challenge)
     authUrl.searchParams.set('code_challenge_method', 'S256')
-    return json({ ok: true, authorization_url: authUrl.toString() })
+    return json({ ok: true, mode, authorization_url: authUrl.toString() })
   }
 
   if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
   const state = url.searchParams.get('state') || ''
   const code = url.searchParams.get('code') || ''
-  if (!state || !code) return Response.redirect('https://petersmartlink.com/my-account?telegram=cancelled', 302)
+  if (!state || !code) return Response.redirect('https://petersmartlink.com/sign-in?telegram=cancelled', 302)
 
-  const stored = await env.AUTH_KV.get(`telegram_oidc:${state}`)
+  const storedRaw = await env.AUTH_KV.get(`telegram_oidc:${state}`)
   await env.AUTH_KV.delete(`telegram_oidc:${state}`)
-  if (!stored) return Response.redirect('https://petersmartlink.com/my-account?telegram=expired', 302)
+  if (!storedRaw) return Response.redirect('https://petersmartlink.com/sign-in?telegram=expired', 302)
 
   try {
-    const { userId, verifier, nonce } = JSON.parse(stored) as { userId: string; verifier: string; nonce: string }
+    const stored = JSON.parse(storedRaw) as StoredTelegramState
     const basic = btoa(`${env.TELEGRAM_LOGIN_CLIENT_ID}:${env.TELEGRAM_LOGIN_CLIENT_SECRET}`)
     const tokenResponse = await fetch(OIDC_TOKEN, {
       method: 'POST',
@@ -181,16 +221,45 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
         code,
         redirect_uri: redirectUri,
         client_id: env.TELEGRAM_LOGIN_CLIENT_ID,
-        code_verifier: verifier,
+        code_verifier: stored.verifier,
       }).toString(),
     })
     const tokenData = await tokenResponse.json().catch(() => ({})) as { id_token?: string; error?: string }
     if (!tokenResponse.ok || !tokenData.id_token) throw new Error(tokenData.error || 'Telegram token exchange failed')
 
-    const claims = await validateIdToken(tokenData.id_token, env.TELEGRAM_LOGIN_CLIENT_ID, nonce)
+    const claims = await validateIdToken(tokenData.id_token, env.TELEGRAM_LOGIN_CLIENT_ID, stored.nonce)
     const existingIdentity = await env.AUTH_DB.prepare(
       'SELECT user_id FROM linked_identities WHERE provider = ? AND provider_subject = ? LIMIT 1',
     ).bind('telegram', claims.sub).first<{ user_id: string }>()
+
+    if (stored.mode === 'login') {
+      if (!existingIdentity?.user_id) {
+        return Response.redirect('https://petersmartlink.com/sign-in?telegram=not-linked', 302)
+      }
+      const user = await getUserById(env.AUTH_DB, existingIdentity.user_id)
+      if (!user) return Response.redirect('https://petersmartlink.com/sign-in?telegram=account-missing', 302)
+      await env.AUTH_DB.prepare(
+        `UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?`,
+      ).bind(claims.preferred_username ?? null, claims.sub).run()
+      await applyVerifiedPhone(env, user.id, claims)
+      const tokens = await issueBrowserTokens(user, env)
+      return json({
+        ok: true,
+        telegram_login: true,
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar_url: user.avatar_url,
+          is_verified: user.is_verified,
+        },
+      })
+    }
+
+    const userId = stored.userId
+    if (!userId) throw new Error('Telegram link state is missing the OTYA account')
     if (existingIdentity && existingIdentity.user_id !== userId) throw new Error('This Telegram account is already linked to another OTYA account')
 
     await env.AUTH_DB.prepare(`
@@ -202,23 +271,10 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
         last_used_at = datetime('now')
     `).bind(userId, claims.sub, claims.preferred_username ?? null).run()
 
-    const phone = claims.phone_number_verified === true ? normalizePhone(claims.phone_number) : null
-    if (phone) {
-      const owner = await env.AUTH_DB.prepare('SELECT id FROM users WHERE phone_number = ? AND id <> ? LIMIT 1').bind(phone, userId).first<{ id: string }>()
-      if (owner) throw new Error('This phone number is already verified on another OTYA account')
-      await env.AUTH_DB.prepare(`
-        UPDATE users SET
-          phone_number = ?,
-          phone_verified_at = datetime('now'),
-          phone_verification_method = 'telegram_oidc',
-          updated_at = datetime('now')
-        WHERE id = ?
-      `).bind(phone, userId).run()
-    }
-
-    return Response.redirect(`https://petersmartlink.com/my-account?telegram=${phone ? 'verified' : 'linked'}`, 302)
+    const phone = await applyVerifiedPhone(env, userId, claims)
+    return Response.redirect(`https://petersmartlink.com/account?telegram=${phone ? 'verified' : 'linked'}`, 302)
   } catch (error) {
     console.error('[telegram-login]', (error as Error)?.message)
-    return Response.redirect('https://petersmartlink.com/my-account?telegram=error', 302)
+    return Response.redirect('https://petersmartlink.com/sign-in?telegram=error', 302)
   }
 }

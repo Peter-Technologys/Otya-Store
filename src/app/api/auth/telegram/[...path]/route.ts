@@ -3,9 +3,29 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const PUBLIC_PREFIX = '/api/auth/telegram/'
 const AUTH_PREFIX = '/auth/telegram/'
+const ACCESS_COOKIE = '__Host-otya_access'
+const REFRESH_COOKIE = '__Host-otya_refresh'
+const ACCESS_MAX_AGE = 15 * 60
+const REFRESH_MAX_AGE = 30 * 24 * 60 * 60
 
 type AuthService = {
   fetch(request: Request): Promise<Response>
+}
+
+type TelegramLoginPayload = {
+  telegram_login?: boolean
+  access_token?: string
+  refresh_token?: string
+}
+
+function cookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict' as const,
+    path: '/',
+    maxAge,
+  }
 }
 
 async function forward(request: NextRequest): Promise<Response> {
@@ -29,12 +49,28 @@ async function forward(request: NextRequest): Promise<Response> {
   const headers = new Headers(request.headers)
   headers.set('X-OTYA-Public-Auth-Route', publicUrl.pathname)
 
-  return auth.fetch(new Request(authUrl, {
+  const upstream = await auth.fetch(new Request(authUrl, {
     method: request.method,
     headers,
     body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
     redirect: 'manual',
   }))
+
+  if (publicUrl.pathname.endsWith('/callback') && upstream.ok) {
+    const contentType = upstream.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const data = await upstream.clone().json().catch(() => ({})) as TelegramLoginPayload
+      if (data.telegram_login === true && data.access_token && data.refresh_token) {
+        const response = NextResponse.redirect(new URL('/account?telegram=signed-in', request.url), 302)
+        response.cookies.set(ACCESS_COOKIE, data.access_token, cookieOptions(ACCESS_MAX_AGE))
+        response.cookies.set(REFRESH_COOKIE, data.refresh_token, cookieOptions(REFRESH_MAX_AGE))
+        response.headers.set('Cache-Control', 'no-store')
+        return response
+      }
+    }
+  }
+
+  return upstream
 }
 
 export async function GET(request: NextRequest) {

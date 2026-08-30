@@ -47,7 +47,11 @@ async function requireUser(request: Request, env: TwoFactorEnv): Promise<string 
 }
 
 export async function ensureTwoFactorSchema(db: D1Database): Promise<void> {
-  await db.exec(`
+  // Use a prepared CREATE statement instead of db.exec(). D1's exec path is
+  // intended for SQL scripts and can be more brittle on a hot authentication
+  // request. This table is also included in the canonical auth schema, so this
+  // remains an idempotent compatibility guard for older deployments.
+  await db.prepare(`
     CREATE TABLE IF NOT EXISTS account_two_factor (
       user_id TEXT PRIMARY KEY,
       encrypted_secret TEXT NOT NULL,
@@ -55,8 +59,8 @@ export async function ensureTwoFactorSchema(db: D1Database): Promise<void> {
       enabled_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `)
+    )
+  `).run()
 }
 
 function randomBytes(length: number): Uint8Array {
@@ -231,23 +235,28 @@ export async function verifySecondFactor(
   code?: string,
   recoveryCode?: string,
 ): Promise<'not-enabled' | 'valid' | 'required' | 'invalid' | 'unavailable'> {
-  await ensureTwoFactorSchema(env.AUTH_DB)
-  const row = await getRow(env.AUTH_DB, userId)
-  if (!row) return 'not-enabled'
-  if (!env.ACCOUNT_ENCRYPTION_KEY) return 'unavailable'
-  if (!code && !recoveryCode) return 'required'
+  try {
+    await ensureTwoFactorSchema(env.AUTH_DB)
+    const row = await getRow(env.AUTH_DB, userId)
+    if (!row) return 'not-enabled'
+    if (!env.ACCOUNT_ENCRYPTION_KEY) return 'unavailable'
+    if (!code && !recoveryCode) return 'required'
 
-  if (code) {
-    try {
-      const secret = await decryptSecret(row.encrypted_secret, env.ACCOUNT_ENCRYPTION_KEY)
-      if (await verifyTotp(secret, code)) return 'valid'
-    } catch (error) {
-      console.error('[auth/2fa] Could not verify TOTP:', (error as Error)?.message)
-      return 'unavailable'
+    if (code) {
+      try {
+        const secret = await decryptSecret(row.encrypted_secret, env.ACCOUNT_ENCRYPTION_KEY)
+        if (await verifyTotp(secret, code)) return 'valid'
+      } catch (error) {
+        console.error('[auth/2fa] Could not verify TOTP:', (error as Error)?.message)
+        return 'unavailable'
+      }
     }
+    if (recoveryCode && await consumeRecoveryCode(env.AUTH_DB, row, recoveryCode)) return 'valid'
+    return 'invalid'
+  } catch (error) {
+    console.error('[auth/2fa] Security state lookup failed:', (error as Error)?.message)
+    return 'unavailable'
   }
-  if (recoveryCode && await consumeRecoveryCode(env.AUTH_DB, row, recoveryCode)) return 'valid'
-  return 'invalid'
 }
 
 export async function revokeIssuedRefreshToken(
@@ -318,11 +327,10 @@ export async function handleTwoFactorRoute(
     let secret: string
     try { secret = await decryptSecret(encrypted, env.ACCOUNT_ENCRYPTION_KEY) }
     catch { return json({ error: 'Could not read pending setup' }, 500) }
-    if (!(await verifyTotp(secret, body.code))) return json({ error: 'Invalid authenticator code' }, 401)
 
+    if (!(await verifyTotp(secret, body.code))) return json({ error: 'Authenticator code is invalid' }, 400)
     const recoveryCodes = generateRecoveryCodes()
-    const hashes: string[] = []
-    for (const code of recoveryCodes) hashes.push(await hashRecovery(code))
+    const hashes = await Promise.all(recoveryCodes.map(hashRecovery))
     await env.AUTH_DB.prepare(`
       INSERT INTO account_two_factor (user_id, encrypted_secret, recovery_hashes)
       VALUES (?, ?, ?)
@@ -333,44 +341,49 @@ export async function handleTwoFactorRoute(
         updated_at = datetime('now')
     `).bind(userId, encrypted, JSON.stringify(hashes)).run()
     await env.AUTH_KV.delete(`2fa_pending:${userId}`)
-    return json({
-      ok: true,
-      recovery_codes: recoveryCodes,
-      warning: 'Save these recovery codes now. OTYA will not show them again.',
-    })
+    return json({ ok: true, enabled: true, recovery_codes: recoveryCodes })
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/2fa/disable') {
+    if (!env.ACCOUNT_ENCRYPTION_KEY) return json({ error: 'Two-step verification is unavailable' }, 503)
     let body: { code?: string; recovery_code?: string }
     try { body = await request.json() as { code?: string; recovery_code?: string } }
     catch { return json({ error: 'Invalid JSON body' }, 400) }
-    const result = await verifySecondFactor(env, userId, body.code, body.recovery_code)
-    if (result === 'not-enabled') return json({ ok: true })
-    if (result === 'unavailable') return json({ error: 'Two-step verification is temporarily unavailable' }, 503)
-    if (result !== 'valid') return json({ error: 'Valid authenticator or recovery code required' }, 401)
+    const row = await getRow(env.AUTH_DB, userId)
+    if (!row) return json({ ok: true, enabled: false })
+    let verified = false
+    if (body.code) {
+      try {
+        const secret = await decryptSecret(row.encrypted_secret, env.ACCOUNT_ENCRYPTION_KEY)
+        verified = await verifyTotp(secret, body.code)
+      } catch { return json({ error: 'Could not verify authenticator code' }, 503) }
+    } else if (body.recovery_code) {
+      verified = await consumeRecoveryCode(env.AUTH_DB, row, body.recovery_code)
+    }
+    if (!verified) return json({ error: 'A valid authenticator or recovery code is required' }, 401)
     await env.AUTH_DB.prepare('DELETE FROM account_two_factor WHERE user_id = ?').bind(userId).run()
     await env.AUTH_KV.delete(`2fa_pending:${userId}`)
-    return json({ ok: true })
+    return json({ ok: true, enabled: false })
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/2fa/recovery-codes') {
+    if (!env.ACCOUNT_ENCRYPTION_KEY) return json({ error: 'Two-step verification is unavailable' }, 503)
     let body: { code?: string }
     try { body = await request.json() as { code?: string } }
     catch { return json({ error: 'Invalid JSON body' }, 400) }
-    const result = await verifySecondFactor(env, userId, body.code)
-    if (result !== 'valid') return json({ error: 'Valid authenticator code required' }, 401)
+    const row = await getRow(env.AUTH_DB, userId)
+    if (!row) return json({ error: 'Two-step verification is not enabled' }, 400)
+    let secret: string
+    try { secret = await decryptSecret(row.encrypted_secret, env.ACCOUNT_ENCRYPTION_KEY) }
+    catch { return json({ error: 'Could not read authenticator settings' }, 503) }
+    if (!body.code || !(await verifyTotp(secret, body.code))) return json({ error: 'Authenticator code is invalid' }, 401)
     const recoveryCodes = generateRecoveryCodes()
-    const hashes: string[] = []
-    for (const code of recoveryCodes) hashes.push(await hashRecovery(code))
+    const hashes = await Promise.all(recoveryCodes.map(hashRecovery))
     await env.AUTH_DB.prepare(
       "UPDATE account_two_factor SET recovery_hashes = ?, updated_at = datetime('now') WHERE user_id = ?",
     ).bind(JSON.stringify(hashes), userId).run()
-    return json({
-      ok: true,
-      recovery_codes: recoveryCodes,
-      warning: 'These codes replace all previous recovery codes. Save them now.',
-    })
+    return json({ ok: true, recovery_codes: recoveryCodes })
   }
 
-  return json({ error: 'Method not allowed' }, 405)
+  return null
 }
