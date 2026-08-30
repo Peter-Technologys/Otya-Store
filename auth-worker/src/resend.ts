@@ -28,6 +28,7 @@ interface TemplateSelection {
 }
 
 const OTYA_SUPPORT_EMAIL = 'support@petersmartlink.com'
+const OTYA_LOGO_URL = 'https://petersmartlink.com/web-app-manifest-192x192.png'
 
 function escapeHtml(value: string): string {
   return value
@@ -61,8 +62,8 @@ function renderEmailHtml(subject: string, text: string): string {
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#0f1420;border:1px solid #252d40;border-radius:22px;overflow:hidden">
         <tr><td style="padding:24px 28px;border-bottom:1px solid #252d40">
           <table role="presentation" cellspacing="0" cellpadding="0"><tr>
-            <td style="width:38px;height:38px;border-radius:19px;background:#7c3cff;text-align:center;vertical-align:middle;color:#ffffff;font-size:22px;font-weight:900">O</td>
-            <td style="padding-left:11px"><div style="font-size:23px;font-weight:900;color:#ffffff;letter-spacing:1.4px">TYA</div><div style="margin-top:3px;font-size:12px;color:#9ca5bb">Your media. Your way.</div></td>
+            <td style="width:44px;height:44px;vertical-align:middle"><img src="${OTYA_LOGO_URL}" alt="OTYA" width="44" height="44" style="display:block;border:0;border-radius:12px" /></td>
+            <td style="padding-left:12px"><div style="font-size:23px;font-weight:900;color:#ffffff;letter-spacing:1.4px">OTYA</div><div style="margin-top:3px;font-size:12px;color:#9ca5bb">Your media. Your way.</div></td>
           </tr></table>
           <div style="height:3px;margin-top:20px;border-radius:3px;background:#7c3cff"></div>
         </td></tr>
@@ -92,39 +93,67 @@ function extractMinutes(text: string, fallback = 10): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+function extractName(text: string): string {
+  const name = text.match(/\b(?:Hi|Hello|Welcome)\s+([^,\n.!]+)/i)?.[1]?.trim()
+  if (!name || name.length > 80 || /^(to|your|the|otya)$/i.test(name)) return 'there'
+  return name
+}
+
+function extractFirstMessageLine(text: string): string {
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .find(line => line && !/^hi\b/i.test(line) && !/^hello\b/i.test(line) && !/^need help\?/i.test(line))
+    ?? 'We have an update about your OTYA service.'
+}
+
 function selectTemplate(email: ResendEmail): TemplateSelection | null {
   const subject = email.subject.toLowerCase()
   const otp = extractOtp(email.text)
+  const name = extractName(email.text)
 
   if (subject.includes('verification code') && otp) {
-    return { id: 'otya-verification-code', variables: { CODE: otp, MINUTES: extractMinutes(email.text) } }
+    return { id: 'otya-verification-code', variables: { NAME: name, CODE: otp, MINUTES: extractMinutes(email.text) } }
   }
 
   if ((subject.includes('password') || subject.includes('reset')) && otp) {
-    return { id: 'otya-password-reset', variables: { CODE: otp, MINUTES: extractMinutes(email.text) } }
+    return { id: 'otya-password-reset', variables: { NAME: name, CODE: otp, MINUTES: extractMinutes(email.text) } }
   }
 
   if (subject.includes('welcome')) {
-    const name = email.text.match(/\bHi\s+([^,\n]+),/i)?.[1]?.trim() || 'there'
     return { id: 'otya-welcome', variables: { NAME: name } }
   }
 
   if (subject.includes('security') || subject.includes('new login')) {
     const ip = email.text.match(/IP address\s*:\s*([^\n]+)/i)?.[1]?.trim()
     const time = email.text.match(/Time\s*:\s*([^\n]+)/i)?.[1]?.trim()
+    const device = email.text.match(/Device\s*:\s*([^\n]+)/i)?.[1]?.trim()
+    const location = email.text.match(/Location\s*:\s*([^\n]+)/i)?.[1]?.trim()
     const message = email.text
       .split('\n')
       .map(line => line.trim())
-      .find(line => /detected|security|login/i.test(line) && !/^hi\b/i.test(line))
+      .find(line => /detected|security|login|signed in/i.test(line) && !/^hi\b/i.test(line))
       ?? 'We detected security-related activity on your OTYA account.'
 
     return {
       id: 'otya-security-alert',
       variables: {
+        NAME: name,
         MESSAGE: message,
-        DEVICE: 'OTYA app or web account',
-        LOCATION: ip ? `IP ${ip}` : 'Unknown location',
+        DEVICE: device || 'OTYA app or web account',
+        LOCATION: location || (ip ? `IP ${ip}` : 'Unknown location'),
         TIME: time || new Date().toUTCString(),
+      },
+    }
+  }
+
+  if (subject.includes('service') || subject.includes('notice') || subject.includes('maintenance')) {
+    return {
+      id: 'otya-service-notice',
+      variables: {
+        NAME: name,
+        MESSAGE: extractFirstMessageLine(email.text),
+        STATUS: subject.includes('maintenance') ? 'Maintenance' : 'Information',
       },
     }
   }
