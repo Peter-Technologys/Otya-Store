@@ -78,13 +78,7 @@ export function SiteNav() {
   return <>
     <header className="sticky top-0 z-50 border-b border-black/[.06] dark:border-white/[.08] bg-[color:var(--nav-bg)] backdrop-blur-2xl">
       <div className="otya-shell h-[64px] flex items-center gap-2 sm:gap-3">
-        <button
-          type="button"
-          onClick={() => { setAccountOpen(false); setMenuOpen(true) }}
-          aria-label="Open menu"
-          aria-expanded={menuOpen}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.05] dark:hover:bg-white/[.07]"
-        >
+        <button type="button" onClick={() => { setAccountOpen(false); setMenuOpen(true) }} aria-label="Open menu" aria-expanded={menuOpen} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.05] dark:hover:bg-white/[.07]">
           <MenuGlyph />
         </button>
 
@@ -94,21 +88,12 @@ export function SiteNav() {
         </Link>
 
         <div className="ml-auto flex items-center gap-2">
-          <Link href="/download/otya-player" className="hidden md:inline-flex min-h-10 items-center rounded-full px-4 text-[13px] font-extrabold otya-quiet-button">Get the app</Link>
-
           <Link href="/ask" aria-label="Open Otya" title="Otya" className="inline-flex min-h-11 min-w-11 items-center justify-center">
             <OtyaBrandMark size={34} thinking />
           </Link>
 
           <div ref={accountWrap} className="relative">
-            <button
-              type="button"
-              onClick={() => signedIn ? setAccountOpen(value => !value) : window.location.assign('/sign-in')}
-              aria-label={signedIn ? 'Open account menu' : 'Sign in'}
-              aria-expanded={signedIn ? accountOpen : undefined}
-              title={signedIn ? (user?.name || user?.email || 'Account') : 'Sign in'}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/[.08] bg-black/[.025] text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.055] dark:border-white/[.12] dark:bg-white/[.045] dark:hover:bg-white/[.08]"
-            >
+            <button type="button" onClick={() => signedIn ? setAccountOpen(value => !value) : window.location.assign('/sign-in')} aria-label={signedIn ? 'Open account menu' : 'Sign in'} aria-expanded={signedIn ? accountOpen : undefined} title={signedIn ? (user?.name || user?.email || 'Account') : 'Sign in'} className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/[.08] bg-black/[.025] text-[color:var(--cosmos-text-primary)] transition hover:bg-black/[.055] dark:border-white/[.12] dark:bg-white/[.045] dark:hover:bg-white/[.08]">
               {!signedIn ? <AccountGlyph /> : avatar ? <img src={avatar} alt="" width="40" height="40" referrerPolicy="no-referrer" className="h-full w-full object-cover" /> : <span className="text-[12px] font-black tracking-[-.02em]">{initials(user ?? undefined)}</span>}
             </button>
 
@@ -132,25 +117,10 @@ export function SiteNav() {
     </header>
 
     <div className={`fixed inset-0 z-[70] transition ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!menuOpen}>
-      <button
-        type="button"
-        onClick={closeMenu}
-        aria-label="Close menu"
-        tabIndex={menuOpen ? 0 : -1}
-        className={`absolute inset-0 bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0'}`}
-      />
-
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Otya menu"
-        className={`absolute inset-y-0 left-0 w-[86vw] max-w-[340px] border-r border-black/[.08] bg-[color:var(--cosmos-surface)] shadow-2xl transition-transform duration-300 ease-out dark:border-white/[.10] ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
+      <button type="button" onClick={closeMenu} aria-label="Close menu" tabIndex={menuOpen ? 0 : -1} className={`absolute inset-0 bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0'}`} />
+      <aside role="dialog" aria-modal="true" aria-label="Otya menu" className={`absolute inset-y-0 left-0 w-[86vw] max-w-[340px] border-r border-black/[.08] bg-[color:var(--cosmos-surface)] shadow-2xl transition-transform duration-300 ease-out dark:border-white/[.10] ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center gap-2 border-b border-black/[.06] px-4 dark:border-white/[.08]">
-          <Link href="/" onClick={closeMenu} className="inline-flex items-center gap-1.5" aria-label="Otya home">
-            <OtyaBrandMark size={34} />
-            <span className="font-black text-[19px] tracking-[-.045em]">tya</span>
-          </Link>
+          <Link href="/" onClick={closeMenu} className="inline-flex items-center gap-1.5" aria-label="Otya home"><OtyaBrandMark size={34}/><span className="font-black text-[19px] tracking-[-.045em]">tya</span></Link>
           <button type="button" onClick={closeMenu} aria-label="Close menu" className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-black/[.05] dark:hover:bg-white/[.07]"><CloseGlyph /></button>
         </div>
 
@@ -158,9 +128,8 @@ export function SiteNav() {
           <div className="px-3 pb-2 text-[10px] font-black uppercase tracking-[.14em] otya-muted">Otya</div>
           <nav className="space-y-1 text-sm" aria-label="Otya navigation">
             <Link href="/" onClick={closeMenu} className="block rounded-2xl px-3 py-3 font-bold hover:bg-black/[.045] dark:hover:bg-white/[.06]">Home</Link>
-            <Link href="/otya-player" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Otya app</Link>
-            <Link href="/music" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Music</Link>
-            <Link href="/download/otya-player" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Get Otya</Link>
+            <Link href="/#app" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">App</Link>
+            <Link href="/#music" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Music</Link>
             <Link href="/help" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Help</Link>
             <Link href="/docs" onClick={closeMenu} className="block rounded-2xl px-3 py-3 hover:bg-black/[.045] dark:hover:bg-white/[.06]">Docs</Link>
           </nav>
