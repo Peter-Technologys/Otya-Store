@@ -41,6 +41,7 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
 
   assert.match(chat, /if\(!signedIn\).*policy\.guest/)
   assert.match(chat, /friendly general-purpose AI assistant built into OTYA/)
+  assert.match(chat, /Public Ask OTYA cannot see the private Admin Assistant/)
 })
 
 test('Free-plan OTYA catalog does not advertise paid-only GLM 5.3', () => {
@@ -55,4 +56,35 @@ test('Cloudflare remains the public release and AI control plane', () => {
   assert.match(chat, /Official website:/)
   assert.match(chat, /\/latest/)
   assert.match(chat, /Local playback, media scanning, local search and supported local transfer must keep working without signing in or using AI/)
+})
+
+test('new client capabilities stay synchronized across the control plane', () => {
+  const clientConfig = read('src/lib/client_config.ts')
+  const appConfig = read('src/app/api/app-config/route.ts')
+
+  assert.match(clientConfig, /'onlineMusic'/)
+  assert.match(appConfig, /onlineMusic:\s*true/)
+  assert.match(appConfig, /providerPriority:\s*\['local',\s*'help',\s*'online'\]/)
+  assert.match(appConfig, /ai:\s*'https:\/\/petersmartlink\.com\/ask'/)
+  assert.doesNotMatch(appConfig, /action:\s*'\/myspace'/)
+})
+
+test('Jamendo credentials remain server-side and linked-account tokens are encrypted at rest', () => {
+  const catalog = read('src/app/api/music/jamendo/route.ts')
+  const callback = read('src/app/api/music/jamendo/oauth/callback/route.ts')
+
+  assert.match(catalog, /JAMENDO_CLIENT_ID/)
+  assert.doesNotMatch(catalog, /JAMENDO_CLIENT_SECRET/)
+  assert.match(callback, /JAMENDO_CLIENT_SECRET/)
+  assert.match(callback, /AES-GCM/)
+  assert.match(callback, /crypto\.subtle\.encrypt/)
+  assert.doesNotMatch(callback, /accessToken:\s*token\.access_token/)
+  assert.doesNotMatch(callback, /refreshToken:\s*token\.refresh_token/)
+})
+
+test('Jamendo catalog never exposes a download action unless provider permission and URL are both valid', () => {
+  const catalog = read('src/app/api/music/jamendo/route.ts')
+  assert.match(catalog, /audiodownload_allowed/)
+  assert.match(catalog, /downloadAllowed/)
+  assert.match(catalog, /downloadUrl/)
 })
