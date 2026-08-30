@@ -20,7 +20,15 @@ function safePath(parts: string[]): string {
 }
 
 function cookieOptions(maxAge: number) {
-  return { httpOnly: true, secure: true, sameSite: 'strict' as const, path: '/', maxAge }
+  return {
+    httpOnly: true,
+    secure: true,
+    // Keep the session protected from cross-site subrequests while allowing
+    // top-level OAuth/OIDC returns from providers such as Google/Telegram.
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge,
+  }
 }
 
 function clearSessionCookies(response: NextResponse) {
@@ -148,6 +156,7 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
     if (!accessToken || !refreshToken) return NextResponse.json({ error: 'Authentication service did not create a complete session' }, { status: 502 })
     const response = NextResponse.json(sanitizedAuthPayload(data), { status: upstream.status })
     setSessionCookies(response, accessToken, refreshToken)
+    response.headers.set('Cache-Control', 'no-store')
     return response
   }
 
