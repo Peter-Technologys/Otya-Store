@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
+import { OtyaSpaceChrome } from '@/components/OtyaSpaceChrome'
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
@@ -29,10 +30,10 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     return <div className="min-h-screen grid place-items-center" style={{ background: 'radial-gradient(circle at 30% 20%,rgba(116,80,255,.22),transparent 35%),#0b0914', color: '#f7f4ff' }}>
       <div className="text-center">
         <div className="w-11 h-11 rounded-2xl mx-auto mb-4 animate-pulse" style={{ background: 'linear-gradient(145deg,#8269ff,#3ebcf4)' }} />
-        <p className="text-sm opacity-60">Opening your Otya account…</p>
+        <p className="text-sm opacity-60">Opening Otya Space…</p>
       </div>
     </div>
   }
 
-  return children
+  return <OtyaSpaceChrome>{children}</OtyaSpaceChrome>
 }
