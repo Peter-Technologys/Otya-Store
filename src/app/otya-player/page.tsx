@@ -7,231 +7,70 @@ import { SiteFooter } from '@/components/SiteFooter'
 import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
-  title: 'OTYA — Video, Music, Transfer & Private Media for Android',
-  description:
-    'OTYA is an offline-first Android media app for video and music, with local Transfer, Private media, useful tools, optional online music discovery and Ask OTYA help.',
+  title: 'Otya Player — Video, Music, Transfer & Private',
+  description: 'Otya Player is an offline-first Android music and video player with Transfer, Private media and optional connected features.',
   alternates: { canonical: 'https://petersmartlink.com/otya-player' },
 }
 
-const CAPABILITIES = [
-  [
-    'Video',
-    'Local playback, folders, subtitles, audio tracks, gestures, Picture-in-Picture, speed controls and contextual trim or audio extraction.',
-  ],
-  [
-    'Music',
-    'Songs, albums, artists, folders, playlists, queue, favorites, lyrics, background playback, sleep timer and equalizer. When online, Search can quietly add legal online music results without replacing your local library.',
-  ],
-  [
-    'Transfer',
-    'Send and receive directly over nearby Wi-Fi or hotspot, with authenticated local connections and no cloud upload requirement.',
-  ],
-  [
-    'Files & Private',
-    'Browse local and received media, with protected files moved into OTYA app-private storage behind device authentication and Private PIN controls.',
-  ],
-  [
-    'Tools when needed',
-    'Extract audio, trim local clips, inspect storage and use practical media utilities from the selected media or organized Tools instead of a crowded home screen.',
-  ],
-  [
-    'Ask OTYA',
-    'Use a conversational assistant for OTYA help and general questions when online, while local playback remains independent of AI.',
-  ],
+const FEATURES = [
+  ['Video', 'Local playback, subtitles, audio tracks, gestures and Picture-in-Picture.'],
+  ['Music', 'Songs, artists, albums, folders, playlists, background playback and online discovery when available.'],
+  ['Transfer', 'Move files directly over nearby Wi-Fi or hotspot without uploading personal media to Otya.'],
+  ['Private', 'Keep supported media inside app-private storage behind your device authentication and Private controls.'],
+  ['Tools', 'Trim, extract audio and use practical media utilities when you need them.'],
+  ['Ask Otya', 'Get connected help without making local playback depend on AI or the internet.'],
 ]
 
 export default async function OtyaPlayerPage() {
   let appVersion = '1.0.0'
   try {
     const { env } = await getCloudflareContext()
-    const kv = getKV(env as Record<string, unknown>)
-    const raw = await kv.get('LATEST_BUILD_INFO')
+    const raw = await getKV(env as Record<string, unknown>).get('LATEST_BUILD_INFO')
     if (raw) appVersion = (JSON.parse(raw) as { version?: string }).version || appVersion
   } catch {}
 
-  return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{
-        background: 'var(--cosmos-scaffold)',
-        color: 'var(--cosmos-text-primary)',
-      }}
-    >
-      <SiteNav />
-      <main className="flex-1">
-        <section
-          className="border-b overflow-hidden"
-          style={{ borderColor: 'var(--cosmos-divider)' }}
-        >
-          <div className="otya-shell py-12 sm:py-20 grid lg:grid-cols-[.92fr_1.28fr] gap-9 lg:gap-14 items-center">
-            <div>
-              <div className="otya-kicker mb-4">OTYA · Android · v{appVersion}</div>
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-[-.055em] leading-[.96]">
-                Video. Music. Transfer. Private.
-              </h1>
-              <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed otya-muted">
-                OTYA keeps the media already on your phone at the center. Play
-                it, organize it, move it locally, protect private files and use
-                practical tools without turning every feature into another app.
-              </p>
-              <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                <Link
-                  href="/download/otya-player"
-                  className="cosmos-button rounded-xl px-5 py-3 text-sm font-bold text-center"
-                >
-                  Download OTYA
-                </Link>
-                <Link
-                  href="/ask"
-                  className="otya-quiet-button rounded-xl px-5 py-3 text-sm font-bold text-center"
-                >
-                  Ask OTYA
-                </Link>
-              </div>
-              <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted">
-                <span>Offline-first</span>
-                <span>Local media</span>
-                <span>Local Transfer</span>
-                <span>No account required to play</span>
-              </div>
-            </div>
-            <Image
-              src="/brand/otya-app-preview.svg"
-              alt="OTYA interface showing Video, Music and Me"
-              width={1200}
-              height={820}
-              priority
-              className="w-full h-auto rounded-[28px]"
-            />
+  return <div className="min-h-screen flex flex-col otya-ambient" style={{ color: 'var(--cosmos-text-primary)' }}>
+    <SiteNav />
+    <main className="flex-1 pb-24 md:pb-0">
+      <section className="otya-shell py-11 sm:py-18 grid lg:grid-cols-[.9fr_1.1fr] gap-9 lg:gap-14 items-center">
+        <div>
+          <div className="otya-kicker mb-4">Otya Player · Android · v{appVersion}</div>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-[-.06em] leading-[.94]">Your media.<br/>Still yours.</h1>
+          <p className="mt-5 max-w-xl text-base sm:text-lg otya-muted">Play local video and music, move files nearby and protect private media. Core playback works without an account or internet connection.</p>
+          <div className="mt-7 flex flex-col sm:flex-row gap-3">
+            <Link href="/download/otya-player" className="cosmos-button rounded-full px-6 py-3.5 text-sm font-extrabold text-center">Get Otya</Link>
+            <Link href="/ask" className="otya-quiet-button rounded-full px-6 py-3.5 text-sm font-bold text-center">Ask Otya</Link>
           </div>
-        </section>
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted"><span>Offline-first</span><span>Local media</span><span>Nearby Transfer</span><span>Sign-in optional</span></div>
+        </div>
+        <Image src="/brand/otya-app-preview.svg" alt="Otya Player interface showing Video, Music and Me" width={1200} height={820} priority className="w-full h-auto rounded-[30px] drop-shadow-2xl" />
+      </section>
 
-        <section className="otya-shell py-12 sm:py-16">
-          <div className="max-w-2xl mb-8">
-            <div className="otya-kicker mb-2">One structure</div>
-            <h2 className="otya-section-title">Video. Music. Me.</h2>
-            <p className="mt-3 otya-muted">
-              The three main places stay predictable. More advanced actions
-              appear where they are useful instead of becoming duplicate home screens.
-            </p>
+      <section className="border-y" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(120deg,color-mix(in srgb,var(--cosmos-primary) 7%,var(--cosmos-surface)),color-mix(in srgb,var(--cosmos-cyan) 6%,var(--cosmos-surface)))' }}>
+        <div className="otya-shell py-10 sm:py-14">
+          <div className="max-w-2xl mb-6"><div className="otya-kicker mb-2">One structure</div><h2 className="text-2xl sm:text-3xl font-extrabold">Video. Music. Me.</h2><p className="mt-2 text-sm otya-muted">Three predictable places. Advanced actions appear in context instead of becoming more home screens.</p></div>
+          <div className="grid md:grid-cols-3 gap-3">
+            <CoreCard title="Video" text="Your videos, folders, recent media and full player controls." />
+            <CoreCard title="Music" text="Your songs, artists, albums, playlists and now-playing experience." />
+            <CoreCard title="Me" text="Transfer, Files, Private, account and settings in one personal area." />
           </div>
-          <div className="grid md:grid-cols-3 gap-4">
-            <CoreCard
-              title="Video"
-              text="Your videos, folders, recent media and full player controls. Trim, share, Private and other actions appear in context."
-            />
-            <CoreCard
-              title="Music"
-              text="Your songs, artists, albums, folders, playlists and now-playing experience. Search stays local-first and can add online matches only when available."
-            />
-            <CoreCard
-              title="Me"
-              text="A clean personal area for Transfer, Files and Private, with activity, tools, account and settings organized underneath."
-            />
-          </div>
-        </section>
+        </div>
+      </section>
 
-        <section
-          className="border-y"
-          style={{
-            borderColor: 'var(--cosmos-divider)',
-            background: 'var(--cosmos-surface)',
-          }}
-        >
-          <div className="otya-shell py-12 sm:py-16">
-            <div className="max-w-2xl mb-8">
-              <div className="otya-kicker mb-2">Capabilities</div>
-              <h2 className="otya-section-title">Powerful when you need it.</h2>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-9">
-              {CAPABILITIES.map(([title, body]) => (
-                <div key={title}>
-                  <h3 className="font-bold mb-2">{title}</h3>
-                  <p className="text-sm leading-relaxed otya-muted">{body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="otya-shell py-12 sm:py-16 grid lg:grid-cols-[.85fr_1.15fr] gap-9 lg:gap-16">
-          <div>
-            <div className="otya-kicker mb-2">Offline by design</div>
-            <h2 className="otya-section-title">The internet is an enhancement, not a requirement.</h2>
-          </div>
-          <div className="space-y-7">
-            <Principle
-              title="Playback remains local"
-              text="Video, Music, local Search, playlists, media scanning and core settings continue to work without an internet connection."
-            />
-            <Principle
-              title="Online music blends into Search"
-              text="When internet access is available, OTYA may add legal provider tracks beneath local Search results. If the provider is unavailable, that section simply disappears. Download is shown only for tracks whose provider explicitly allows it; downloaded tracks become normal local music on the phone."
-            />
-            <Principle
-              title="Transfers remain local"
-              text="Nearby file movement works device-to-device instead of routing personal media through OTYA servers."
-            />
-            <Principle
-              title="Ask OTYA stays optional"
-              text="Use the assistant when you want online help. Your local library and playback do not wait for AI, Firebase, Jamendo or Cloudflare."
-            />
-          </div>
-        </section>
-
-        <section className="otya-shell pb-14 sm:pb-20">
-          <div
-            className="border-y py-8 flex flex-col md:flex-row md:items-center justify-between gap-6"
-            style={{ borderColor: 'var(--cosmos-divider)' }}
-          >
-            <div>
-              <div className="otya-kicker mb-2">OTYA v{appVersion}</div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                Built around the media already on your phone.
-              </h2>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/download/otya-player"
-                className="cosmos-button px-5 py-3 rounded-xl font-bold text-sm text-center"
-              >
-                Get OTYA
-              </Link>
-              <Link
-                href="/apps/otya-player/changelog"
-                className="otya-quiet-button px-5 py-3 rounded-xl font-bold text-sm text-center"
-              >
-                Changelog
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
-  )
+      <section className="otya-shell py-10 sm:py-14">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {FEATURES.map(([title,text]) => <div key={title} className="modern-card p-5"><h3 className="font-extrabold">{title}</h3><p className="mt-2 text-sm leading-relaxed otya-muted">{text}</p></div>)}
+        </div>
+        <div className="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t pt-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
+          <div><div className="font-extrabold">The internet is an enhancement, not a requirement.</div><div className="mt-1 text-sm otya-muted">Local playback, library access and nearby file movement remain the center of Otya Player.</div></div>
+          <Link href="/download/otya-player" className="cosmos-button rounded-full px-6 py-3 text-sm font-extrabold text-center shrink-0">Download v{appVersion}</Link>
+        </div>
+      </section>
+    </main>
+    <SiteFooter />
+  </div>
 }
 
 function CoreCard({ title, text }: { title: string; text: string }) {
-  return (
-    <div
-      className="rounded-2xl border p-5"
-      style={{
-        borderColor: 'var(--cosmos-divider)',
-        background: 'var(--cosmos-surface)',
-      }}
-    >
-      <h3 className="text-xl font-bold tracking-tight">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed otya-muted">{text}</p>
-    </div>
-  )
-}
-
-function Principle({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="border-t pt-5" style={{ borderColor: 'var(--cosmos-divider)' }}>
-      <h3 className="font-bold">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed otya-muted">{text}</p>
-    </div>
-  )
+  return <div className="modern-card p-5"><h3 className="text-xl font-extrabold">{title}</h3><p className="mt-2 text-sm leading-relaxed otya-muted">{text}</p></div>
 }
