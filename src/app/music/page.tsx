@@ -56,11 +56,11 @@ export default function MusicPage() {
 
   return <div className="min-h-screen flex flex-col otya-ambient" style={{color:'var(--cosmos-text-primary)'}}>
     <SiteNav />
-    <main className="flex-1 pb-52 md:pb-32">
-      <div className="otya-shell py-7 sm:py-10">
-        <div className="max-w-4xl mb-6"><div className="otya-kicker mb-2">Otya Music</div><h1 className="text-3xl sm:text-5xl font-extrabold tracking-[-.05em]">Play what you find.</h1></div>
+    <main className="flex-1 pb-32">
+      <div className="otya-shell py-6 sm:py-9">
+        <div className="max-w-4xl mb-5"><div className="otya-kicker mb-2">Otya Music</div><h1 className="text-3xl sm:text-5xl font-extrabold tracking-[-.05em]">Find it. Play it.</h1></div>
 
-        <form onSubmit={submit} className="sticky top-[57px] z-30 -mx-3 px-3 py-3 mb-7 backdrop-blur-2xl sm:static sm:mx-0 sm:px-0 sm:py-0" style={{background:'color-mix(in srgb,var(--cosmos-scaffold) 88%,transparent)'}}>
+        <form onSubmit={submit} className="sticky top-[56px] z-30 -mx-3 px-3 py-3 mb-6 backdrop-blur-2xl sm:static sm:mx-0 sm:px-0 sm:py-0" style={{background:'color-mix(in srgb,var(--cosmos-scaffold) 88%,transparent)'}}>
           <div className="max-w-4xl flex gap-2 rounded-[20px] border p-1.5" style={{background:'color-mix(in srgb,var(--cosmos-card) 76%,transparent)',borderColor:'var(--cosmos-divider)'}}>
             <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search songs, artists or albums" aria-label="Search music" className="min-h-11 min-w-0 flex-1 rounded-2xl px-4 outline-none bg-transparent" style={{color:'var(--cosmos-text-primary)'}} />
             <button className="cosmos-button min-h-11 rounded-2xl px-4 sm:px-5 font-extrabold text-sm shrink-0" disabled={loading}>{loading?'…':'Search'}</button>
@@ -85,7 +85,7 @@ export default function MusicPage() {
     </main>
 
     <audio ref={audioRef} preload="none" onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>setPlaying(false)} />
-    {current&&<div className="fixed inset-x-0 bottom-[78px] md:bottom-0 z-[60] px-2 md:px-0" >
+    {current&&<div className="fixed inset-x-0 bottom-0 z-[60] px-2 pb-[max(8px,env(safe-area-inset-bottom))] md:px-0 md:pb-0">
       <div className="otya-shell max-w-[760px] min-h-[72px] py-2 px-2.5 flex items-center gap-3 rounded-[22px] md:rounded-none md:max-w-none border backdrop-blur-2xl" style={{background:'color-mix(in srgb,var(--cosmos-app-bar) 94%,transparent)',borderColor:'var(--cosmos-divider)',boxShadow:'0 15px 45px rgba(0,0,0,.24)'}}>
         <button onClick={()=>play(current)} className="w-12 h-12 rounded-[14px] overflow-hidden shrink-0" style={{background:'var(--cosmos-card)'}} aria-label={playing?`Pause ${current.title}`:`Play ${current.title}`}>
           {current.artwork?<img src={current.artwork} alt="" width={48} height={48} decoding="async" className="w-full h-full object-cover"/>:<span className="grid place-items-center w-full h-full">♪</span>}
