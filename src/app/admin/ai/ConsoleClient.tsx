@@ -111,7 +111,7 @@ export default function ConsoleClient() {
       <div className="p-3"><button onClick={()=>void newChat()} className="w-full min-h-11 rounded-2xl border px-3 text-left text-sm font-semibold" style={{borderColor:'var(--cosmos-divider)'}}>＋ New command</button></div>
       <div className="px-4 pb-2 text-[10px] uppercase tracking-[.13em] otya-muted">History</div>
       <div className="flex-1 overflow-auto px-2">{convs.map(c=><button key={c.id} onClick={()=>void openConv(c.id)} className="w-full rounded-xl px-3 py-2.5 text-left text-sm truncate" style={{background:current===c.id?'color-mix(in srgb,var(--cosmos-primary) 10%,transparent)':'transparent',fontWeight:current===c.id?700:500}}>{c.title||'Command'}</button>)}</div>
-      <div className="border-t p-3 space-y-1" style={{borderColor:'var(--cosmos-divider)'}}><Link href="/admin" className="block rounded-xl px-3 py-2 text-sm">Structured controls</Link><Link href="/admin/ai/settings" className="block rounded-xl px-3 py-2 text-sm">Command settings</Link><button onClick={logout} className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-500">Leave admin mode</button></div>
+      <div className="border-t p-3 space-y-1" style={{borderColor:'var(--cosmos-divider)'}}><Link href="/account" className="block rounded-xl px-3 py-2 text-sm">Otya Space</Link><Link href="/admin/ai/settings" className="block rounded-xl px-3 py-2 text-sm">Command settings</Link><button onClick={logout} className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-500">Leave admin mode</button></div>
     </aside>
 
     <section className="flex-1 min-w-0 flex flex-col">
