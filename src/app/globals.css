@@ -132,20 +132,90 @@ button:active, a:active { transform: scale(.987); }
 .otya-glass { background: color-mix(in srgb,var(--cosmos-card) 86%,transparent); border:1px solid color-mix(in srgb,var(--cosmos-divider) 82%,transparent); backdrop-filter:blur(18px); }
 .otya-art-card { border-radius:26px; overflow:hidden; border:1px solid color-mix(in srgb,var(--cosmos-divider) 84%,transparent); box-shadow:0 18px 55px rgba(15,12,26,.10); }
 
-/* Account settings stay flatter than discovery surfaces. */
-#home, #personal, #security, #sessions, #privacy, #connected, #products, #ai {
-  background: transparent !important;
-  border: 0 !important;
-  border-top: 1px solid var(--cosmos-divider) !important;
-  border-radius: 0 !important;
-  padding: 26px 0 !important;
-  scroll-margin-top: 72px;
+/* Account settings: one focused panel at a time instead of a long desktop document. */
+body:has(nav[aria-label='Account sections']) nav[aria-label='Account sections'] {
+  position: sticky;
+  top: 76px;
+  z-index: 20;
+  display: flex !important;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px;
+  border: 1px solid var(--cosmos-divider);
+  border-radius: 18px;
+  background: color-mix(in srgb,var(--cosmos-app-bar) 94%,transparent);
+  backdrop-filter: blur(18px);
+  scrollbar-width: none;
 }
-#home { border-top: 0 !important; padding-top: 2px !important; }
-#personal > h2, #security > h2, #sessions > h2, #privacy > h2, #connected > h2, #products > h2, #ai > h2 { font-size:17px !important; font-weight:780 !important; margin-bottom:12px !important; }
-#security > div, #connected > div { background:transparent !important; border-left:0 !important; border-right:0 !important; border-radius:0 !important; margin-bottom:0 !important; padding:14px 0 !important; }
-#security > div + div, #connected > div + div { border-top:1px solid var(--cosmos-divider) !important; }
-#sessions .rounded-xl, #products .rounded-xl, #privacy .rounded-xl, #ai .rounded-xl { border-radius:12px !important; box-shadow:none !important; }
+body:has(nav[aria-label='Account sections']) nav[aria-label='Account sections']::-webkit-scrollbar { display:none; }
+body:has(nav[aria-label='Account sections']) nav[aria-label='Account sections'] a {
+  flex: 0 0 auto;
+  border-radius: 12px;
+  padding: 9px 12px;
+  color: var(--cosmos-text-secondary);
+}
+body:has(nav[aria-label='Account sections']) nav[aria-label='Account sections'] a:first-child {
+  background: color-mix(in srgb,var(--cosmos-primary) 10%,transparent);
+  color: var(--cosmos-text-primary);
+}
+body:has(nav[aria-label='Account sections']) main > div.grid {
+  display: block !important;
+}
+body:has(nav[aria-label='Account sections']) main > div.grid > .min-w-0 {
+  margin-top: 18px;
+  max-width: 860px;
+}
+body:has(nav[aria-label='Account sections']) #overview,
+body:has(nav[aria-label='Account sections']) #personal,
+body:has(nav[aria-label='Account sections']) #security,
+body:has(nav[aria-label='Account sections']) #sessions,
+body:has(nav[aria-label='Account sections']) #connected,
+body:has(nav[aria-label='Account sections']) #privacy {
+  display: none;
+  border: 1px solid var(--cosmos-divider) !important;
+  border-radius: 24px !important;
+  background: var(--cosmos-card) !important;
+  padding: 22px !important;
+  box-shadow: 0 10px 32px rgba(16,14,24,.04);
+}
+body:has(nav[aria-label='Account sections']) #overview { display:block; }
+body:has(nav[aria-label='Account sections']):has(#personal:target) #overview,
+body:has(nav[aria-label='Account sections']):has(#security:target) #overview,
+body:has(nav[aria-label='Account sections']):has(#sessions:target) #overview,
+body:has(nav[aria-label='Account sections']):has(#connected:target) #overview,
+body:has(nav[aria-label='Account sections']):has(#privacy:target) #overview { display:none; }
+body:has(nav[aria-label='Account sections']) #personal:target,
+body:has(nav[aria-label='Account sections']) #security:target,
+body:has(nav[aria-label='Account sections']) #sessions:target,
+body:has(nav[aria-label='Account sections']) #connected:target,
+body:has(nav[aria-label='Account sections']) #privacy:target { display:block; }
+body:has(nav[aria-label='Account sections']):has(#personal:target) nav[aria-label='Account sections'] a[href='#personal'],
+body:has(nav[aria-label='Account sections']):has(#security:target) nav[aria-label='Account sections'] a[href='#security'],
+body:has(nav[aria-label='Account sections']):has(#sessions:target) nav[aria-label='Account sections'] a[href='#sessions'],
+body:has(nav[aria-label='Account sections']):has(#connected:target) nav[aria-label='Account sections'] a[href='#connected'],
+body:has(nav[aria-label='Account sections']):has(#privacy:target) nav[aria-label='Account sections'] a[href='#privacy'] {
+  background: color-mix(in srgb,var(--cosmos-primary) 10%,transparent);
+  color: var(--cosmos-text-primary);
+}
+body:has(nav[aria-label='Account sections']):has(#personal:target) nav[aria-label='Account sections'] a:first-child,
+body:has(nav[aria-label='Account sections']):has(#security:target) nav[aria-label='Account sections'] a:first-child,
+body:has(nav[aria-label='Account sections']):has(#sessions:target) nav[aria-label='Account sections'] a:first-child,
+body:has(nav[aria-label='Account sections']):has(#connected:target) nav[aria-label='Account sections'] a:first-child,
+body:has(nav[aria-label='Account sections']):has(#privacy:target) nav[aria-label='Account sections'] a:first-child {
+  background: transparent;
+  color: var(--cosmos-text-secondary);
+}
+body:has(nav[aria-label='Account sections']) #security > div,
+body:has(nav[aria-label='Account sections']) #connected > div {
+  background: transparent !important;
+  border-left:0 !important;
+  border-right:0 !important;
+  border-radius:0 !important;
+  margin-bottom:0 !important;
+  padding:14px 0 !important;
+}
+body:has(nav[aria-label='Account sections']) #security > div + div,
+body:has(nav[aria-label='Account sections']) #connected > div + div { border-top:1px solid var(--cosmos-divider) !important; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -156,5 +226,11 @@ button:active, a:active { transform: scale(.987); }
   body { font-size: 14px; }
   .otya-shell, .otya-reading { width: min(100% - 24px, var(--content-max)); }
   .otya-page-title { font-size: clamp(30px, 10vw, 42px); }
-  #home, #personal, #security, #sessions, #privacy, #connected, #products, #ai { padding-block:22px !important; }
+  body:has(nav[aria-label='Account sections']) nav[aria-label='Account sections'] { top: 116px; margin-inline:-4px; }
+  body:has(nav[aria-label='Account sections']) #overview,
+  body:has(nav[aria-label='Account sections']) #personal,
+  body:has(nav[aria-label='Account sections']) #security,
+  body:has(nav[aria-label='Account sections']) #sessions,
+  body:has(nav[aria-label='Account sections']) #connected,
+  body:has(nav[aria-label='Account sections']) #privacy { padding:18px !important; border-radius:20px !important; }
 }
