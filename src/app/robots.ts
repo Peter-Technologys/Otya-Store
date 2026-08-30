@@ -8,10 +8,12 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/api/',
+          '/admin/',
+          '/auth/',
           '/apk/',
           '/_next/',
-          '/apps/played',       // redirects to /apps/otya-player
-          '/apps/otya-player/changelog', // redirects to /download/otya-player
+          '/apps/played',
+          '/apps/otya-player/changelog',
         ],
       },
     ],
