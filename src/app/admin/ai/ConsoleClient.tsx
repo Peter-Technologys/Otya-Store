@@ -1,75 +1,138 @@
 'use client'
-import { useCallback,useEffect,useRef,useState } from 'react'
+
 import Link from 'next/link'
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
-type Msg={id?:number;role:'user'|'assistant';content:string;created_at?:string}
-type Conv={id:string;title:string;created_at:string;updated_at:string}
-type Connection={id:string;name:string;category:string;status:string;capabilities:string[];write:boolean;setup_hint?:string}
-type Mail={id:string;from:string;from_email:string;subject:string;created_at:string;text?:string}
-type AuthUser={id:string;email:string;name?:string|null}
+type Msg = { id?: number; role: 'user' | 'assistant'; content: string }
+type Conv = { id: string; title: string; updated_at?: string }
+type Session = { loading: boolean; configured: boolean; authenticated: boolean }
 
-export default function ConsoleClient(){
- const[token,setToken]=useState('');const[refreshToken,setRefreshToken]=useState('');const[user,setUser]=useState<AuthUser|null>(null);const[email,setEmail]=useState('');const[password,setPassword]=useState('');const[authBusy,setAuthBusy]=useState(false)
- const[twoFactor,setTwoFactor]=useState(false);const[recoveryMode,setRecoveryMode]=useState(false);const[factorCode,setFactorCode]=useState('')
- const[view,setView]=useState<'chat'|'support'|'connections'>('chat');const[convs,setConvs]=useState<Conv[]>([]);const[current,setCurrent]=useState<string>('');const[messages,setMessages]=useState<Msg[]>([]);const[input,setInput]=useState('');const[busy,setBusy]=useState(false);const[notice,setNotice]=useState('');const[sidebar,setSidebar]=useState(false)
- const[connections,setConnections]=useState<Connection[]>([]);const[inbox,setInbox]=useState<Mail[]>([]);const[selected,setSelected]=useState<Mail|null>(null);const[reply,setReply]=useState('');const[pendingSend,setPendingSend]=useState(false)
- const scrollRef=useRef<HTMLDivElement>(null)
+const stages = ['Understanding your request…', 'Checking Otya systems…', 'Using the right tools…', 'Preparing the answer…']
+const toolLabels: Record<string,string> = {
+  system_status: 'Checked system status',
+  config_status: 'Checked configuration',
+  plugins: 'Checked connected services',
+  feedback_summary: 'Reviewed feedback',
+  crash_summary: 'Reviewed crashes',
+  release_summary: 'Reviewed releases',
+  support_inbox: 'Reviewed support inbox',
+  support_audit: 'Reviewed support activity',
+  full_report: 'Reviewed the full Otya system',
+}
 
- useEffect(()=>{const t=sessionStorage.getItem('otya_access_token')||'';const r=sessionStorage.getItem('otya_refresh_token')||'';const raw=sessionStorage.getItem('otya_admin_user');if(t){setToken(t);setRefreshToken(r);try{if(raw)setUser(JSON.parse(raw))}catch{}}},[])
- useEffect(()=>{requestAnimationFrame(()=>{const el=scrollRef.current;if(el)el.scrollTo({top:el.scrollHeight,behavior:'smooth'})})},[messages,busy])
- const clearSession=useCallback(()=>{sessionStorage.removeItem('otya_access_token');sessionStorage.removeItem('otya_refresh_token');sessionStorage.removeItem('otya_admin_user');setToken('');setRefreshToken('');setUser(null)},[])
- const refreshAccess=useCallback(async()=>{if(!refreshToken)return'';const r=await fetch('/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:refreshToken})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)return'';sessionStorage.setItem('otya_access_token',d.access_token);setToken(d.access_token);if(d.user){sessionStorage.setItem('otya_admin_user',JSON.stringify(d.user));setUser(d.user)}return d.access_token as string},[refreshToken])
- const req=useCallback(async(url:string,init?:RequestInit)=>{let currentToken=token;let r=await fetch(url,{...init,headers:{Authorization:`Bearer ${currentToken}`,'Content-Type':'application/json',...(init?.headers||{})}});if(r.status===401&&refreshToken){const next=await refreshAccess();if(next){currentToken=next;r=await fetch(url,{...init,headers:{Authorization:`Bearer ${currentToken}`,'Content-Type':'application/json',...(init?.headers||{})}})}}const d=await r.json().catch(()=>({}));if(r.status===401){clearSession();throw new Error('Your admin session expired. Sign in again.')}if(r.status===403)throw new Error('This OTYA account is not authorized as an administrator.');if(!r.ok)throw new Error(d.detail||d.error||`HTTP ${r.status}`);return d},[token,refreshToken,refreshAccess,clearSession])
- const loadConvs=useCallback(async()=>{if(!token)return;const d=await req('/api/admin/ai/console/conversations');setConvs(d.conversations||[])},[req,token])
- const loadConnections=useCallback(async()=>{if(!token)return;const d=await req('/api/admin/ai/console/plugins');setConnections(d.plugins||[])},[req,token])
- const loadInbox=useCallback(async()=>{if(!token)return;const d=await req('/api/admin/ai/support/inbox?limit=30');setInbox(d.emails||[])},[req,token])
- useEffect(()=>{if(token){loadConvs().catch(e=>setNotice((e as Error).message));loadConnections().catch(e=>setNotice((e as Error).message))}},[token,loadConvs,loadConnections])
+export default function ConsoleClient() {
+  const [session,setSession] = useState<Session>({ loading:true, configured:false, authenticated:false })
+  const [email,setEmail] = useState('')
+  const [password,setPassword] = useState('')
+  const [authBusy,setAuthBusy] = useState(false)
+  const [notice,setNotice] = useState('')
+  const [convs,setConvs] = useState<Conv[]>([])
+  const [current,setCurrent] = useState('')
+  const [messages,setMessages] = useState<Msg[]>([])
+  const [input,setInput] = useState('')
+  const [busy,setBusy] = useState(false)
+  const [stage,setStage] = useState(0)
+  const [activity,setActivity] = useState('')
+  const [sidebar,setSidebar] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
- function resetFactor(){setTwoFactor(false);setRecoveryMode(false);setFactorCode('')}
- async function login(e:React.FormEvent){e.preventDefault();if(!email.trim()||!password||twoFactor&&!factorCode.trim())return;setAuthBusy(true);setNotice('');try{const payload:Record<string,string>={email:email.trim(),password};if(twoFactor)payload[recoveryMode?'recovery_code':'totp_code']=factorCode.trim();const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json().catch(()=>({}));if(!r.ok){if(d.code==='TWO_FACTOR_REQUIRED'||d.code==='TWO_FACTOR_INVALID'){setTwoFactor(true);setFactorCode('');throw new Error(d.code==='TWO_FACTOR_INVALID'?'That verification code was not accepted.':'Enter your two-step verification code.')}throw new Error(d.error||'Sign in failed')}const access=d.access_token as string;const refresh=d.refresh_token as string;sessionStorage.setItem('otya_access_token',access);sessionStorage.setItem('otya_refresh_token',refresh||'');sessionStorage.setItem('otya_admin_user',JSON.stringify(d.user||{}));setToken(access);setRefreshToken(refresh||'');setUser(d.user||null);resetFactor();const check=await fetch('/api/admin/ai/console/plugins',{headers:{Authorization:`Bearer ${access}`}});if(check.status===403){clearSession();throw new Error('This OTYA account is not authorized as an administrator.')}if(!check.ok){clearSession();throw new Error('Administrator access could not be verified.')}setConnections((await check.json()).plugins||[])}catch(e){setNotice((e as Error).message)}finally{setAuthBusy(false)}}
- async function logout(){try{if(refreshToken)await fetch('/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:refreshToken})})}catch{}clearSession()}
- async function openConv(id:string){setBusy(true);try{const d=await req(`/api/admin/ai/console/conversation?id=${encodeURIComponent(id)}`);setCurrent(id);setMessages((d.conversation?.messages||[]).map((m:Msg)=>({role:m.role,content:m.content,id:m.id,created_at:m.created_at})));setView('chat');setSidebar(false)}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}}
- async function newChat(){setBusy(true);try{const d=await req('/api/admin/ai/console/conversation/new',{method:'POST'});setCurrent(d.conversation.id);setMessages([]);setView('chat');setSidebar(false);await loadConvs()}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}}
- async function send(){const text=input.trim();if(!text||busy)return;setInput('');setMessages(m=>[...m,{role:'user',content:text}]);setBusy(true);setNotice('');try{const d=await req('/api/admin/ai/console/chat',{method:'POST',body:JSON.stringify({message:text,conversation_id:current||undefined})});setCurrent(d.conversation_id);setMessages(m=>[...m,{role:'assistant',content:d.answer||'No response.'}]);await loadConvs()}catch(e){setMessages(m=>[...m,{role:'assistant',content:`I could not complete that request: ${(e as Error).message}`}])}finally{setBusy(false)}}
- async function connectGmail(){setBusy(true);try{const d=await req('/api/admin/ai/connectors/gmail/start',{method:'POST'});window.location.assign(d.authorization_url)}catch(e){setNotice((e as Error).message);setBusy(false)}}
- async function openMail(id:string){setBusy(true);try{const d=await req(`/api/admin/ai/support/email?id=${encodeURIComponent(id)}`);setSelected(d.email);setReply('');setPendingSend(false)}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}}
- async function draft(){if(!selected)return;setBusy(true);setPendingSend(false);try{const d=await req('/api/admin/ai/support/draft',{method:'POST',body:JSON.stringify({email_id:selected.id})});setReply(d.draft?.reply||'')}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}}
- async function approveSend(){if(!selected||!reply.trim()||busy)return;setBusy(true);try{await req('/api/admin/ai/support/send',{method:'POST',body:JSON.stringify({email_id:selected.id,reply:reply.trim(),risk:'manual'})});setNotice('Support reply sent.');setPendingSend(false)}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}}
+  const refreshSession = useCallback(async()=>{
+    try {
+      const r = await fetch('/api/admin/session',{cache:'no-store',credentials:'same-origin'})
+      const d = await r.json() as {configured?:boolean;authenticated?:boolean}
+      setSession({loading:false,configured:d.configured===true,authenticated:d.authenticated===true})
+    } catch {
+      setSession({loading:false,configured:false,authenticated:false})
+    }
+  },[])
 
- if(!token)return <main className="min-h-screen grid place-items-center p-4" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}><form onSubmit={login} className="w-full max-w-sm rounded-2xl border p-5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><div className="flex items-center gap-2.5 mb-4"><span className="grid place-items-center w-9 h-9 rounded-xl border font-black" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-surface)'}}>O</span><div><div className="text-sm font-semibold">OTYA Command Center</div><div className="text-[10px] uppercase tracking-[.12em] otya-muted">Private admin</div></div></div><h1 className="text-2xl font-semibold tracking-[-.035em]">{twoFactor?'Verify it’s you':'Administrator sign in'}</h1><p className="text-sm otya-muted mt-2 mb-5">{twoFactor?(recoveryMode?'Enter an unused recovery code.':'Enter the 6-digit code from your authenticator app.'):'Private operations access for authorized OTYA administrators.'}</p>{notice&&<div className="border rounded-lg p-2.5 text-sm mb-3 text-red-500" style={{borderColor:'color-mix(in srgb, var(--cosmos-error) 30%, transparent)'}}>{notice}</div>}{!twoFactor?<><input className="w-full rounded-lg border px-3 py-2.5 bg-transparent mb-2.5" style={{borderColor:'var(--cosmos-divider)'}} type="email" autoComplete="email" placeholder="Admin email" value={email} onChange={e=>setEmail(e.target.value)}/><input className="w-full rounded-lg border px-3 py-2.5 bg-transparent" style={{borderColor:'var(--cosmos-divider)'}} type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/></>:<input autoFocus className="w-full rounded-lg border px-3 py-3 bg-transparent text-center tracking-[.15em]" style={{borderColor:'var(--cosmos-divider)'}} inputMode={recoveryMode?'text':'numeric'} autoComplete="one-time-code" placeholder={recoveryMode?'Recovery code':'000000'} value={factorCode} onChange={e=>setFactorCode(recoveryMode?e.target.value:e.target.value.replace(/\D/g,'').slice(0,6))}/>}<button disabled={authBusy} className="cosmos-button w-full rounded-lg py-2.5 mt-3 text-sm font-semibold">{authBusy?'Checking…':twoFactor?'Continue':'Sign in'}</button>{twoFactor&&<button type="button" onClick={()=>{setRecoveryMode(v=>!v);setFactorCode('');setNotice('')}} className="w-full mt-2 text-xs otya-muted">{recoveryMode?'Use authenticator code':'Use recovery code'}</button>}<div className="mt-4 pt-4 border-t flex justify-between text-xs otya-muted" style={{borderColor:'var(--cosmos-divider)'}}><Link href="/account">Account</Link><Link href="/">OTYA</Link></div></form></main>
+  useEffect(()=>{void refreshSession()},[refreshSession])
+  useEffect(()=>{scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:'smooth'})},[messages,busy,stage])
+  useEffect(()=>{if(!busy){setStage(0);return}const t=window.setInterval(()=>setStage(i=>Math.min(i+1,stages.length-1)),1400);return()=>window.clearInterval(t)},[busy])
 
- const title=view==='chat'?'Command Center':view==='support'?'Support':'Connections'
- return <main className="h-[100dvh] overflow-hidden flex" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}>
-   {sidebar&&<button className="fixed inset-0 z-30 bg-black/30 md:hidden" aria-label="Close navigation" onClick={()=>setSidebar(false)}/>} 
-   <aside className={`${sidebar?'translate-x-0':'-translate-x-full'} md:translate-x-0 fixed md:static inset-y-0 left-0 z-40 w-[252px] shrink-0 border-r flex flex-col transition-transform duration-150`} style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}>
-     <div className="min-h-14 px-3 flex items-center border-b gap-2.5" style={{borderColor:'var(--cosmos-divider)'}}><span className="grid place-items-center w-8 h-8 rounded-xl border text-sm font-black" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-card)'}}>O</span><div className="min-w-0"><div className="font-semibold text-sm truncate">OTYA Command Center</div><div className="text-[9px] uppercase tracking-[.12em] otya-muted">Private admin</div></div><button className="ml-auto md:hidden" aria-label="Close navigation" onClick={()=>setSidebar(false)}>×</button></div>
-     <div className="p-2.5"><button onClick={newChat} className="w-full rounded-xl border px-3 py-2.5 text-left text-sm font-medium" style={{borderColor:'var(--cosmos-divider)'}}>＋ New chat</button></div>
-     <nav className="px-1.5 pb-2 text-[13px]">
-       <button onClick={()=>{setView('chat');setSidebar(false)}} className="w-full text-left rounded-lg px-2.5 py-2" style={{fontWeight:view==='chat'?650:450}}>Chat</button>
-       <button onClick={()=>{setView('support');void loadInbox();setSidebar(false)}} className="w-full text-left rounded-lg px-2.5 py-2" style={{fontWeight:view==='support'?650:450}}>Support</button>
-       <button onClick={()=>{setView('connections');setSidebar(false)}} className="w-full text-left rounded-lg px-2.5 py-2" style={{fontWeight:view==='connections'?650:450}}>Connections</button>
-       <Link href="/admin/ai/settings" onClick={()=>setSidebar(false)} className="block w-full rounded-lg px-2.5 py-2">Settings</Link>
-     </nav>
-     <div className="px-3 pt-3 pb-2 text-[10px] uppercase tracking-[.12em] otya-muted">Conversations</div>
-     <div className="overflow-auto flex-1 px-1.5">{convs.map(c=><button key={c.id} onClick={()=>void openConv(c.id)} className="w-full text-left rounded-lg px-2.5 py-2 text-[13px] truncate mb-0.5" style={{background:current===c.id?'color-mix(in srgb, var(--cosmos-text-primary) 6%, transparent)':'transparent',fontWeight:current===c.id?600:450}}>{c.title||'Conversation'}</button>)}</div>
-     <div className="p-2 border-t text-xs" style={{borderColor:'var(--cosmos-divider)'}}><div className="px-2 py-1 truncate otya-muted">{user?.email}</div><button onClick={logout} className="w-full text-left rounded-lg px-2 py-2">Sign out</button></div>
-   </aside>
+  const api = useCallback(async(url:string,init?:RequestInit)=>{
+    const r = await fetch(url,{...init,credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',...(init?.headers||{})}})
+    const d = await r.json().catch(()=>({}))
+    if(r.status===401){setSession(s=>({...s,authenticated:false}));throw new Error('Administrator session expired. Sign in again.')}
+    if(!r.ok) throw new Error(d.detail||d.error||`HTTP ${r.status}`)
+    return d
+  },[])
 
-   <section className="flex-1 min-w-0 flex flex-col">
-     <header className="h-14 border-b flex items-center px-3 sm:px-4" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-app-bar)'}}><button className="md:hidden w-10 h-10 mr-1 rounded-xl" aria-label="Open navigation" onClick={()=>setSidebar(true)}>☰</button><div className="font-semibold text-sm">{title}</div><div className="ml-auto flex items-center gap-2"><Link href="/admin/ai/settings" className="hidden sm:inline text-xs otya-muted">Settings</Link><div className="text-[10px] uppercase tracking-[.1em] otya-muted">Private</div></div></header>
-     {notice&&<div className="mx-4 mt-3 border rounded-xl px-3 py-2 text-sm" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-card)'}}>{notice}</div>}
+  const loadConvs = useCallback(async()=>{
+    if(!session.authenticated)return
+    try{const d=await api('/api/admin/ai-console/conversations');setConvs(d.conversations||[])}catch(e){setNotice((e as Error).message)}
+  },[api,session.authenticated])
+  useEffect(()=>{void loadConvs()},[loadConvs])
 
-     {view==='chat'&&<>
-       <div ref={scrollRef} className="flex-1 overflow-auto"><div className="otya-reading py-7 pb-32">
-         {messages.length===0&&<div className="min-h-[55vh] flex flex-col justify-center"><div className="flex items-center gap-3 mb-5"><span className="grid place-items-center w-11 h-11 rounded-2xl border text-lg font-black" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-card)'}}>O</span><div><div className="font-semibold">OTYA Command Center</div><div className="text-xs otya-muted">Private operations assistant</div></div></div><h1 className="text-3xl sm:text-4xl font-semibold tracking-[-.04em]">What needs attention?</h1><p className="text-sm sm:text-[15px] otya-muted mt-3 max-w-xl">Ask naturally about health, crashes, support, releases, feedback or connected systems. Authorized read-only checks can run automatically. Meaningful external writes stay behind an approval step.</p><div className="grid sm:grid-cols-2 gap-px border rounded-2xl overflow-hidden mt-7" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-divider)'}}>{['What needs my attention today?','Summarize recent crashes','Review support messages','Give me the full OTYA report'].map(x=><button key={x} onClick={()=>setInput(x)} className="p-3.5 text-left text-sm" style={{background:'var(--cosmos-card)'}}>{x}</button>)}</div></div>}
-         <div className="space-y-8">{messages.map((m,i)=>m.role==='user'?<div key={i} className="flex justify-end"><div className="max-w-[84%] rounded-2xl px-4 py-2.5 text-[15px] whitespace-pre-wrap" style={{background:'color-mix(in srgb, var(--cosmos-text-primary) 7%, var(--cosmos-card))'}}>{m.content}</div></div>:<article key={i}><div className="flex items-center gap-2 text-[11px] font-semibold mb-2 otya-muted"><span className="grid place-items-center w-5 h-5 rounded-md border text-[9px]" style={{borderColor:'var(--cosmos-divider)'}}>O</span>OTYA</div><div className="whitespace-pre-wrap text-[15px] sm:text-[16px] leading-7">{m.content}</div></article>)}{busy&&<div className="flex items-center gap-2 text-sm otya-muted"><span className="grid place-items-center w-6 h-6 rounded-lg border text-[10px] animate-pulse" style={{borderColor:'var(--cosmos-divider)'}}>O</span><span className="animate-pulse">OTYA is thinking…</span></div>}</div>
-       </div></div>
-       <div className="absolute md:left-[252px] left-0 right-0 bottom-0 px-3 sm:px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-6" style={{background:'linear-gradient(to top,var(--cosmos-scaffold) 72%,transparent)'}}><div className="otya-reading"><div className="rounded-2xl border p-1.5 flex items-end shadow-sm" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><textarea rows={1} className="min-h-11 max-h-36 flex-1 resize-none bg-transparent px-3 py-2.5 outline-none text-[15px]" placeholder="Message OTYA Command Center" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}}/><button aria-label="Send message" onClick={()=>void send()} disabled={busy||!input.trim()} className="cosmos-button w-11 h-11 rounded-xl disabled:opacity-30">↑</button></div><p className="text-[10px] otya-muted text-center mt-1.5">Authorized reads may run automatically. External writes require approval.</p></div></div>
-     </>}
+  async function login(e:FormEvent){
+    e.preventDefault(); if(!email.trim()||!password||authBusy)return
+    setAuthBusy(true);setNotice('')
+    try{
+      const r=await fetch('/api/admin/session',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:email.trim(),password})})
+      const d=await r.json().catch(()=>({}))
+      if(!r.ok)throw new Error(d.error||'Sign in failed')
+      setPassword('');await refreshSession()
+    }catch(e){setNotice((e as Error).message)}finally{setAuthBusy(false)}
+  }
 
-     {view==='connections'&&<div className="flex-1 overflow-auto"><div className="otya-shell max-w-4xl py-8"><div className="mb-6"><div className="otya-kicker mb-2">Private systems</div><h2 className="text-2xl font-semibold tracking-tight">Connections</h2><p className="text-sm otya-muted mt-2 max-w-2xl">Connections give the Command Center scoped access to approved services. Credentials remain server-side and are never shown in chat.</p></div><div className="border-y" style={{borderColor:'var(--cosmos-divider)'}}>{connections.map((p,index)=><div key={p.id} className={`grid sm:grid-cols-[130px_1fr_auto] gap-2 sm:gap-5 py-4 ${index<connections.length-1?'border-b':''}`} style={{borderColor:'var(--cosmos-divider)'}}><div><strong className="text-sm">{p.name}</strong><div className="text-[11px] otya-muted mt-1">{p.category}</div></div><div><p className="text-sm otya-muted">{p.capabilities.join(' · ')}</p>{p.setup_hint&&<p className="text-xs otya-muted mt-1">{p.setup_hint}</p>}</div><div className="text-xs font-medium sm:text-right"><div>{p.status.replaceAll('_',' ')}</div>{p.id==='gmail'&&p.status==='ready_to_connect'&&<button onClick={()=>void connectGmail()} className="mt-2 text-xs font-semibold">Connect →</button>}</div></div>)}</div></div></div>}
+  async function logout(){await fetch('/api/admin/session',{method:'DELETE',credentials:'same-origin'}).catch(()=>null);setSession(s=>({...s,authenticated:false}));setMessages([]);setConvs([]);setCurrent('')}
 
-     {view==='support'&&<div className="flex-1 overflow-hidden grid lg:grid-cols-[310px_1fr]"><div className="border-r overflow-auto" style={{borderColor:'var(--cosmos-divider)'}}>{inbox.length===0?<div className="p-4 text-sm otya-muted">No support messages loaded.</div>:inbox.map(m=><button key={m.id} onClick={()=>void openMail(m.id)} className="w-full text-left px-4 py-3.5 border-b" style={{borderColor:'var(--cosmos-divider)',background:selected?.id===m.id?'color-mix(in srgb, var(--cosmos-text-primary) 4%, transparent)':'transparent'}}><strong className="text-[13px] block truncate">{m.from}</strong><span className="text-[13px] block truncate mt-0.5 otya-muted">{m.subject}</span></button>)}</div><div className="overflow-auto p-5 sm:p-7">{!selected?<div className="max-w-xl"><div className="otya-kicker mb-2">Support</div><h2 className="text-2xl font-semibold">Select a message</h2><p className="text-sm otya-muted mt-2">OTYA can draft a reply. Sending always stays behind your explicit approval.</p></div>:<div className="max-w-2xl"><div className="text-xs otya-muted">{selected.from}</div><h2 className="text-xl font-semibold mt-1">{selected.subject}</h2><div className="border-y py-4 mt-5 whitespace-pre-wrap text-sm leading-6" style={{borderColor:'var(--cosmos-divider)'}}>{selected.text}</div><button onClick={()=>void draft()} className="otya-quiet-button rounded-lg px-3.5 py-2 mt-4 text-sm font-semibold">Draft with OTYA</button>{reply&&<><textarea value={reply} onChange={e=>{setReply(e.target.value);setPendingSend(false)}} rows={10} className="w-full rounded-xl border p-3 mt-4 bg-transparent text-sm leading-6" style={{borderColor:'var(--cosmos-divider)'}}/>{!pendingSend?<button onClick={()=>setPendingSend(true)} className="cosmos-button rounded-lg px-4 py-2 mt-3 text-sm font-semibold">Review send</button>:<div className="mt-4 rounded-2xl border p-4" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-card)'}}><div className="otya-kicker mb-2">Approval required</div><h3 className="font-semibold">Send this reply to {selected.from_email}?</h3><p className="text-xs otya-muted mt-2">This is an external write. OTYA will not send it until you approve here.</p><div className="flex flex-wrap gap-2 mt-4"><button disabled={busy} onClick={()=>void approveSend()} className="cosmos-button rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50">{busy?'Sending…':'Approve & send'}</button><button disabled={busy} onClick={()=>setPendingSend(false)} className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50" style={{borderColor:'var(--cosmos-divider)'}}>Cancel</button></div></div>}</>}</div>}</div></div>}
-   </section>
- </main>
+  async function newChat(){
+    if(busy)return;setNotice('');setActivity('');
+    try{const d=await api('/api/admin/ai-console/conversation/new',{method:'POST',body:'{}'});setCurrent(d.conversation.id);setMessages([]);setSidebar(false);await loadConvs()}catch(e){setNotice((e as Error).message)}
+  }
+
+  async function openConv(id:string){
+    if(busy)return;setBusy(true);setNotice('');setActivity('')
+    try{const d=await api(`/api/admin/ai-console/conversation?id=${encodeURIComponent(id)}`);setCurrent(id);setMessages((d.conversation?.messages||[]).map((m:Msg)=>({id:m.id,role:m.role,content:m.content})));setSidebar(false)}catch(e){setNotice((e as Error).message)}finally{setBusy(false)}
+  }
+
+  async function send(){
+    const text=input.trim();if(!text||busy)return
+    setInput('');setMessages(m=>[...m,{role:'user',content:text}]);setBusy(true);setStage(0);setNotice('');setActivity('')
+    try{
+      const d=await api('/api/admin/ai-console/chat',{method:'POST',body:JSON.stringify({message:text,conversation_id:current||undefined})})
+      setCurrent(d.conversation_id||current)
+      setMessages(m=>[...m,{role:'assistant',content:d.answer||'I could not produce a response.'}])
+      if(d.tool) setActivity(toolLabels[d.tool]||`Used ${String(d.tool).replaceAll('_',' ')}`)
+      await loadConvs()
+    }catch(e){setMessages(m=>[...m,{role:'assistant',content:`I could not complete that request: ${(e as Error).message}`}])}finally{setBusy(false)}
+  }
+  function composerKey(e:KeyboardEvent<HTMLTextAreaElement>){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}
+
+  if(session.loading)return <main className="min-h-screen grid place-items-center" style={{background:'var(--cosmos-scaffold)'}}><OtyaBrandMark size={54} thinking label="Loading Otya Admin"/></main>
+
+  if(!session.authenticated)return <main className="min-h-screen grid place-items-center px-4 py-10" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}>
+    <form onSubmit={login} className="w-full max-w-sm rounded-[28px] border p-6 sm:p-8" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}>
+      <div className="flex justify-center mb-5"><OtyaBrandMark size={58} label="Otya"/></div>
+      <h1 className="text-center text-2xl font-black tracking-[-.04em]">Otya Admin</h1>
+      <p className="mt-2 text-center text-sm otya-muted">{session.configured?'Use the same private administrator credentials configured for Otya Admin.':'Admin credentials are not configured on the server.'}</p>
+      {notice&&<div className="mt-4 rounded-xl border p-3 text-sm text-red-500" style={{borderColor:'var(--cosmos-divider)'}}>{notice}</div>}
+      {session.configured&&<div className="mt-6 space-y-3"><input className="w-full min-h-12 rounded-2xl border bg-transparent px-4 outline-none" style={{borderColor:'var(--cosmos-divider)'}} type="email" autoComplete="username" placeholder="Admin email" value={email} onChange={e=>setEmail(e.target.value)}/><input className="w-full min-h-12 rounded-2xl border bg-transparent px-4 outline-none" style={{borderColor:'var(--cosmos-divider)'}} type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/><button disabled={authBusy||!email.trim()||!password} className="cosmos-button w-full min-h-12 rounded-2xl font-bold disabled:opacity-50">{authBusy?'Signing in…':'Sign in'}</button></div>}
+      <div className="mt-5 text-center"><Link href="/admin" className="text-xs otya-muted">Back to Admin</Link></div>
+    </form>
+  </main>
+
+  return <main className="h-[100dvh] overflow-hidden flex" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}>
+    {sidebar&&<button className="fixed inset-0 z-30 bg-black/35 md:hidden" aria-label="Close navigation" onClick={()=>setSidebar(false)}/>} 
+    <aside className={`${sidebar?'translate-x-0':'-translate-x-full'} md:translate-x-0 fixed md:static inset-y-0 left-0 z-40 w-[270px] shrink-0 border-r flex flex-col transition-transform`} style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}>
+      <div className="h-16 px-4 flex items-center gap-2 border-b" style={{borderColor:'var(--cosmos-divider)'}}><OtyaBrandMark size={34}/><span className="font-black tracking-[-.03em]">tya</span><button className="ml-auto md:hidden" aria-label="Close navigation" onClick={()=>setSidebar(false)}>×</button></div>
+      <div className="p-3"><button onClick={()=>void newChat()} className="w-full min-h-11 rounded-2xl border px-3 text-left text-sm font-semibold" style={{borderColor:'var(--cosmos-divider)'}}>＋ New chat</button></div>
+      <div className="px-4 pb-2 text-[10px] uppercase tracking-[.13em] otya-muted">Conversations</div>
+      <div className="flex-1 overflow-auto px-2">{convs.map(c=><button key={c.id} onClick={()=>void openConv(c.id)} className="w-full rounded-xl px-3 py-2.5 text-left text-sm truncate" style={{background:current===c.id?'color-mix(in srgb,var(--cosmos-primary) 10%,transparent)':'transparent',fontWeight:current===c.id?700:500}}>{c.title||'Conversation'}</button>)}</div>
+      <div className="border-t p-3 space-y-1" style={{borderColor:'var(--cosmos-divider)'}}><Link href="/admin" className="block rounded-xl px-3 py-2 text-sm">Admin dashboard</Link><Link href="/admin/ai/settings" className="block rounded-xl px-3 py-2 text-sm">Settings</Link><button onClick={logout} className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-500">Sign out</button></div>
+    </aside>
+
+    <section className="flex-1 min-w-0 flex flex-col">
+      <header className="h-16 shrink-0 border-b flex items-center px-3 sm:px-5" style={{background:'var(--cosmos-app-bar)',borderColor:'var(--cosmos-divider)'}}><button className="md:hidden min-w-11 min-h-11 rounded-xl mr-1" onClick={()=>setSidebar(true)} aria-label="Open navigation">☰</button><OtyaBrandMark size={32} thinking={busy}/><div className="ml-2"><div className="font-black leading-none">Otya</div><div className="text-[11px] otya-muted mt-1">{busy?stages[stage]:'Admin operator'}</div></div></header>
+      {notice&&<div className="mx-4 mt-3 rounded-xl border px-3 py-2 text-sm" style={{borderColor:'var(--cosmos-divider)',background:'var(--cosmos-card)'}}>{notice}</div>}
+      <div ref={scrollRef} className="flex-1 overflow-auto px-4 sm:px-8 py-6">
+        <div className="mx-auto max-w-3xl">
+          {messages.length===0?<div className="pt-[12vh] max-w-xl"><OtyaBrandMark size={56}/><h1 className="mt-5 text-3xl sm:text-5xl font-black tracking-[-.055em]">What should I handle?</h1><p className="mt-3 otya-muted leading-7">Chat normally. I can inspect Otya systems and connected services when needed. Safe reads happen automatically; meaningful writes still require approval.</p></div>:<div className="space-y-7">{messages.map((m,i)=>m.role==='user'?<div key={i} className="ml-auto max-w-[86%] rounded-[22px] rounded-br-md px-4 py-3 bg-black/[.055] dark:bg-white/[.08] text-sm leading-6">{m.content}</div>:<div key={i} className="max-w-[98%]"><div className="mb-2"><OtyaBrandMark size={28}/></div><div className="whitespace-pre-wrap text-sm sm:text-[15px] leading-7">{m.content}</div></div>)}{busy&&<div className="flex items-start gap-3 py-2" role="status" aria-live="polite"><OtyaBrandMark size={36} thinking label="Otya is working"/><div><div className="text-sm font-semibold">{stages[stage]}</div><div className="text-xs otya-muted mt-1">Useful progress is shown here; private model reasoning stays private.</div></div></div>}{activity&&!busy&&<div className="text-xs otya-muted border-l-2 pl-3" style={{borderColor:'var(--cosmos-divider)'}}>{activity}</div>}</div>}
+        </div>
+      </div>
+      <div className="shrink-0 p-3 sm:p-5"><div className="mx-auto max-w-3xl"><div className="flex items-end gap-2 rounded-[22px] border p-1.5" style={{background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}><textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={composerKey} placeholder="Message Otya" className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 outline-none text-sm"/><button onClick={()=>void send()} disabled={busy||!input.trim()} className="cosmos-button min-h-12 min-w-12 rounded-[17px] font-black disabled:opacity-50" aria-label="Send">↑</button></div><div className="mt-2 text-center text-[10px] otya-muted">Otya chooses the model and tools automatically.</div></div></div>
+    </section>
+  </main>
 }
