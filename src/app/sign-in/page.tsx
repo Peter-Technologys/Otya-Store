@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { SiteNav } from '@/components/SiteNav'
 import { SiteFooter } from '@/components/SiteFooter'
+import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
 const API = '/api/account-session'
 const GOOGLE_WEB_CLIENT_ID = '82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com'
@@ -11,7 +12,7 @@ const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
 
 type Mode = 'signin' | 'register' | 'twofactor' | 'forgot' | 'reset'
-type Json = { error?: string; code?: string; message?: string; authenticated?: boolean }
+type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
 type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
 declare global { interface Window { google?: GoogleApi } }
@@ -47,6 +48,12 @@ export default function SignInPage() {
       const data = await response.json().catch(() => ({})) as Json
       if (response.ok && data.authenticated) window.location.replace('/account')
     }).catch(() => undefined)
+
+    const telegram = new URLSearchParams(window.location.search).get('telegram')
+    if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then link Telegram from Account.')
+    else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
+    else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
+    else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
   }, [])
 
   useEffect(() => {
@@ -100,6 +107,20 @@ export default function SignInPage() {
     finally { setBusy(false) }
   }
 
+  async function startTelegram() {
+    if (busy) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const response = await fetch('/api/auth/telegram/start?mode=login', { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is not available yet.')
+      window.location.assign(data.authorization_url)
+    } catch (cause) {
+      setError((cause as Error).message)
+      setBusy(false)
+    }
+  }
+
   async function submitEmail(event: FormEvent) {
     event.preventDefault()
     if (!email.trim()) return setError('Enter your email address.')
@@ -146,20 +167,20 @@ export default function SignInPage() {
   }
 
   const title = mode === 'register' ? 'Create your Otya account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Welcome back'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your account email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and your new password.' : registration ? 'A simple account for recovery and connected features.' : 'Sign in to your Otya account.'
+  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your account email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and your new password.' : registration ? 'One Otya account for your identity and connected features.' : 'Sign in once to your Otya account.'
 
   return <div className="min-h-screen flex flex-col bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)]">
     <SiteNav />
     <main className="flex-1 grid lg:grid-cols-[1fr_1fr]">
       <section className="hidden lg:flex relative overflow-hidden m-4 mr-0 rounded-[34px] bg-[linear-gradient(145deg,#17131f,#252050_52%,#15303c)] text-white p-10 xl:p-14 flex-col justify-between">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_16%,rgba(185,119,255,.34),transparent_30%),radial-gradient(circle_at_83%_18%,rgba(68,190,255,.22),transparent_28%),radial-gradient(circle_at_52%_90%,rgba(227,94,177,.20),transparent_32%)]" />
-        <div className="relative"><div className="text-[11px] uppercase tracking-[.16em] font-black text-white/55">Otya account</div><h2 className="mt-5 text-5xl xl:text-6xl font-black tracking-[-.06em] leading-[.94] max-w-[560px]">Keep the useful things connected.</h2></div>
-        <div className="relative max-w-[520px]"><p className="text-base leading-7 text-white/65">Your local music and video do not need an account. Sign in only for recovery, security and connected services.</p><div className="mt-7 flex items-center gap-3 text-sm font-bold"><span className="w-2 h-2 rounded-full bg-emerald-400"/> Local playback stays offline-first</div></div>
+        <div className="relative"><div className="text-[11px] uppercase tracking-[.16em] font-black text-white/55">Otya account</div><h2 className="mt-5 text-5xl xl:text-6xl font-black tracking-[-.06em] leading-[.94] max-w-[560px]">One account. Everything connected.</h2></div>
+        <div className="relative max-w-[520px]"><p className="text-base leading-7 text-white/65">Your identity stays the same across Otya. Administrator capabilities are permissions on the same account, not a second account.</p><div className="mt-7 flex items-center gap-3 text-sm font-bold"><span className="w-2 h-2 rounded-full bg-emerald-400"/> Local playback stays offline-first</div></div>
       </section>
 
       <section className="grid place-items-center px-4 py-10 sm:px-7 sm:py-14">
         <div className="w-full max-w-[440px]">
-          <div className="flex items-center gap-3 mb-8 lg:hidden"><span className="grid place-items-center w-11 h-11 rounded-2xl border border-black/[.06] dark:border-white/[.08] bg-white/70 dark:bg-white/[.04]"><img src="/otya-icon.svg" alt="Otya" className="w-7 h-7"/></span><span className="font-black text-xl tracking-[-.04em]">Otya</span></div>
+          <div className="flex items-center gap-2 mb-8 lg:hidden"><OtyaBrandMark size={42} label="Otya"/><span className="font-black text-xl tracking-[-.04em]">tya</span></div>
 
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
           <p className="mt-2 mb-7 text-sm leading-6 otya-muted">{subtitle}</p>
@@ -169,6 +190,7 @@ export default function SignInPage() {
 
           {providerMode && <>
             <div className={busy ? 'pointer-events-none opacity-55' : ''}><div ref={googleButtonRef} className="w-full min-h-[44px] flex justify-center overflow-hidden rounded-full" aria-label="Continue with Google" /></div>
+            {!registration && <button type="button" onClick={()=>void startTelegram()} disabled={busy} className="mt-3 w-full min-h-11 rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent px-5 text-sm font-black disabled:opacity-55">Continue with Telegram</button>}
             <div className="flex items-center gap-3 my-6"><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/><span className="text-[10px] font-black otya-muted">OR USE EMAIL</span><div className="h-px flex-1 bg-black/[.07] dark:bg-white/[.08]"/></div>
           </>}
 
