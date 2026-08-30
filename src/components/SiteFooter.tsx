@@ -2,11 +2,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 const LINKS = [
+  ['Help', '/help'],
   ['Privacy', '/privacy'],
   ['Terms', '/terms'],
-  ['Contact', '/contact'],
-  ['Security', '/apps/otya-player/security'],
-  ['Changelog', '/apps/otya-player/changelog'],
 ]
 
 export function SiteFooter() {
