@@ -6,7 +6,10 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 
 test('website navigation uses the canonical OTYA mark', () => {
   const nav = read('src/components/SiteNav.tsx')
-  assert.match(nav, /src="\/otya-icon\.svg"/)
+  const mark = read('src/components/OtyaBrandMark.tsx')
+  assert.match(nav, /OtyaBrandMark/)
+  assert.match(mark, /otya-icon\.svg/)
+  assert.match(mark, /otya-icon-dark\.svg/)
   assert.doesNotMatch(nav, /web-app-manifest-192x192\.png/)
 })
 
