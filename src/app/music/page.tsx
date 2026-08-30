@@ -91,7 +91,7 @@ export default function MusicPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
       <SiteNav />
-      <main className="flex-1 pb-28 sm:pb-32">
+      <main className="flex-1 pb-44 md:pb-32">
         <div className="otya-shell py-6 sm:py-9">
           <div className="max-w-4xl mb-5">
             <div className="otya-kicker mb-2">OTYA Music</div>
@@ -122,7 +122,7 @@ export default function MusicPage() {
                   return (
                     <article key={track.id} className="group flex items-center gap-3 py-2.5 min-w-0">
                       <button onClick={() => play(track)} className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0" style={{ background: 'var(--cosmos-card)' }} aria-label={`${active && playing ? 'Pause' : 'Play'} ${track.title}`}>
-                        {track.artwork ? <img src={track.artwork} alt="" className="w-full h-full object-cover" loading="lazy" /> : <span className="grid place-items-center w-full h-full text-xl">♪</span>}
+                        {track.artwork ? <img src={track.artwork} alt="" width="64" height="64" decoding="async" className="w-full h-full object-cover" loading="lazy" /> : <span className="grid place-items-center w-full h-full text-xl">♪</span>}
                         <span className="absolute inset-0 grid place-items-center bg-black/25 text-white text-xs opacity-0 group-hover:opacity-100">{active && playing ? 'Ⅱ' : '▶'}</span>
                       </button>
 
@@ -133,8 +133,8 @@ export default function MusicPage() {
 
                       <div className="hidden sm:block text-xs otya-muted shrink-0">{formatDuration(track.durationSeconds)}</div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => play(track)} className="w-9 h-9 rounded-full grid place-items-center text-xs font-bold" style={{ background: active ? 'var(--cosmos-text-primary)' : 'var(--cosmos-card)', color: active ? 'var(--cosmos-scaffold)' : 'var(--cosmos-text-primary)' }} aria-label={active && playing ? 'Pause' : 'Play'}>{active && playing ? 'Ⅱ' : '▶'}</button>
-                        {track.downloadAllowed && <a href={downloadHref(track)} className="w-9 h-9 rounded-full grid place-items-center text-sm font-bold" style={{ background: 'var(--cosmos-card)' }} aria-label={`Download ${track.title}`} title="Download">↓</a>}
+                        <button onClick={() => play(track)} className="w-10 h-10 rounded-full grid place-items-center text-xs font-bold" style={{ background: active ? 'var(--cosmos-text-primary)' : 'var(--cosmos-card)', color: active ? 'var(--cosmos-scaffold)' : 'var(--cosmos-text-primary)' }} aria-label={active && playing ? 'Pause' : 'Play'}>{active && playing ? 'Ⅱ' : '▶'}</button>
+                        {track.downloadAllowed && <a href={downloadHref(track)} className="w-10 h-10 rounded-full grid place-items-center text-sm font-bold" style={{ background: 'var(--cosmos-card)' }} aria-label={`Download ${track.title}`} title="Download">↓</a>}
                       </div>
                     </article>
                   )
@@ -147,10 +147,10 @@ export default function MusicPage() {
 
       <audio ref={audioRef} preload="none" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
 
-      {current && <div className="fixed inset-x-0 bottom-0 z-50 border-t backdrop-blur-xl" style={{ background: 'var(--nav-bg)', borderColor: 'var(--cosmos-divider)' }}>
+      {current && <div className="fixed inset-x-0 bottom-[78px] md:bottom-0 z-50 border-t backdrop-blur-xl" style={{ background: 'var(--nav-bg)', borderColor: 'var(--cosmos-divider)' }}>
         <div className="otya-shell min-h-[76px] py-2 flex items-center gap-3">
           <button onClick={() => play(current)} className="w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ background: 'var(--cosmos-card)' }} aria-label={playing ? `Pause ${current.title}` : `Play ${current.title}`}>
-            {current.artwork ? <img src={current.artwork} alt="" className="w-full h-full object-cover" /> : <span className="grid place-items-center w-full h-full">♪</span>}
+            {current.artwork ? <img src={current.artwork} alt="" width="48" height="48" decoding="async" className="w-full h-full object-cover" /> : <span className="grid place-items-center w-full h-full">♪</span>}
           </button>
           <div className="min-w-0 flex-1">
             <div className="font-bold text-sm truncate">{current.title}</div>
