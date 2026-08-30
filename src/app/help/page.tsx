@@ -5,50 +5,47 @@ import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
   title: 'Help | Otya',
-  description: 'Otya help, account recovery, security and support in one place.',
+  description: 'Quick help for Otya music, accounts and Android playback.',
   alternates: { canonical: 'https://petersmartlink.com/help' },
 }
 
 const quickHelp = [
-  ['I cannot sign in', 'Use Sign in for Google, Telegram or email. Password recovery is on the same screen. If Google does not load, refresh once after the page update and make sure your browser is not blocking accounts.google.com.'],
-  ['I am not receiving an account email', 'Check spam and promotions, confirm the address, then request a fresh code. New requests make older codes obsolete.'],
+  ['I cannot sign in', 'Use Google or email on the Sign in page. If Google does not load, try again after refreshing the page. Telegram sign-in is not shown until its service is configured and verified.'],
+  ['I did not receive a reset or verification email', 'Request one fresh code and check spam or promotions. If nothing arrives, contact Otya Support instead of repeatedly requesting codes.'],
   ['Music or videos are missing in the Android app', 'Allow the media permissions requested by Android, then rescan your local library.'],
   ['Playback stops in the background', 'Allow Otya notifications and check Android battery restrictions for the app.'],
   ['Transfer is not connecting', 'Keep both phones nearby, enable Wi-Fi or hotspot, and start Transfer from Me. Nearby transfer does not require mobile data.'],
   ['How does Private work?', 'Private keeps supported local media inside Otya app-private storage until you restore it. Keep a separate backup of important files.'],
-  ['Security and safe downloads', 'Install Otya only from the official Get Otya page. Never send passwords, OTPs, recovery codes, API keys or secret tokens to anyone claiming to be support.'],
+  ['Security and safe downloads', 'Install Otya only from the official Get Otya page. Never share passwords, OTPs, recovery codes, API keys or secret tokens.'],
 ]
 
 export default function HelpPage() {
-  return <div className="min-h-screen flex flex-col otya-ambient" style={{color:'var(--cosmos-text-primary)'}}>
+  return <div className="min-h-screen flex flex-col bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)]">
     <SiteNav />
-    <main className="flex-1 pb-24 md:pb-0">
-      <section className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <header className="mb-6">
-          <div className="otya-kicker mb-2">Help</div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[-.045em]">Get unstuck quickly.</h1>
-          <p className="mt-2 text-sm otya-muted">One help page. Short answers. Ask Otya when you need a conversation.</p>
+    <main className="flex-1">
+      <section className="otya-reading py-10 sm:py-14">
+        <header className="mb-8">
+          <h1 className="text-3xl sm:text-5xl font-black tracking-[-.055em]">How can we help?</h1>
+          <p className="mt-3 text-sm sm:text-base leading-6 otya-muted">Quick answers first. Ask Otya when you want a conversation.</p>
         </header>
 
-        <div className="grid sm:grid-cols-2 gap-3 mb-6">
-          <Link href="/ask" className="modern-card p-4 min-h-24 flex flex-col justify-between"><span className="text-xl">✦</span><span><strong className="block text-sm">Ask Otya</strong><span className="text-xs otya-muted">Open the assistant</span></span></Link>
-          <Link href="/sign-in" className="modern-card p-4 min-h-24 flex flex-col justify-between"><span className="text-xl">◉</span><span><strong className="block text-sm">Account help</strong><span className="text-xs otya-muted">Sign in or recover access</span></span></Link>
+        <div className="grid sm:grid-cols-2 gap-3 mb-7">
+          <Link href="/ask" className="rounded-[24px] border border-black/[.06] dark:border-white/[.08] bg-white/75 dark:bg-white/[.025] p-5 min-h-28 flex flex-col justify-between"><span className="w-10 h-10 rounded-2xl grid place-items-center bg-[linear-gradient(145deg,#7b67ff,#48bde2)] text-white font-black">O</span><span><strong className="block text-base">Ask Otya</strong><span className="text-xs otya-muted">Describe the problem in your own words</span></span></Link>
+          <Link href="/sign-in" className="rounded-[24px] border border-black/[.06] dark:border-white/[.08] bg-white/75 dark:bg-white/[.025] p-5 min-h-28 flex flex-col justify-between"><span className="w-10 h-10 rounded-2xl grid place-items-center bg-black/[.05] dark:bg-white/[.07] font-black">↗</span><span><strong className="block text-base">Account</strong><span className="text-xs otya-muted">Sign in, create an account or recover access</span></span></Link>
         </div>
 
-        <section className="overflow-hidden rounded-[24px] border backdrop-blur-xl" aria-labelledby="quick-help" style={{borderColor:'var(--cosmos-divider)',background:'color-mix(in srgb,var(--cosmos-card) 82%,transparent)'}}>
+        <section className="overflow-hidden rounded-[24px] border border-black/[.06] dark:border-white/[.08] bg-white/70 dark:bg-white/[.02]" aria-labelledby="quick-help">
           <h2 id="quick-help" className="sr-only">Quick help</h2>
-          {quickHelp.map(([title,text])=><details key={title} id={title.startsWith('Security')?'security':undefined} className="group border-b last:border-b-0" style={{borderColor:'var(--cosmos-divider)'}}><summary className="cursor-pointer list-none px-4 sm:px-5 py-4 flex items-center justify-between gap-4 font-bold text-sm"><span>{title}</span><span className="otya-muted group-open:rotate-45 transition-transform">＋</span></summary><p className="px-4 sm:px-5 pb-5 text-sm leading-7 otya-muted">{text}</p></details>)}
+          {quickHelp.map(([title,text])=><details key={title} id={title.startsWith('Security')?'security':undefined} className="group border-b border-black/[.05] dark:border-white/[.07] last:border-b-0"><summary className="cursor-pointer list-none px-4 sm:px-5 py-4 flex items-center justify-between gap-4 font-black text-sm"><span>{title}</span><span className="otya-muted group-open:rotate-45 transition-transform">＋</span></summary><p className="px-4 sm:px-5 pb-5 text-sm leading-7 otya-muted">{text}</p></details>)}
         </section>
 
-        <section id="contact" className="mt-7" aria-labelledby="contact-title">
-          <h2 id="contact-title" className="text-lg font-extrabold mb-3">Contact Otya</h2>
+        <section id="contact" className="mt-9" aria-labelledby="contact-title">
+          <div className="flex items-end justify-between gap-4 mb-3"><h2 id="contact-title" className="text-xl font-black">Contact Otya</h2><span className="text-xs otya-muted">Human support</span></div>
           <div className="grid grid-cols-2 gap-3">
-            <a href="https://t.me/OtyaPlayerBot" target="_blank" rel="noopener noreferrer" className="modern-card p-4 min-h-20 flex items-center gap-3"><span className="text-xl">➤</span><span className="font-bold text-sm">Telegram</span></a>
-            <a href="mailto:support@petersmartlink.com?subject=Otya%20Support" className="modern-card p-4 min-h-20 flex items-center gap-3"><span className="text-xl">✉</span><span className="font-bold text-sm">Email</span></a>
+            <a href="https://t.me/OtyaPlayerBot" target="_blank" rel="noopener noreferrer" className="rounded-[20px] border border-black/[.06] dark:border-white/[.08] bg-white/70 dark:bg-white/[.025] p-4 min-h-20 flex items-center gap-3"><span className="w-9 h-9 rounded-full grid place-items-center bg-[#229ED9]/10 text-[#229ED9] font-black">➤</span><span className="font-black text-sm">Telegram</span></a>
+            <a href="mailto:support@petersmartlink.com?subject=Otya%20Support" className="rounded-[20px] border border-black/[.06] dark:border-white/[.08] bg-white/70 dark:bg-white/[.025] p-4 min-h-20 flex items-center gap-3"><span className="w-9 h-9 rounded-full grid place-items-center bg-black/[.045] dark:bg-white/[.06] font-black">✉</span><span className="font-black text-sm">Email</span></a>
           </div>
         </section>
-
-        <div className="mt-7 flex flex-wrap gap-x-5 gap-y-3 text-sm font-bold"><Link href="/download/otya-player">Get Otya</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
       </section>
     </main>
     <SiteFooter />
