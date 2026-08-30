@@ -43,6 +43,16 @@ test('Worker-level admin AI and release workflow require elevated admin verifica
   assert.match(source, /authorizeReleaseWorkflow/)
 })
 
+test('Admin MFA OTPs are format-checked, single-use, and hashed at rest', () => {
+  const source = read('auth-worker/src/admin-mfa.ts')
+  assert.match(source, /\^\[A-Z\]\[0-9\]\{4\}\$/)
+  assert.match(source, /crypto\.subtle\.digest\('SHA-256'/)
+  assert.match(source, /otpDigest\(user\.id, otp\)/)
+  assert.match(source, /timingSafeEqual\(suppliedDigest, storedDigest\)/)
+  assert.match(source, /delete\(`admin_mfa_otp:\$\{user\.id\}`\)/)
+  assert.doesNotMatch(source, /put\(`admin_mfa_otp:\$\{user\.id\}`, otp,/)
+})
+
 test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
