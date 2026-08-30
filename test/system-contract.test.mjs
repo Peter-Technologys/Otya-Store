@@ -78,8 +78,9 @@ test('Jamendo credentials remain server-side and linked-account tokens are encry
   assert.match(callback, /JAMENDO_CLIENT_SECRET/)
   assert.match(callback, /AES-GCM/)
   assert.match(callback, /crypto\.subtle\.encrypt/)
-  assert.doesNotMatch(callback, /accessToken:\s*token\.access_token/)
-  assert.doesNotMatch(callback, /refreshToken:\s*token\.refresh_token/)
+  assert.match(callback, /const encrypted = await encryptTokenRecord\(record, clientSecret\)/)
+  assert.match(callback, /kv\.put\(`jamendo:account:\$\{accountKey\}`, encrypted\)/)
+  assert.doesNotMatch(callback, /kv\.put\(`jamendo:account:\$\{accountKey\}`, JSON\.stringify\(record\)\)/)
 })
 
 test('Jamendo catalog never exposes a download action unless provider permission and URL are both valid', () => {
