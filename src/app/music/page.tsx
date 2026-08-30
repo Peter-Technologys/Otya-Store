@@ -158,7 +158,7 @@ export default function MusicPage() {
           </section>
 
           <aside className="mt-10 border-t pt-5 text-xs leading-relaxed otya-muted" style={{ borderColor: 'var(--cosmos-divider)' }}>
-            Online tracks are supplied by third-party music providers and remain subject to the artist's license and provider terms. OTYA credits the creator/provider and links back to the provider. Download is shown only when the provider reports that downloading is allowed.
+            Online tracks are supplied by third-party music providers and remain subject to the artist&apos;s license and provider terms. OTYA credits the creator/provider and links back to the provider. Download is shown only when the provider reports that downloading is allowed.
           </aside>
         </div>
       </main>
