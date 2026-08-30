@@ -6,7 +6,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { secureJson, errorJson } from '@/lib/response'
 import { getDB } from '@/lib/d1'
 import { getSystemStats, checkEndpointHealth } from '@/lib/monitor'
-import { isAdminAuthorized } from '@/lib/admin_auth'
+import { verifyAdminSession } from '@/lib/admin_auth'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  'https://petersmartlink.com',
@@ -17,7 +17,7 @@ const CORS_HEADERS = {
 export async function GET(req: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
-  if (!await isAdminAuthorized(req, recordEnv)) return errorJson('Unauthorized', 401)
+  if (!await verifyAdminSession(req, recordEnv)) return errorJson('Unauthorized', 401)
 
   const db = getDB(recordEnv)
   const [systemStats, feedbackRows, crashRows, ratingRows, endpointHealth] = await Promise.all([
