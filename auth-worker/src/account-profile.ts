@@ -57,77 +57,107 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
   if (url.pathname !== '/auth/account') return null
   if (request.method !== 'GET' && request.method !== 'PATCH') return json({ error: 'Method not allowed' }, 405)
 
-  const userId = await userIdFromRequest(request, env)
+  let userId: string | null = null
+  try {
+    userId = await userIdFromRequest(request, env)
+  } catch (error) {
+    console.error('[auth/account] Token verification failed:', (error as Error)?.message)
+    return json({ error: 'Your Otya session could not be verified. Please sign in again.' }, 401)
+  }
   if (!userId) return json({ error: 'Sign in required' }, 401)
-  await ensureSchema(env.AUTH_DB)
 
-  if (request.method === 'PATCH') {
-    const body = await request.json().catch(() => null) as Record<string, unknown> | null
-    if (!body) return json({ error: 'Invalid JSON body' }, 400)
-
-    const allowed = ['name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone'] as const
-    if (!allowed.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
-      return json({ error: 'No supported profile fields supplied' }, 400)
-    }
-
-    const updates: string[] = ["updated_at = datetime('now')"]
-    const values: unknown[] = []
-
-    if ('name' in body) {
-      updates.push('name = ?')
-      values.push(clean(body.name, 120))
-    }
-    if ('avatar_url' in body) {
-      const avatar = clean(body.avatar_url, 1000)
-      if (avatar && !/^https:\/\//i.test(avatar)) return json({ error: 'avatar_url must use HTTPS' }, 400)
-      updates.push('avatar_url = ?')
-      values.push(avatar)
-    }
-    if ('recovery_email' in body) {
-      const recovery = clean(body.recovery_email, 254)?.toLowerCase() ?? null
-      if (!validRecoveryEmail(recovery)) return json({ error: 'Invalid recovery email' }, 400)
-      updates.push('recovery_email = ?', 'recovery_email_verified_at = NULL')
-      values.push(recovery)
-    }
-    if ('country_code' in body) {
-      const country = clean(body.country_code, 2)?.toUpperCase() ?? null
-      if (!validCountryCode(country)) return json({ error: 'country_code must be a two-letter code' }, 400)
-      updates.push('country_code = ?')
-      values.push(country)
-    }
-    if ('locale' in body) {
-      const locale = clean(body.locale, 35)
-      if (!validLocale(locale)) return json({ error: 'Invalid locale' }, 400)
-      updates.push('locale = ?')
-      values.push(locale)
-    }
-    if ('timezone' in body) {
-      const timezone = clean(body.timezone, 80)
-      if (!validTimezone(timezone)) return json({ error: 'Invalid timezone' }, 400)
-      updates.push('timezone = ?')
-      values.push(timezone)
-    }
-
-    values.push(userId)
-    await env.AUTH_DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run()
+  try {
+    await ensureSchema(env.AUTH_DB)
+  } catch (error) {
+    console.error('[auth/account] Schema initialization failed:', (error as Error)?.message)
+    return json({ error: 'Otya account storage is temporarily unavailable. Please try again.' }, 503)
   }
 
-  const user = await env.AUTH_DB.prepare(`
-    SELECT id, email, name, avatar_url, is_verified, phone_number, phone_verified_at,
-           phone_verification_method, recovery_email, recovery_email_verified_at,
-           country_code, locale, timezone, created_at, updated_at
-    FROM users WHERE id = ?
-  `).bind(userId).first<Record<string, unknown>>()
-  if (!user) return json({ error: 'User not found' }, 404)
+  try {
+    if (request.method === 'PATCH') {
+      const body = await request.json().catch(() => null) as Record<string, unknown> | null
+      if (!body) return json({ error: 'Invalid JSON body' }, 400)
 
-  const identities = await env.AUTH_DB.prepare(`
-    SELECT provider, provider_username, linked_at, last_used_at
-    FROM linked_identities WHERE user_id = ? ORDER BY provider
-  `).bind(userId).all<Record<string, unknown>>()
-  const products = await env.AUTH_DB.prepare(`
-    SELECT product_id, status, first_seen_at, last_seen_at
-    FROM user_products WHERE user_id = ? ORDER BY last_seen_at DESC
-  `).bind(userId).all<Record<string, unknown>>()
+      const allowed = ['name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone'] as const
+      if (!allowed.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
+        return json({ error: 'No supported profile fields supplied' }, 400)
+      }
 
-  return json({ ok: true, user, identities: identities.results, products: products.results })
+      const updates: string[] = ["updated_at = datetime('now')"]
+      const values: unknown[] = []
+
+      if ('name' in body) {
+        updates.push('name = ?')
+        values.push(clean(body.name, 120))
+      }
+      if ('avatar_url' in body) {
+        const avatar = clean(body.avatar_url, 1000)
+        if (avatar && !/^https:\/\//i.test(avatar)) return json({ error: 'avatar_url must use HTTPS' }, 400)
+        updates.push('avatar_url = ?')
+        values.push(avatar)
+      }
+      if ('recovery_email' in body) {
+        const recovery = clean(body.recovery_email, 254)?.toLowerCase() ?? null
+        if (!validRecoveryEmail(recovery)) return json({ error: 'Invalid recovery email' }, 400)
+        updates.push('recovery_email = ?', 'recovery_email_verified_at = NULL')
+        values.push(recovery)
+      }
+      if ('country_code' in body) {
+        const country = clean(body.country_code, 2)?.toUpperCase() ?? null
+        if (!validCountryCode(country)) return json({ error: 'country_code must be a two-letter code' }, 400)
+        updates.push('country_code = ?')
+        values.push(country)
+      }
+      if ('locale' in body) {
+        const locale = clean(body.locale, 35)
+        if (!validLocale(locale)) return json({ error: 'Invalid locale' }, 400)
+        updates.push('locale = ?')
+        values.push(locale)
+      }
+      if ('timezone' in body) {
+        const timezone = clean(body.timezone, 80)
+        if (!validTimezone(timezone)) return json({ error: 'Invalid timezone' }, 400)
+        updates.push('timezone = ?')
+        values.push(timezone)
+      }
+
+      values.push(userId)
+      await env.AUTH_DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run()
+    }
+
+    const user = await env.AUTH_DB.prepare(`
+      SELECT id, email, name, avatar_url, is_verified, phone_number, phone_verified_at,
+             phone_verification_method, recovery_email, recovery_email_verified_at,
+             country_code, locale, timezone, created_at, updated_at
+      FROM users WHERE id = ?
+    `).bind(userId).first<Record<string, unknown>>()
+    if (!user) return json({ error: 'Account not found. Please sign in again.' }, 404)
+
+    // Connected identities and product history are useful account metadata, but
+    // they must never make the primary account profile unavailable if a legacy
+    // deployment is still completing its schema migration.
+    let identities: Record<string, unknown>[] = []
+    let products: Record<string, unknown>[] = []
+    try {
+      identities = (await env.AUTH_DB.prepare(`
+        SELECT provider, provider_username, linked_at, last_used_at
+        FROM linked_identities WHERE user_id = ? ORDER BY provider
+      `).bind(userId).all<Record<string, unknown>>()).results
+    } catch (error) {
+      console.error('[auth/account] Linked identities read failed:', (error as Error)?.message)
+    }
+    try {
+      products = (await env.AUTH_DB.prepare(`
+        SELECT product_id, status, first_seen_at, last_seen_at
+        FROM user_products WHERE user_id = ? ORDER BY last_seen_at DESC
+      `).bind(userId).all<Record<string, unknown>>()).results
+    } catch (error) {
+      console.error('[auth/account] Product history read failed:', (error as Error)?.message)
+    }
+
+    return json({ ok: true, user, identities, products })
+  } catch (error) {
+    console.error('[auth/account] Account request failed:', (error as Error)?.message)
+    return json({ error: 'Could not load your Otya account. Please try again.' }, 503)
+  }
 }
