@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { GET as getLatest } from '../../latest/route'
 
 // Backward-compatible public alias for older Android builds.
@@ -7,8 +7,8 @@ import { GET as getLatest } from '../../latest/route'
 // OpenNext/Next route compilation can treat a cross-route re-export differently
 // from a normal handler at runtime, which previously left `/api/version`
 // returning HTTP 500 while `/latest` remained healthy.
-export async function GET(request: Request) {
-  return getLatest(request as never)
+export async function GET(request: NextRequest) {
+  return getLatest(request)
 }
 
 export async function OPTIONS() {
