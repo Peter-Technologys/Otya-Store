@@ -3,10 +3,11 @@ import Script from 'next/script'
 import { Manrope } from 'next/font/google'
 import ThemeControl from './ThemeControl'
 import './globals.css'
+import './brand-overrides.css'
 
 const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-otya' })
 const SITE_URL = 'https://petersmartlink.com'
-const APP_VERSION = '1.7.0'
+const APP_VERSION = '1.0.0'
 const ADSENSE_ID = 'ca-pub-2517163652161686'
 
 export const metadata: Metadata = {
@@ -42,8 +43,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F7F7F8' },
-    { media: '(prefers-color-scheme: dark)', color: '#09090B' },
+    { media: '(prefers-color-scheme: light)', color: '#F6F8FB' },
+    { media: '(prefers-color-scheme: dark)', color: '#080B12' },
   ],
   width: 'device-width', initialScale: 1, maximumScale: 5,
 }
