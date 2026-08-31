@@ -25,28 +25,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const state = await response.json().catch(() => ({})) as AdminState
       if (cancelled) return
 
-      const inAi = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/')
-      const atAdminHome = pathname === '/admin' || pathname === '/admin/'
-
-      // Never render privileged admin surfaces unless the server positively
-      // confirms an elevated admin session. UI state is not authorization.
-      if (inAi && (response.ok !== true || state.authenticated !== true)) {
+      const privilegedChild = pathname !== '/admin' && pathname !== '/admin/'
+      if (privilegedChild && (response.ok !== true || state.authenticated !== true)) {
         window.location.replace('/admin')
-        return
-      }
-
-      // Once elevated, the conversational command center is the admin home.
-      if (atAdminHome && state.authenticated === true) {
-        window.location.replace('/admin/ai')
         return
       }
 
       setChecking(false)
     }).catch(() => {
       if (cancelled) return
-      const inAi = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/')
-      if (inAi) {
-        // Deny by default if the authorization service cannot be reached.
+      const privilegedChild = pathname !== '/admin' && pathname !== '/admin/'
+      if (privilegedChild) {
         window.location.replace('/admin')
         return
       }
@@ -59,7 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (checking) {
     return <main className="min-h-screen grid place-items-center" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
       <div className="text-center">
-        <OtyaBrandMark size={52} thinking label="Checking Otya access" />
+        <OtyaBrandMark size={52} label="Checking Otya access" />
         <p className="mt-3 text-sm otya-muted">Checking your access…</p>
       </div>
     </main>
