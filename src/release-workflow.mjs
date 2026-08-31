@@ -125,8 +125,12 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         const latest = await this.env.DB.prepare(
           'SELECT tag, version_code FROM releases ORDER BY version_code DESC LIMIT 1',
         ).first()
-        if (latest && Number(latest.version_code) > release.versionCode) {
-          throw new Error(`Refusing to replace newer release ${latest.tag}`)
+        if (
+          latest
+          && latest.tag !== release.tag
+          && Number(latest.version_code) >= release.versionCode
+        ) {
+          throw new Error(`Refusing non-monotonic version code ${release.versionCode}; current release is ${latest.tag} (${latest.version_code})`)
         }
 
         const date = new Date().toISOString().slice(0, 10)
@@ -234,29 +238,44 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         return { queued: true, duplicate: false }
       })
 
+      // Publication is already committed once metadata is live and the push is
+      // queued. Observability/reporting failures must never turn that completed
+      // release into a misleading "failed" state.
       const analytics = await step.do('record release analytics', async () => {
-        if (!this.env.OTYA_ANALYTICS?.writeDataPoint) return { written: false }
-        this.env.OTYA_ANALYTICS.writeDataPoint({
-          blobs: ['release_completed', release.tag, release.version],
-          doubles: [release.versionCode, artifacts.arm64.size ?? 0, artifacts.arm32.size ?? 0],
-          indexes: [release.tag],
-        })
-        return { written: true }
+        try {
+          if (!this.env.OTYA_ANALYTICS?.writeDataPoint) return { written: false, reason: 'binding-unavailable' }
+          this.env.OTYA_ANALYTICS.writeDataPoint({
+            blobs: ['release_completed', release.tag, release.version],
+            doubles: [release.versionCode, artifacts.arm64.size ?? 0, artifacts.arm32.size ?? 0],
+            indexes: [release.tag],
+          })
+          return { written: true }
+        } catch (error) {
+          console.error('[release] Analytics write failed:', error?.message)
+          return { written: false, error: error instanceof Error ? error.message : String(error) }
+        }
       })
 
-      const report = await step.do('send completion report', async () => sendAdminReport(
-        this.env,
-        `OTYA ${release.tag} release workflow completed`,
-        [
-          `Release: ${release.tag}`,
-          `Version code: ${release.versionCode}`,
-          `arm64: ${release.arm64Key}`,
-          `arm32: ${release.arm32Key}`,
-          `Firebase test mirror: ${firebaseDistribution.mirrored ? 'yes' : 'no'}`,
-          `Push queued: ${notification.queued}`,
-          'Status: completed',
-        ].join('\n'),
-      ))
+      const report = await step.do('send completion report', async () => {
+        try {
+          return await sendAdminReport(
+            this.env,
+            `OTYA ${release.tag} release workflow completed`,
+            [
+              `Release: ${release.tag}`,
+              `Version code: ${release.versionCode}`,
+              `arm64: ${release.arm64Key}`,
+              `arm32: ${release.arm32Key}`,
+              `Firebase test mirror: ${firebaseDistribution.mirrored ? 'yes' : 'no'}`,
+              `Push queued: ${notification.queued}`,
+              'Status: completed',
+            ].join('\n'),
+          )
+        } catch (error) {
+          console.error('[release] Completion report failed:', error?.message)
+          return { sent: false, error: error instanceof Error ? error.message : String(error) }
+        }
+      })
 
       return {
         ok: true,
