@@ -21,10 +21,11 @@ const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
 const telegramProxy = read('src/app/api/auth/telegram/[...path]/route.ts')
 
 requireMatch('otya-store Worker name', store, /^name\s*=\s*"otya-store"$/m)
-for (const binding of ['R2', 'KV', 'DB', 'OTYA_ANALYTICS', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
+for (const binding of ['R2', 'KV', 'DB', 'ANALYTICS', 'OTYA_ANALYTICS', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
   requireMatch(`otya-store binding ${binding}`, store, new RegExp(`(?:binding|name)\\s*=\\s*"${binding}"`))
 }
-requireMatch('OTYA Analytics Engine dataset must be production-bound', store, /^dataset\s*=\s*"otya_system_analytics"$/m)
+requireMatch('live otya-store Analytics Engine dataset must be source-bound', store, /^dataset\s*=\s*"otya-store-analytics"$/m)
+requireMatch('compatibility OTYA Analytics Engine dataset remains bound during migration', store, /^dataset\s*=\s*"otya_system_analytics"$/m)
 requireMatch('Firebase project id must be otya-player', store, /^FIREBASE_PROJECT_ID\s*=\s*"otya-player"$/m)
 requireMatch('Firebase project number must be verified', store, /^FIREBASE_PROJECT_NUMBER\s*=\s*"82776565585"$/m)
 requireMatch('Firebase Android app id must be verified', store, /^FIREBASE_ANDROID_APP_ID\s*=\s*"1:82776565585:android:085cf9b4eecb76e9535570"$/m)
@@ -33,6 +34,8 @@ requireMatch('App Check production mode must remain monitor', store, /^FIREBASE_
 forbidMatch('App Check must not be pinned to enforce in Wrangler', store, /^FIREBASE_APP_CHECK_MODE\s*=\s*"enforce"$/m)
 
 requireMatch('otya-auth must use production wrapper', auth, /^main\s*=\s*"src\/production-entrypoint\.ts"$/m)
+requireMatch('otya-auth live analytics binding', auth, /^binding\s*=\s*"ANALYTICS"$/m)
+requireMatch('otya-auth live analytics dataset', auth, /^dataset\s*=\s*"otya-auth-analytics"$/m)
 requireMatch('Android Google client id must be verified', auth, /^GOOGLE_CLIENT_ID\s*=\s*"82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv\.apps\.googleusercontent\.com"$/m)
 requireMatch('Web Google client id must be verified', auth, /^GOOGLE_WEB_CLIENT_ID\s*=\s*"82776565585-obr8k53b8n6djsggissv8qne81cm3u5u\.apps\.googleusercontent\.com"$/m)
 requireMatch('otya-auth Firebase project id', auth, /^FIREBASE_PROJECT_ID\s*=\s*"otya-player"$/m)
@@ -46,6 +49,11 @@ requireMatch('production Google wrapper must reject unconfigured audiences', goo
 
 requireMatch('otya-ai Worker name', ai, /^name\s*=\s*"otya-ai"$/m)
 requireMatch('otya-ai push queue binding', ai, /binding\s*=\s*"PUSH_QUEUE"/)
+requireMatch('otya-ai live analytics binding', ai, /^binding\s*=\s*"ANALYTICS"$/m)
+requireMatch('otya-ai live analytics dataset', ai, /^dataset\s*=\s*"otya-ai-analytics"$/m)
+requireMatch('otya-ai Browser Run binding', ai, /^\[browser\]\s*\nbinding\s*=\s*"BROWSER"$/m)
+requireMatch('otya-ai AI Search binding', ai, /\[\[ai_search\]\][\s\S]*?binding\s*=\s*"AI_SEARCH"[\s\S]*?instance_name\s*=\s*"otya-knowledge"/m)
+requireMatch('otya-ai gateway id must remain pinned', ai, /^AI_GATEWAY_ID\s*=\s*"otya-ai-gateway"$/m)
 requireMatch('otya-ai guest model remains low-cost default', ai, /^AI_GUEST_MODEL\s*=\s*"llama-fast"$/m)
 
 requireMatch('FCM must use HTTP v1', fcm, /https:\/\/fcm\.googleapis\.com\/v1\/projects\/\$\{projectId\}\/messages:send/)
