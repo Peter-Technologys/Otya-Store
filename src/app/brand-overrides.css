@@ -92,6 +92,24 @@
 
 .ring-violet-500 { --tw-ring-color: rgba(41,121,255,.42) !important; }
 
+/* Old admin chrome referenced an obsolete raster mark. Keep the route working,
+   but render the canonical Otya product identity everywhere it appears. */
+img[src='/android-chrome-192x192.png'] {
+  content: url('/otya-icon.svg');
+  object-fit: contain !important;
+  background: transparent !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) img[src='/android-chrome-192x192.png'] {
+    content: url('/otya-icon-dark.svg');
+  }
+}
+
+:root[data-theme='dark'] img[src='/android-chrome-192x192.png'] {
+  content: url('/otya-icon-dark.svg');
+}
+
 ::selection {
   background: color-mix(in srgb, var(--otya-blue) 24%, transparent);
   color: var(--cosmos-text-primary);
