@@ -6,6 +6,9 @@ import { getKV, getR2 } from '@/lib/d1'
 // Used by the website download page and in-app update checker.
 const KV_CACHE_KEY  = 'version:current'
 const KV_TTL        = 300 // 5 minutes
+const DOWNLOAD_PAGE = 'https://petersmartlink.com/download/otya-player'
+const ARM64_APK     = 'https://petersmartlink.com/apk/arm64'
+const ARM32_APK     = 'https://petersmartlink.com/apk/arm32'
 
 export async function GET(_req: NextRequest) {
   try {
@@ -30,9 +33,12 @@ export async function GET(_req: NextRequest) {
           minSdk:      info.minSdk ?? 21,
           targetSdk:   info.targetSdk ?? 36,
           downloads: {
-            arm64: 'https://petersmartlink.com/apk/arm64',
-            arm32: 'https://petersmartlink.com/apk/arm32',
-            auto:  'https://petersmartlink.com/apk/arm64',
+            arm64: ARM64_APK,
+            arm32: ARM32_APK,
+            // `auto` must never silently mean ARM64. Architecture-aware app
+            // clients use arm64/arm32 directly; generic callers get the safe
+            // download page where the correct build can be selected.
+            auto:  DOWNLOAD_PAGE,
           },
         }
         return new NextResponse(JSON.stringify(data), {
@@ -71,12 +77,13 @@ export async function GET(_req: NextRequest) {
     const text = await object.text()
     const data = JSON.parse(text) as Record<string, unknown>
 
-    // Always rewrite download URLs to the canonical domain
+    // Always rewrite download URLs to the canonical domain. `auto` intentionally
+    // points at the download page rather than assuming a CPU architecture.
     if (data.downloads && typeof data.downloads === 'object') {
       const dl = data.downloads as Record<string, string>
-      dl.arm64 = 'https://petersmartlink.com/apk/arm64'
-      dl.arm32 = 'https://petersmartlink.com/apk/arm32'
-      dl.auto  = 'https://petersmartlink.com/apk/arm64'
+      dl.arm64 = ARM64_APK
+      dl.arm32 = ARM32_APK
+      dl.auto  = DOWNLOAD_PAGE
     }
 
     const body = JSON.stringify(data)
