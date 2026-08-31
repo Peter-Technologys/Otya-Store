@@ -6,6 +6,10 @@ import {
   hardenRegistrationVerification,
   type SecureOtpEnv,
 } from './secure-otp'
+import {
+  handleSecureAccountRoute,
+  type SecureAccountEnv,
+} from './secure-account'
 
 interface GoogleTokenPayload {
   aud?: string
@@ -15,7 +19,7 @@ interface GoogleTokenPayload {
   email_verified?: string | boolean
 }
 
-type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & {
+type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & SecureAccountEnv & {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_WEB_CLIENT_ID?: string
 }
@@ -146,6 +150,11 @@ export default {
       const response = await handleTelegramLogin(request, env)
       if (response) return response
     }
+
+    // Account deletion must revoke every refresh token and recorded device
+    // session with correct KV pagination before the D1 identity is removed.
+    const secureAccountResponse = await handleSecureAccountRoute(request, env)
+    if (secureAccountResponse) return secureAccountResponse
 
     // Password-reset and email-verification codes are purpose-bound, HMAC
     // protected in KV, rate-limited, expiring and single-use.
