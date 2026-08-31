@@ -21,9 +21,10 @@ const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
 const telegramProxy = read('src/app/api/auth/telegram/[...path]/route.ts')
 
 requireMatch('otya-store Worker name', store, /^name\s*=\s*"otya-store"$/m)
-for (const binding of ['R2', 'KV', 'DB', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
+for (const binding of ['R2', 'KV', 'DB', 'OTYA_ANALYTICS', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
   requireMatch(`otya-store binding ${binding}`, store, new RegExp(`(?:binding|name)\\s*=\\s*"${binding}"`))
 }
+requireMatch('OTYA Analytics Engine dataset must be production-bound', store, /^dataset\s*=\s*"otya_system_analytics"$/m)
 requireMatch('Firebase project id must be otya-player', store, /^FIREBASE_PROJECT_ID\s*=\s*"otya-player"$/m)
 requireMatch('Firebase project number must be verified', store, /^FIREBASE_PROJECT_NUMBER\s*=\s*"82776565585"$/m)
 requireMatch('Firebase Android app id must be verified', store, /^FIREBASE_ANDROID_APP_ID\s*=\s*"1:82776565585:android:085cf9b4eecb76e9535570"$/m)
