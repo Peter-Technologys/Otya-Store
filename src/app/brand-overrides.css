@@ -61,22 +61,36 @@
 }
 
 .cosmos-gradient-text {
-  background: linear-gradient(100deg, var(--otya-blue), #4A93FF 55%, var(--otya-red));
+  background: linear-gradient(100deg, var(--otya-blue), #4A93FF 58%, var(--otya-red));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.cosmos-button {
-  background: linear-gradient(105deg, #2979FF, #1767E8);
+.cosmos-button,
+.bg-violet-500,
+.bg-violet-600 {
+  background: linear-gradient(105deg, #2979FF, #1767E8) !important;
   color: #fff !important;
-  border: 1px solid color-mix(in srgb, #2979FF 70%, white);
+  border-color: color-mix(in srgb, #2979FF 70%, white) !important;
   box-shadow: 0 8px 22px rgba(41,121,255,.22);
 }
 
-.cosmos-button:hover {
+.cosmos-button:hover,
+.bg-violet-500:hover,
+.bg-violet-600:hover {
   box-shadow: 0 11px 28px rgba(41,121,255,.28);
 }
+
+.text-violet-400,
+.text-violet-500,
+.text-violet-600 { color: var(--cosmos-primary) !important; }
+
+.border-violet-400,
+.border-violet-500,
+.border-violet-600 { border-color: var(--cosmos-primary) !important; }
+
+.ring-violet-500 { --tw-ring-color: rgba(41,121,255,.42) !important; }
 
 ::selection {
   background: color-mix(in srgb, var(--otya-blue) 24%, transparent);
