@@ -1,0 +1,84 @@
+:root {
+  --otya-blue: #2979FF;
+  --otya-red: #FF3B30;
+  --otya-yellow: #FFD60A;
+  --cosmos-primary: var(--otya-blue);
+  --cosmos-secondary: #1767E8;
+  --cosmos-accent: var(--otya-red);
+  --cosmos-cyan: #4A93FF;
+  --cosmos-error: #E54840;
+  --cosmos-scaffold: #F6F8FB;
+  --cosmos-surface: #FFFFFF;
+  --cosmos-card: #FFFFFF;
+  --cosmos-app-bar: rgba(248,250,253,.88);
+  --cosmos-text-primary: #10141B;
+  --cosmos-text-secondary: #667184;
+  --cosmos-divider: #E2E7EE;
+  --cosmos-nav-selected: #10141B;
+  --cosmos-icon-tint: var(--otya-blue);
+  --text-muted: #7F8999;
+  --nav-bg: rgba(248,250,253,.88);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cosmos-primary: #6AA8FF;
+    --cosmos-secondary: #438DFF;
+    --cosmos-accent: #FF6A62;
+    --cosmos-cyan: #75B4FF;
+    --cosmos-error: #FF716A;
+    --cosmos-scaffold: #080B12;
+    --cosmos-surface: #0E131D;
+    --cosmos-card: #141B27;
+    --cosmos-app-bar: rgba(8,11,18,.88);
+    --cosmos-text-primary: #F7F9FC;
+    --cosmos-text-secondary: #B3BDCC;
+    --cosmos-divider: #283444;
+    --cosmos-nav-selected: #FFFFFF;
+    --cosmos-icon-tint: #6AA8FF;
+    --text-muted: #7F8A9B;
+    --nav-bg: rgba(8,11,18,.9);
+  }
+}
+
+:root[data-theme='dark'] {
+  --cosmos-primary: #6AA8FF;
+  --cosmos-secondary: #438DFF;
+  --cosmos-accent: #FF6A62;
+  --cosmos-cyan: #75B4FF;
+  --cosmos-error: #FF716A;
+  --cosmos-scaffold: #080B12;
+  --cosmos-surface: #0E131D;
+  --cosmos-card: #141B27;
+  --cosmos-app-bar: rgba(8,11,18,.88);
+  --cosmos-text-primary: #F7F9FC;
+  --cosmos-text-secondary: #B3BDCC;
+  --cosmos-divider: #283444;
+  --cosmos-nav-selected: #FFFFFF;
+  --cosmos-icon-tint: #6AA8FF;
+  --text-muted: #7F8A9B;
+  --nav-bg: rgba(8,11,18,.9);
+}
+
+.cosmos-gradient-text {
+  background: linear-gradient(100deg, var(--otya-blue), #4A93FF 55%, var(--otya-red));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cosmos-button {
+  background: linear-gradient(105deg, #2979FF, #1767E8);
+  color: #fff !important;
+  border: 1px solid color-mix(in srgb, #2979FF 70%, white);
+  box-shadow: 0 8px 22px rgba(41,121,255,.22);
+}
+
+.cosmos-button:hover {
+  box-shadow: 0 11px 28px rgba(41,121,255,.28);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--otya-blue) 24%, transparent);
+  color: var(--cosmos-text-primary);
+}
