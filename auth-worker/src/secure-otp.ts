@@ -104,15 +104,23 @@ async function requireUser(request: Request, env: SecureOtpEnv) {
   return getUserById(env.AUTH_DB, payload.sub)
 }
 
+async function sessionIdForToken(refreshToken: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(refreshToken))
+  return toHex(new Uint8Array(digest).slice(0, 16))
+}
+
 async function revokeRefreshTokens(env: SecureOtpEnv, userId: string): Promise<void> {
   let cursor: string | undefined
   do {
     const page = await env.AUTH_KV.list({ prefix: `rt_user:${userId}:`, limit: 1000, cursor })
     for (const key of page.keys) {
       const token = key.name.slice(`rt_user:${userId}:`.length)
+      const sessionId = await sessionIdForToken(token)
       await Promise.all([
         env.AUTH_KV.delete(key.name),
         env.AUTH_KV.delete(`rt:${token}`),
+        env.AUTH_KV.delete(`auth_session:${userId}:${sessionId}`),
+        env.AUTH_KV.delete(`auth_session_token:${sessionId}`),
       ])
     }
     cursor = page.list_complete ? undefined : page.cursor
