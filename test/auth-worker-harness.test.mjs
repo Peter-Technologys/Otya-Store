@@ -27,3 +27,19 @@ test('admin MFA fails closed before any privileged work', async () => {
   const body = await response.json()
   assert.match(String(body.error ?? ''), /verification is required/i)
 })
+
+test('2FA settings require an authenticated Otya account', async () => {
+  const response = await server.fetch('http://localhost/auth/2fa/status')
+  assert.equal(response.status, 401)
+  const body = await response.json()
+  assert.match(String(body.error ?? ''), /sign in to otya first/i)
+})
+
+test('Telegram login fails closed when provider credentials are unavailable', async () => {
+  const response = await server.fetch('http://localhost/auth/telegram/start?mode=login', {
+    method: 'POST',
+  })
+  assert.equal(response.status, 503)
+  const body = await response.json()
+  assert.match(String(body.error ?? ''), /not configured/i)
+})
