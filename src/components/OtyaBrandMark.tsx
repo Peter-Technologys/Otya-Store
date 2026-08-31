@@ -21,8 +21,9 @@ function resolvedDark(): boolean {
 /**
  * Canonical Otya identity component.
  *
- * Product surfaces use the folded O mark. Otya AI surfaces use only the
- * blue/red/yellow three-ball identity; the balls animate only while working.
+ * Product surfaces use the folded O mark. Next, Otya's assistant, uses only
+ * the blue/red/yellow three-ball identity; the balls animate only while Next
+ * is thinking or working.
  */
 export function OtyaBrandMark({ size = 36, thinking = false, ai = false, className = '', label }: Props) {
   const [dark, setDark] = useState(false)
