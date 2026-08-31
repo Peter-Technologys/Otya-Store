@@ -100,6 +100,18 @@ const USER_COLUMN_DEFS: Record<string, string> = {
   timezone: 'TEXT',
 }
 
+function randomBelow(maxExclusive: number): number {
+  if (!Number.isSafeInteger(maxExclusive) || maxExclusive <= 0 || maxExclusive > 0x100000000) {
+    throw new Error('Invalid random range')
+  }
+  const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive
+  while (true) {
+    const bytes = crypto.getRandomValues(new Uint8Array(4))
+    const value = (((bytes[0] << 24) >>> 0) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3]) >>> 0
+    if (value < limit) return value % maxExclusive
+  }
+}
+
 /**
  * Public Otya account identifier.
  *
@@ -109,18 +121,16 @@ const USER_COLUMN_DEFS: Record<string, string> = {
  */
 export async function generateOtyaId(db: D1Database): Promise<string> {
   for (let attempt = 0; attempt < 32; attempt++) {
-    const bytes = crypto.getRandomValues(new Uint8Array(4))
-    const value = (
-      ((bytes[0] << 24) >>> 0)
-      + (bytes[1] << 16)
-      + (bytes[2] << 8)
-      + bytes[3]
-    ) % 100000000
-    const candidate = `2IS${value.toString().padStart(8, '0')}`
+    const candidate = `2IS${randomBelow(100_000_000).toString().padStart(8, '0')}`
     const existing = await db.prepare('SELECT 1 FROM users WHERE otya_id = ? LIMIT 1').bind(candidate).first()
     if (!existing) return candidate
   }
   throw new Error('Could not allocate a unique Otya ID')
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  const message = String(error).toLowerCase()
+  return message.includes('unique constraint') || message.includes('constraint failed') || message.includes('sqlite_constraint')
 }
 
 async function ensureUserColumns(db: D1Database): Promise<void> {
@@ -146,8 +156,15 @@ async function ensureUserColumns(db: D1Database): Promise<void> {
     "SELECT id FROM users WHERE otya_id IS NULL OR trim(otya_id) = ''",
   ).all<{ id: string }>()
   for (const row of missing.results) {
-    const otyaId = await generateOtyaId(db)
-    await db.prepare('UPDATE users SET otya_id = ? WHERE id = ?').bind(otyaId, row.id).run()
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const otyaId = await generateOtyaId(db)
+      try {
+        await db.prepare('UPDATE users SET otya_id = ? WHERE id = ?').bind(otyaId, row.id).run()
+        break
+      } catch (error) {
+        if (!isUniqueConstraintError(error) || attempt === 15) throw error
+      }
+    }
   }
 
   await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL').run()
@@ -179,44 +196,84 @@ export async function insertUser(
   db: D1Database,
   user: Pick<UserRow, 'id' | 'email' | 'password_hash' | 'google_id' | 'name' | 'avatar_url'>,
 ): Promise<void> {
-  const otyaId = await generateOtyaId(db)
-  await db.prepare(`
-    INSERT INTO users (id, otya_id, email, password_hash, google_id, name, avatar_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    user.id,
-    otyaId,
-    user.email,
-    user.password_hash ?? null,
-    user.google_id     ?? null,
-    user.name          ?? null,
-    user.avatar_url    ?? null,
-  ).run()
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const otyaId = await generateOtyaId(db)
+    try {
+      await db.prepare(`
+        INSERT INTO users (id, otya_id, email, password_hash, google_id, name, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        user.id,
+        otyaId,
+        user.email,
+        user.password_hash ?? null,
+        user.google_id     ?? null,
+        user.name          ?? null,
+        user.avatar_url    ?? null,
+      ).run()
+      return
+    } catch (error) {
+      // Retry only if the public-ID unique index raced another registration.
+      // Email / Google-ID conflicts must still propagate to the caller.
+      const current = await getUserByEmail(db, user.email)
+      if (current || !isUniqueConstraintError(error) || attempt === 15) throw error
+    }
+  }
 }
 
 export async function upsertGoogleUser(
   db: D1Database,
   user: Pick<UserRow, 'id' | 'email' | 'google_id' | 'name' | 'avatar_url'>,
 ): Promise<UserRow | null> {
-  const otyaId = await generateOtyaId(db)
-  await db.prepare(`
-    INSERT INTO users (id, otya_id, email, google_id, name, avatar_url, is_verified)
-    VALUES (?, ?, ?, ?, ?, ?, 1)
-    ON CONFLICT(email) DO UPDATE SET
-      google_id  = excluded.google_id,
-      name       = COALESCE(excluded.name, users.name),
-      avatar_url = COALESCE(excluded.avatar_url, users.avatar_url),
-      is_verified = 1,
-      updated_at = datetime('now')
-  `).bind(
-    user.id,
-    otyaId,
-    user.email,
-    user.google_id  ?? null,
-    user.name       ?? null,
-    user.avatar_url ?? null,
-  ).run()
-  return getUserByEmail(db, user.email)
+  const existing = await getUserByEmail(db, user.email)
+  if (existing) {
+    await db.prepare(`
+      UPDATE users SET
+        google_id = ?,
+        name = COALESCE(?, name),
+        avatar_url = COALESCE(?, avatar_url),
+        is_verified = 1,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(user.google_id ?? null, user.name ?? null, user.avatar_url ?? null, existing.id).run()
+    return getUserById(db, existing.id)
+  }
+
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const otyaId = await generateOtyaId(db)
+    try {
+      await db.prepare(`
+        INSERT INTO users (id, otya_id, email, google_id, name, avatar_url, is_verified)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+      `).bind(
+        user.id,
+        otyaId,
+        user.email,
+        user.google_id ?? null,
+        user.name ?? null,
+        user.avatar_url ?? null,
+      ).run()
+      return getUserByEmail(db, user.email)
+    } catch (error) {
+      // Another request may have created this email while Google sign-in was
+      // in flight. Merge into that account instead of creating a duplicate.
+      const raced = await getUserByEmail(db, user.email)
+      if (raced) {
+        await db.prepare(`
+          UPDATE users SET
+            google_id = ?,
+            name = COALESCE(?, name),
+            avatar_url = COALESCE(?, avatar_url),
+            is_verified = 1,
+            updated_at = datetime('now')
+          WHERE id = ?
+        `).bind(user.google_id ?? null, user.name ?? null, user.avatar_url ?? null, raced.id).run()
+        return getUserById(db, raced.id)
+      }
+      if (!isUniqueConstraintError(error) || attempt === 15) throw error
+    }
+  }
+  return null
 }
 
 /** Record that a shared OTYA account has used a product. */
