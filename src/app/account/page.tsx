@@ -23,6 +23,7 @@ type User = {
 type Identity = { provider: string; provider_username?: string | null }
 type Session = { id: string; created_at: string; last_used_at: string; ip?: string | null; user_agent?: string | null }
 type TwoFactorStatus = { enabled: boolean; recovery_codes_remaining: number; available: boolean }
+type TwoFactorSetup = { secret: string; otpauth_uri: string }
 type Consent = { terms_accepted?: number; privacy_accepted?: number; marketing_consent?: number }
 type Json = Record<string, unknown>
 
@@ -37,6 +38,9 @@ export default function AccountPage() {
   const [identities, setIdentities] = useState<Identity[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [twoFactor, setTwoFactor] = useState<TwoFactorStatus | null>(null)
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetup | null>(null)
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
   const [consent, setConsent] = useState<Consent | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -149,6 +153,59 @@ export default function AccountPage() {
     })
   }
 
+  async function startTwoFactor() {
+    await action(async () => {
+      const response = await accountFetch('2fa/setup', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as { secret?: string; otpauth_uri?: string; error?: string }
+      if (!response.ok || !data.secret || !data.otpauth_uri) throw new Error(data.error || 'Could not start two-step verification setup.')
+      setTwoFactorSetup({ secret: data.secret, otpauth_uri: data.otpauth_uri })
+      setTwoFactorCode('')
+      setRecoveryCodes([])
+      return 'Add Otya to your authenticator app, then enter the 6-digit code.'
+    })
+  }
+
+  async function enableTwoFactor() {
+    if (!twoFactorCode.trim()) return
+    await action(async () => {
+      const response = await accountFetch('2fa/enable', { method: 'POST', body: JSON.stringify({ code: twoFactorCode.trim() }) })
+      const data = await response.json().catch(() => ({})) as { recovery_codes?: string[]; error?: string; sign_in_again?: boolean }
+      if (!response.ok) throw new Error(data.error || 'Could not enable two-step verification.')
+      setRecoveryCodes(Array.isArray(data.recovery_codes) ? data.recovery_codes : [])
+      setTwoFactorSetup(null)
+      setTwoFactorCode('')
+      setTwoFactor(current => current ? { ...current, enabled: true, recovery_codes_remaining: data.recovery_codes?.length ?? 0 } : { enabled: true, recovery_codes_remaining: data.recovery_codes?.length ?? 0, available: true })
+      return data.sign_in_again ? 'Two-step verification is on. Save the recovery codes below, then sign in again.' : 'Two-step verification is on.'
+    })
+  }
+
+  async function disableTwoFactor() {
+    if (!twoFactorCode.trim()) return
+    await action(async () => {
+      const response = await accountFetch('2fa/disable', { method: 'POST', body: JSON.stringify({ code: twoFactorCode.trim() }) })
+      const data = await response.json().catch(() => ({})) as { error?: string; sign_in_again?: boolean }
+      if (!response.ok) throw new Error(data.error || 'Could not disable two-step verification.')
+      setTwoFactorCode('')
+      setRecoveryCodes([])
+      setTwoFactor(current => current ? { ...current, enabled: false, recovery_codes_remaining: 0 } : current)
+      if (data.sign_in_again) window.location.replace('/sign-in?security=updated')
+      return 'Two-step verification is off.'
+    })
+  }
+
+  async function regenerateRecoveryCodes() {
+    if (!twoFactorCode.trim()) return
+    await action(async () => {
+      const response = await accountFetch('2fa/recovery-codes', { method: 'POST', body: JSON.stringify({ code: twoFactorCode.trim() }) })
+      const data = await response.json().catch(() => ({})) as { recovery_codes?: string[]; error?: string; sign_in_again?: boolean }
+      if (!response.ok || !Array.isArray(data.recovery_codes)) throw new Error(data.error || 'Could not generate new recovery codes.')
+      setRecoveryCodes(data.recovery_codes)
+      setTwoFactorCode('')
+      setTwoFactor(current => current ? { ...current, recovery_codes_remaining: data.recovery_codes?.length ?? 0 } : current)
+      return data.sign_in_again ? 'New recovery codes created. Save them now, then sign in again.' : 'New recovery codes created.'
+    })
+  }
+
   async function connectTelegram() {
     await action(async () => {
       const response = await accountFetch('telegram/start', { method: 'POST' })
@@ -248,7 +305,16 @@ export default function AccountPage() {
       <Row title="Primary email" detail={user.is_verified ? 'Verified' : 'Verification required'}>
         {!user.is_verified && <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void sendEmailCode()} disabled={busy} className="otya-quiet-button rounded-xl px-3 min-h-10 text-sm font-bold">Send code</button><input value={emailCode} onChange={e => setEmailCode(e.target.value)} placeholder="A1234" className="space-input max-w-[160px]"/><button onClick={() => void verifyEmail()} disabled={busy} className="cosmos-button rounded-xl px-3 min-h-10 text-sm font-bold">Verify</button></div>}
       </Row>
-      <Row title="Two-step verification" detail={twoFactor?.enabled ? `On · ${twoFactor.recovery_codes_remaining} recovery codes remaining` : 'Off'}><Link href="/account#security" className="inline-block mt-2 text-sm font-bold otya-muted">Authenticator controls remain protected by your signed-in session.</Link></Row>
+      <Row title="Two-step verification" detail={twoFactor?.enabled ? `On · ${twoFactor.recovery_codes_remaining} recovery codes remaining` : twoFactor?.available === false ? 'Unavailable on this deployment' : 'Off'}>
+        {twoFactor?.available !== false && !twoFactor?.enabled && !twoFactorSetup && <button onClick={() => void startTwoFactor()} disabled={busy} className="mt-3 cosmos-button rounded-xl px-4 min-h-10 text-sm font-bold">Set up authenticator</button>}
+        {twoFactorSetup && <div className="mt-4 space-y-3 rounded-2xl border p-4" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
+          <div><Label>Authenticator secret</Label><div className="mt-1 font-mono text-sm font-bold break-all">{twoFactorSetup.secret}</div></div>
+          <p className="text-sm otya-muted">Add this secret to your authenticator app under Otya, then enter the current 6-digit code.</p>
+          <div className="flex flex-wrap gap-2"><input value={twoFactorCode} onChange={event => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="123456" className="space-input max-w-[160px]"/><button onClick={() => void enableTwoFactor()} disabled={busy || twoFactorCode.length !== 6} className="cosmos-button rounded-xl px-4 min-h-10 text-sm font-bold">Enable</button><button onClick={() => { setTwoFactorSetup(null); setTwoFactorCode('') }} disabled={busy} className="otya-quiet-button rounded-xl px-4 min-h-10 text-sm font-bold">Cancel</button></div>
+        </div>}
+        {twoFactor?.enabled && <div className="mt-4 space-y-3"><p className="text-sm otya-muted">Enter a current authenticator code to make a sensitive change. Otya will sign your sessions out afterward.</p><div className="flex flex-wrap gap-2"><input value={twoFactorCode} onChange={event => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="123456" className="space-input max-w-[160px]"/><button onClick={() => void regenerateRecoveryCodes()} disabled={busy || twoFactorCode.length !== 6} className="otya-quiet-button rounded-xl px-4 min-h-10 text-sm font-bold">New recovery codes</button><button onClick={() => void disableTwoFactor()} disabled={busy || twoFactorCode.length !== 6} className="otya-quiet-button rounded-xl px-4 min-h-10 text-sm font-bold">Turn off</button></div></div>}
+        {recoveryCodes.length > 0 && <div className="mt-4 rounded-2xl border p-4" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}><div className="font-black">Save these recovery codes now</div><p className="mt-1 text-sm otya-muted">Each code works once. Keep them somewhere private outside this device.</p><div className="mt-3 grid sm:grid-cols-2 gap-2">{recoveryCodes.map(code => <div key={code} className="font-mono text-sm font-bold rounded-xl border px-3 py-2" style={{ borderColor: 'var(--cosmos-divider)' }}>{code}</div>)}</div><button onClick={() => window.location.replace('/sign-in?security=updated')} className="mt-4 cosmos-button rounded-xl px-4 min-h-10 text-sm font-bold">I saved them · Sign in again</button></div>}
+      </Row>
       <Row title="Telegram" detail={telegram ? `Connected${telegram.provider_username ? ` · ${telegram.provider_username}` : ''}` : 'Not connected'}>{!telegram && <button onClick={() => void connectTelegram()} disabled={busy} className="mt-3 otya-quiet-button rounded-xl px-3 min-h-10 text-sm font-bold">Connect Telegram</button>}</Row>
     </ConsoleSection>
 
