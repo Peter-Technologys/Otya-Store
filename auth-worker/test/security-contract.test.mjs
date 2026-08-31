@@ -32,6 +32,7 @@ test('production auth remains on verified Firebase project and Resend path', () 
 
 test('password reset stays generic, single-use, expiring and revokes existing sessions', () => {
   const auth = read('src/index.ts')
+  const hardenedOtp = read('src/secure-otp.ts')
 
   assert.match(auth, /If that email exists, an OTP has been sent\./)
   assert.match(auth, /otp:\$\{normalizedEmail\}/)
@@ -40,6 +41,11 @@ test('password reset stays generic, single-use, expiring and revokes existing se
   assert.match(auth, /await env\.AUTH_KV\.delete\(`otp:\$\{normalizedEmail\}`\)/)
   assert.match(auth, /await revokeAllRefreshTokens\(env\.AUTH_KV, user\.id\)/)
   assert.match(auth, /Password updated successfully\. Please sign in again\./)
+
+  assert.match(hardenedOtp, /list\(\{ prefix: `rt_user:\$\{userId\}:`, limit: 1000, cursor \}\)/)
+  assert.match(hardenedOtp, /auth_session:\$\{userId\}:\$\{sessionId\}/)
+  assert.match(hardenedOtp, /auth_session_token:\$\{sessionId\}/)
+  assert.match(hardenedOtp, /cursor = page\.list_complete \? undefined : page\.cursor/)
 })
 
 test('server credentials are never configured as source values', () => {
