@@ -77,6 +77,14 @@ test('OTYA public ID allocation retries collisions without exposing the internal
   assert.doesNotMatch(account, /label=["']Account ID["'][^\n]*user\.id/)
 })
 
+test('Production auth responses normalize the immutable public Otya ID', () => {
+  const source = read('auth-worker/src/production-entrypoint.ts')
+  assert.match(source, /normalizeAccountResponse/)
+  assert.match(source, /SELECT otya_id FROM users WHERE id = \? LIMIT 1/)
+  assert.match(source, /user: \{ \.\.\.account, otya_id: row\.otya_id \}/)
+  assert.match(source, /return normalizeAccountResponse\(response, env\)/)
+})
+
 test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
