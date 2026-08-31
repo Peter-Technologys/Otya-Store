@@ -53,6 +53,18 @@ test('Admin MFA OTPs are format-checked, single-use, and hashed at rest', () => 
   assert.doesNotMatch(source, /put\(`admin_mfa_otp:\$\{user\.id\}`, otp,/)
 })
 
+test('Admin Telegram step-up preserves the existing normal browser session', () => {
+  const worker = read('auth-worker/src/telegram-login.ts')
+  const callback = read('src/app/api/auth/telegram/[...path]/route.ts')
+  const adminBlock = worker.match(/if \(stored\.mode === 'admin'\) \{[\s\S]*?\n    \}/)?.[0] ?? ''
+
+  assert.match(adminBlock, /markAdminTelegramComplete/)
+  assert.doesNotMatch(adminBlock, /issueBrowserTokens/)
+  assert.doesNotMatch(adminBlock, /refresh_token/)
+  assert.match(callback, /data\.admin_mfa === true/)
+  assert.match(callback, /\/admin\?telegram=verified/)
+})
+
 test('Production account OTPs are purpose-bound, protected at rest, and single-use', () => {
   const source = read('auth-worker/src/secure-otp.ts')
   const entry = read('auth-worker/src/production-entrypoint.ts')
