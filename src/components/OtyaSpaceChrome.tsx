@@ -52,7 +52,7 @@ const GROUPS: NavGroup[] = [
       { label: 'Storage & backup', href: '/account#storage', icon: icons.storage },
       { label: 'Activity', href: '/account#activity', icon: icons.activity },
       { label: 'Notifications', href: '/account#notifications', icon: icons.bell },
-      { label: 'Otya AI', href: '/ask', icon: icons.ai },
+      { label: 'Next', href: '/ask', icon: icons.ai },
     ],
   },
 ]
@@ -124,7 +124,7 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
             </FloatingPanel>}
           </div>
 
-          <Link href="/ask" aria-label="Otya AI" title="Otya AI" className="h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"><OtyaBrandMark size={27} thinking /></Link>
+          <Link href="/ask" aria-label="Next" title="Next" className="h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"><OtyaBrandMark ai size={27} /></Link>
 
           <div className="relative" ref={notificationRef}>
             <button type="button" aria-label="Notifications" title="Notifications" onClick={() => { setNotificationsOpen(value => !value); setProfileOpen(false) }} className="relative h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5">{icons.bell}<span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full" style={{ background: 'var(--cosmos-primary)' }} /></button>
