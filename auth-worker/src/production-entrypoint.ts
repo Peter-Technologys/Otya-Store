@@ -80,6 +80,52 @@ async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Pro
   }
 }
 
+/**
+ * Keep every production auth response on one account shape. The internal UUID
+ * remains available for existing clients, but user-facing code should use the
+ * immutable public `otya_id` (2IS########).
+ */
+async function normalizeAccountResponse(response: Response, env: ProductionEnv): Promise<Response> {
+  if (!response.ok) return response
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) return response
+
+  let data: Record<string, unknown>
+  try {
+    data = await response.clone().json() as Record<string, unknown>
+  } catch {
+    return response
+  }
+
+  const user = data.user
+  if (!user || typeof user !== 'object' || Array.isArray(user)) return response
+
+  const account = user as Record<string, unknown>
+  const id = typeof account.id === 'string' ? account.id : ''
+  if (!id || typeof account.otya_id === 'string') return response
+
+  try {
+    const row = await env.AUTH_DB.prepare(
+      'SELECT otya_id FROM users WHERE id = ? LIMIT 1',
+    ).bind(id).first<{ otya_id?: string | null }>()
+    if (!row?.otya_id) return response
+
+    const headers = new Headers(response.headers)
+    headers.set('Cache-Control', 'no-store')
+    return new Response(JSON.stringify({
+      ...data,
+      user: { ...account, otya_id: row.otya_id },
+    }), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+  } catch (error) {
+    console.error('[auth] Could not attach public Otya ID:', (error as Error)?.message)
+    return response
+  }
+}
+
 export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
@@ -104,15 +150,17 @@ export default {
       // Override only GOOGLE_CLIENT_ID for this single request with the audience
       // we already verified is one of the two explicitly configured clients.
       const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience }
-      return authWorker.fetch(
+      const response = await authWorker.fetch(
         request,
         requestEnv as Parameters<typeof authWorker.fetch>[1],
       )
+      return normalizeAccountResponse(response, env)
     }
 
-    return authWorker.fetch(
+    const response = await authWorker.fetch(
       request,
       env as Parameters<typeof authWorker.fetch>[1],
     )
+    return normalizeAccountResponse(response, env)
   },
 }
