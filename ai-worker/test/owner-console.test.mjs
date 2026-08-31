@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { handleOwnerConsole } from '../src/owner-console.mjs'
+import { MemoryD1 } from './memory-d1.mjs'
 
 class MemoryKv {
   constructor(){ this.rows = new Map() }
@@ -40,6 +41,7 @@ test('natural Telegram request prepares first and explicit go-ahead executes onc
     const env = {
       INTERNAL_SECRET: 'owner-secret',
       KV: new MemoryKv(),
+      DB: new MemoryD1(),
       TELEGRAM_BOT_TOKEN: 'test-token',
       TELEGRAM_CHANNEL_URL: 'https://t.me/otyaplayer',
       AI: {
@@ -87,6 +89,7 @@ test('drafting language does not prepare an external owner action', async () => 
   const env = {
     INTERNAL_SECRET: 'owner-secret',
     KV: new MemoryKv(),
+    DB: new MemoryD1(),
     AI: {
       async run(){ return { response: '{"action":"none"}' } },
     },
@@ -98,7 +101,7 @@ test('drafting language does not prepare an external owner action', async () => 
   try {
     await handleOwnerConsole(chat('Draft a Telegram announcement but do not post it.'), env)
   } catch {
-    // The minimal test env intentionally lacks the full Console DB/runtime.
+    // The minimal test env intentionally lacks the full Console runtime.
   }
   assert.equal(await env.KV.get('owner-action:latest'), null)
 })
