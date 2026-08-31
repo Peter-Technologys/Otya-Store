@@ -53,6 +53,21 @@ test('Admin MFA OTPs are format-checked, single-use, and hashed at rest', () => 
   assert.doesNotMatch(source, /put\(`admin_mfa_otp:\$\{user\.id\}`, otp,/)
 })
 
+test('Production account OTPs are purpose-bound, protected at rest, and single-use', () => {
+  const source = read('auth-worker/src/secure-otp.ts')
+  const entry = read('auth-worker/src/production-entrypoint.ts')
+
+  assert.match(source, /HMAC/)
+  assert.match(source, /hmac-sha256:/)
+  assert.match(source, /otya-otp:\$\{purpose\}:\$\{subject\}:\$\{normalized\}/)
+  assert.match(source, /\^\[A-Z\]\[0-9\]\{4\}\$/)
+  assert.match(source, /delete\(`otp:\$\{email\}`\)/)
+  assert.match(source, /delete\(`verify_otp:\$\{user\.id\}`\)/)
+  assert.match(source, /revokeRefreshTokens\(env, user\.id\)/)
+  assert.match(entry, /handleSecureOtpRoute\(request, env\)/)
+  assert.match(entry, /hardenRegistrationVerification\(response, env\)/)
+})
+
 test('OTYA one-time codes and public IDs use unbiased random allocation', () => {
   const crypto = read('auth-worker/src/crypto.ts')
   const db = read('auth-worker/src/db.ts')
