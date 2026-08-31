@@ -24,7 +24,9 @@ const OTP_TTL = 10 * 60
 const SEND_WINDOW_TTL = 60 * 60
 const ATTEMPT_TTL = 10 * 60
 const MAX_SENDS = 3
+const MAX_SENDS_PER_IP = 12
 const MAX_ATTEMPTS = 8
+const MAX_ATTEMPTS_PER_EMAIL = 16
 const CODE_RE = /^[A-Z][0-9]{4}$/
 const GENERIC_RESET_MESSAGE = 'If that email exists, a verification code has been sent.'
 
@@ -174,9 +176,12 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
     try { body = await request.json() as { email?: string } } catch { return json({ error: 'Invalid JSON body' }, 400) }
     const email = String(body.email ?? '').trim().toLowerCase()
     if (!email || !email.includes('@')) return json({ ok: true, message: GENERIC_RESET_MESSAGE })
-    if (!(await bump(env.AUTH_KV, `secure_otp_send:reset:${email}`, MAX_SENDS, SEND_WINDOW_TTL))) {
-      return json({ ok: true, message: GENERIC_RESET_MESSAGE })
-    }
+    const ip = clientIp(request)
+    const [emailAllowed, ipAllowed] = await Promise.all([
+      bump(env.AUTH_KV, `secure_otp_send:reset:${email}`, MAX_SENDS, SEND_WINDOW_TTL),
+      bump(env.AUTH_KV, `secure_otp_send_ip:reset:${ip}`, MAX_SENDS_PER_IP, SEND_WINDOW_TTL),
+    ])
+    if (!emailAllowed || !ipAllowed) return json({ ok: true, message: GENERIC_RESET_MESSAGE })
     const user = await getUserByEmail(env.AUTH_DB, email)
     if (!user) return json({ ok: true, message: GENERIC_RESET_MESSAGE })
 
@@ -197,7 +202,12 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
     const code = String(body.otp ?? '').trim().toUpperCase()
     const password = String(body.new_password ?? '')
     if (!email || !CODE_RE.test(code) || password.length < 8) return json({ error: 'Invalid or expired verification code.' }, 401)
-    if (!(await bump(env.AUTH_KV, `secure_otp_attempt:reset:${email}:${clientIp(request)}`, MAX_ATTEMPTS, ATTEMPT_TTL))) {
+    const ip = clientIp(request)
+    const [ipAllowed, emailAllowed] = await Promise.all([
+      bump(env.AUTH_KV, `secure_otp_attempt:reset:${email}:${ip}`, MAX_ATTEMPTS, ATTEMPT_TTL),
+      bump(env.AUTH_KV, `secure_otp_attempt_global:reset:${email}`, MAX_ATTEMPTS_PER_EMAIL, ATTEMPT_TTL),
+    ])
+    if (!ipAllowed || !emailAllowed) {
       return json({ error: 'Too many reset attempts. Request a new code later.' }, 429)
     }
     const stored = await env.AUTH_KV.get(`otp:${email}`)
@@ -210,7 +220,8 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
     await updatePasswordHash(env.AUTH_DB, user.id, await hashPassword(password))
     await Promise.all([
       env.AUTH_KV.delete(`otp:${email}`),
-      env.AUTH_KV.delete(`secure_otp_attempt:reset:${email}:${clientIp(request)}`),
+      env.AUTH_KV.delete(`secure_otp_attempt:reset:${email}:${ip}`),
+      env.AUTH_KV.delete(`secure_otp_attempt_global:reset:${email}`),
       revokeRefreshTokens(env, user.id),
     ])
     return json({ ok: true, message: 'Password updated successfully. Please sign in again.' })
