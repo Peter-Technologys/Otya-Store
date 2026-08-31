@@ -1,9 +1,9 @@
 import aiWorker from './index.mjs'
 import { handleSupportEmailAdmin } from './support-email.mjs'
-import { handleConsoleAdmin } from './console-tools.mjs'
 import { handleGmailConnector } from './gmail-connector.mjs'
 import { handlePublicChat, handleSharedTelegram } from './client-chat.mjs'
 import { handleOwnerActions } from './owner-actions.mjs'
+import { handleOwnerConsole } from './owner-console.mjs'
 
 const FAST_MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
 const output=r=>typeof r?.response==='string'?r.response.trim():''
@@ -173,7 +173,7 @@ export default {
     const url=new URL(request.url)
     if(url.pathname.startsWith('/api/admin/ai/actions/')) return handleOwnerActions(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/support/')) return handleSupportEmailAdmin(request,runtimeEnv)
-    if(url.pathname.startsWith('/api/admin/ai/console/')) return handleConsoleAdmin(request,runtimeEnv)
+    if(url.pathname.startsWith('/api/admin/ai/console/')) return handleOwnerConsole(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,runtimeEnv)
     if(url.pathname==='/api/ai/chat') return handlePublicChat(request,runtimeEnv)
     if(url.pathname.startsWith('/api/telegram/')){const shared=await handleSharedTelegram(request,runtimeEnv);if(shared)return shared}
