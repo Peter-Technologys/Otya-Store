@@ -180,3 +180,39 @@ jobs:
             printf '%s' "$CONNECTOR_ENCRYPTION_KEY" | npx wrangler secret put CONNECTOR_ENCRYPTION_KEY
           fi
           npx wrangler deploy
+
+  verify-production:
+    name: Verify live OTYA after deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-ai
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for Cloudflare propagation
+        run: sleep 15
+      - name: Smoke-test public OTYA routes
+        env:
+          SITE: https://petersmartlink.com
+        run: |
+          set -euo pipefail
+          check() {
+            local path="$1"
+            local expected="$2"
+            local code=""
+            for attempt in 1 2 3 4 5; do
+              code="$(curl --silent --show-error --location --output /tmp/otya-smoke-body --write-out '%{http_code}' --connect-timeout 10 --max-time 20 "$SITE$path" || true)"
+              if printf '%s' "$code" | grep -Eq "$expected"; then
+                echo "OK $path -> $code"
+                return 0
+              fi
+              echo "Attempt $attempt: $path -> ${code:-network-error}"
+              sleep $((attempt * 5))
+            done
+            echo "::error::Production smoke test failed for $path (last status ${code:-network-error})"
+            head -c 1000 /tmp/otya-smoke-body 2>/dev/null || true
+            exit 1
+          }
+          check / '^(200|301|302|307|308)$'
+          check /latest '^(200|301|302|307|308)$'
+          check /download '^(200|301|302|307|308)$'
+          check /api/version '^(200|401)$'
