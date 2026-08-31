@@ -24,6 +24,11 @@ function resolvedDark(): boolean {
  * The full OTYA logo is always the product/brand identity. Legacy callers that
  * pass `thinking` are intentionally routed to the separate three-ball OTYA AI
  * mark so AI activity never animates or substitutes the full brand logo.
+ *
+ * At very small rendered sizes the canonical artwork loses its gradients,
+ * hairline highlights and tiny satellite dots to pixel rounding. Use an
+ * optically corrected micro asset at 28 px and below: same twisted-O silhouette,
+ * solid high-contrast body, no hairline decoration, and larger colored dots.
  */
 export function OtyaBrandMark({ size = 36, thinking = false, className = '', label }: Props) {
   const [dark, setDark] = useState(false)
@@ -45,7 +50,10 @@ export function OtyaBrandMark({ size = 36, thinking = false, className = '', lab
     return <OtyaAiMark size={size} active label={label ?? 'Otya AI is working'} className={className} />
   }
 
-  const src = dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
+  const micro = size <= 28
+  const src = micro
+    ? dark ? '/otya-icon-micro-dark.svg' : '/otya-icon-micro.svg'
+    : dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
 
   return <img
     src={src}
