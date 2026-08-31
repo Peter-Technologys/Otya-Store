@@ -21,12 +21,12 @@ test('a different release tag cannot reuse or decrease the Android version code'
   const workflow = read('src/release-workflow.mjs')
   assert.match(workflow, /latest\.tag !== release\.tag/)
   assert.match(workflow, /Number\(latest\.version_code\) >= release\.versionCode/)
-  assert.match(workflow, /Refusing non-monotonic version code/)
+  assert.match(workflow, /Version code \$\{release\.versionCode\} must be newer/)
 })
 
 test('optional reporting cannot turn an already-published release into a false failure', () => {
   const workflow = read('src/release-workflow.mjs')
-  assert.match(workflow, /Completion report failed/)
+  assert.match(workflow, /Release report failed/)
   assert.match(workflow, /Analytics write failed/)
   assert.match(workflow, /return \{ sent: false, error:/)
   assert.match(workflow, /return \{ written: false, error:/)
