@@ -49,15 +49,22 @@ export function adminEmails(env: AdminEnv): Set<string> {
   return new Set(values.map(v => v.trim().toLowerCase()).filter(Boolean))
 }
 
+function adminSessionSecret(env: AdminEnv): string {
+  const dedicated = text(env.ADMIN_SESSION_SECRET)
+  if (dedicated) return dedicated
+  const internal = text(env.INTERNAL_SECRET)
+  return internal ? `otya-admin-session:v1:${internal}` : ''
+}
+
 export function adminConfigured(env: AdminEnv): boolean {
   return adminEmails(env).size > 0
     && Boolean(env.AUTH?.fetch)
-    && Boolean(text(env.ADMIN_SESSION_SECRET))
+    && Boolean(adminSessionSecret(env))
 }
 
 export async function createAdminSession(env: AdminEnv, email: string): Promise<string> {
-  const secret = text(env.ADMIN_SESSION_SECRET)
-  if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured')
+  const secret = adminSessionSecret(env)
+  if (!secret) throw new Error('Admin session signing is not configured')
   const payload = JSON.stringify({
     email: email.trim().toLowerCase(),
     mfa: true,
@@ -68,7 +75,7 @@ export async function createAdminSession(env: AdminEnv, email: string): Promise<
 }
 
 async function verifySignedAdminCookie(request: Request, env: AdminEnv): Promise<boolean> {
-  const secret = text(env.ADMIN_SESSION_SECRET)
+  const secret = adminSessionSecret(env)
   if (!secret) return false
 
   const raw = cookieValue(request, COOKIE_NAME)

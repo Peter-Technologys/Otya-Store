@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
   const configured = adminConfigured(recordEnv)
+  const accountAdmin = Boolean(await getOtyaAccountAdminEmail(request, recordEnv))
   const authenticated = configured ? await verifyAdminSession(request, recordEnv) : false
-  const accountAdmin = configured ? Boolean(await getOtyaAccountAdminEmail(request, recordEnv)) : false
 
   return NextResponse.json(
     { ok: true, configured, authenticated, accountAdmin },
@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
   if (!adminConfigured(recordEnv)) {
-    return NextResponse.json({ error: 'Admin verification is not configured.' }, { status: 503 })
+    return NextResponse.json({ error: 'Owner verification is not configured.' }, { status: 503 })
   }
 
   const accountEmail = await getOtyaAccountAdminEmail(request, recordEnv)
   if (!accountEmail) {
-    return NextResponse.json({ error: 'Sign in with an allowed Otya administrator account first.' }, { status: 401 })
+    return NextResponse.json({ error: 'Sign in with the Otya owner account first.' }, { status: 401 })
   }
 
   const body = await request.json().catch(() => ({})) as { action?: string; otp?: string }
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  return NextResponse.json({ error: 'Unsupported admin verification step.' }, { status: 400 })
+  return NextResponse.json({ error: 'Unsupported owner verification step.' }, { status: 400 })
 }
 
 export async function DELETE() {
