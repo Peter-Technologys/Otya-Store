@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout rebuild branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: v1-rebuild
           fetch-depth: 0
