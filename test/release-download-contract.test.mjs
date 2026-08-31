@@ -16,3 +16,18 @@ test('generic release downloads never silently select ARM64', () => {
   assert.match(workflow, /arm64: `\$\{release\.workerUrl\}\/apk\/arm64`/)
   assert.match(workflow, /arm32: `\$\{release\.workerUrl\}\/apk\/arm32`/)
 })
+
+test('a different release tag cannot reuse or decrease the Android version code', () => {
+  const workflow = read('src/release-workflow.mjs')
+  assert.match(workflow, /latest\.tag !== release\.tag/)
+  assert.match(workflow, /Number\(latest\.version_code\) >= release\.versionCode/)
+  assert.match(workflow, /Refusing non-monotonic version code/)
+})
+
+test('optional reporting cannot turn an already-published release into a false failure', () => {
+  const workflow = read('src/release-workflow.mjs')
+  assert.match(workflow, /Completion report failed/)
+  assert.match(workflow, /Analytics write failed/)
+  assert.match(workflow, /return \{ sent: false, error:/)
+  assert.match(workflow, /return \{ written: false, error:/)
+})
