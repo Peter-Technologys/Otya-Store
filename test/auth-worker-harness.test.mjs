@@ -1,9 +1,13 @@
-import test, { after } from 'node:test'
+import test, { after, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { createTestHarness } from 'wrangler'
 
 const server = createTestHarness({
   workers: [{ configPath: './auth-worker/wrangler.toml' }],
+})
+
+before(async () => {
+  await server.listen()
 })
 
 after(async () => {
