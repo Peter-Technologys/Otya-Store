@@ -1,11 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 72" role="img" aria-label="Otya is thinking">
-  <defs>
-    <radialGradient id="b" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#6aa8ff"/><stop offset="1" stop-color="#1767e8"/></radialGradient>
-    <radialGradient id="r" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#ff8178"/><stop offset="1" stop-color="#d51c15"/></radialGradient>
-    <radialGradient id="y" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#ffe975"/><stop offset="1" stop-color="#e0a900"/></radialGradient>
-    <path id="route" d="M18 42 C30 8 90 8 102 42 C90 68 30 68 18 42Z"/>
-  </defs>
-  <circle r="12" fill="url(#b)"><animateMotion dur="1.65s" repeatCount="indefinite" begin="0s"><mpath href="#route"/></animateMotion></circle>
-  <circle r="12" fill="url(#r)"><animateMotion dur="1.65s" repeatCount="indefinite" begin="-0.11s"><mpath href="#route"/></animateMotion></circle>
-  <circle r="12" fill="url(#y)"><animateMotion dur="1.65s" repeatCount="indefinite" begin="-0.22s"><mpath href="#route"/></animateMotion></circle>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 96" role="img" aria-label="Next is thinking">
+  <g transform-origin="60px 48px">
+    <animateTransform attributeName="transform" type="rotate" from="0 60 48" to="360 60 48" dur="1.5s" repeatCount="indefinite"/>
+    <circle cx="37" cy="31" r="13" fill="#2979FF"/>
+    <circle cx="83" cy="31" r="13" fill="#FF3B30"/>
+    <circle cx="60" cy="71" r="13" fill="#FFD60A"/>
+  </g>
 </svg>
