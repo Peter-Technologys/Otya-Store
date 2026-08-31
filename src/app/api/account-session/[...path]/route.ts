@@ -195,6 +195,7 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
   const data = await decode(upstream)
   const response = NextResponse.json(data, { status: upstream.status })
   if (refreshed) setSessionCookies(response, accessToken, refreshed.refreshToken)
+  if (data.sign_in_again === true) clearSessionCookies(response)
   if (upstream.status === 401 || upstream.status === 403) clearSessionCookies(response)
   response.headers.set('Cache-Control', 'no-store')
   response.headers.set('X-Content-Type-Options', 'nosniff')
