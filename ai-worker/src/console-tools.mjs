@@ -81,6 +81,15 @@ async function pluginRegistry(env) {
       write: false,
     },
     {
+      id: 'otya-knowledge',
+      name: 'OTYA Knowledge',
+      category: 'Knowledge',
+      status: env.AI_SEARCH?.search ? 'connected' : 'setup_required',
+      capabilities: ['private product knowledge search', 'docs retrieval', 'release/support context'],
+      write: false,
+      setup_hint: 'Bound directly to the existing private Cloudflare AI Search instance. No public search endpoint is exposed.',
+    },
+    {
       id: 'firebase-remote-config',
       name: 'Firebase Remote Config',
       category: 'Mobile services',
@@ -149,6 +158,8 @@ async function systemSnapshot(env) {
     database: Boolean(env.DB),
     kv: Boolean(env.KV),
     ai: Boolean(env.AI?.run),
+    ai_search: Boolean(env.AI_SEARCH?.search),
+    browser: Boolean(env.BROWSER),
     push: Boolean(env.PUSH_QUEUE?.send),
     email: Boolean(env.RESEND_API_KEY),
     control_plane: await controlPlaneStatus(env),
@@ -246,6 +257,35 @@ async function supportAudit(env) {
   }
 }
 
+async function knowledgeSearch(env, query) {
+  const text = clean(query, 1800)
+  if (!text) return { available: true, chunks: [] }
+  if (!env.AI_SEARCH?.search) {
+    return { available: false, chunks: [], reason: 'AI Search binding unavailable' }
+  }
+  try {
+    const result = await env.AI_SEARCH.search({
+      messages: [{ role: 'user', content: text }],
+      ai_search_options: {
+        retrieval: { max_num_results: 5 },
+      },
+    })
+    const chunks = Array.isArray(result?.chunks) ? result.chunks.slice(0, 5) : []
+    return {
+      available: true,
+      chunks: chunks.map((chunk) => ({
+        text: clean(chunk?.text ?? chunk?.content ?? chunk?.page_content, 2200),
+        filename: clean(chunk?.filename ?? chunk?.metadata?.filename, 240),
+        source: clean(chunk?.source ?? chunk?.metadata?.source ?? chunk?.metadata?.url, 500),
+        score: Number.isFinite(Number(chunk?.score)) ? Number(chunk.score) : null,
+      })).filter((chunk) => chunk.text),
+    }
+  } catch (error) {
+    console.error('[ai-console] knowledge search failed:', error?.message)
+    return { available: false, chunks: [], reason: 'OTYA knowledge search is temporarily unavailable' }
+  }
+}
+
 async function operationalReport(env) {
   const [status, plugins, feedback, crashes, releases, support, audit] = await Promise.all([
     systemSnapshot(env),
@@ -270,9 +310,10 @@ async function routeTool(env, message) {
     'release_summary',
     'support_inbox',
     'support_audit',
+    'knowledge_search',
     'full_report',
   ]
-  const prompt = `Choose at most one read-only OTYA admin tool that materially helps answer the user. Tools: ${tools.join(', ')}. Use config_status for Firebase Remote Config, feature-config ownership, config source or sync questions. Use full_report for requests like system report, daily/weekly report, what needs attention, overall health, summarize everything. Use support_inbox for requests about unread/recent support email. Use none for ordinary conversation, writing or planning. Return JSON only: {"tool":"name","reason":"brief"}.\nUser: ${clean(message, 1800)}`
+  const prompt = `Choose at most one read-only OTYA admin tool that materially helps answer the user. Tools: ${tools.join(', ')}. Use knowledge_search when the owner asks how OTYA is designed, how a product feature should behave, what internal docs say, or needs indexed product/support/release knowledge. Use config_status for Firebase Remote Config, feature-config ownership, config source or sync questions. Use full_report for requests like system report, daily/weekly report, what needs attention, overall health, summarize everything. Use support_inbox for requests about unread/recent support email. Use none for ordinary conversation, writing or planning. Return JSON only: {"tool":"name","reason":"brief"}.\nUser: ${clean(message, 1800)}`
   const routed = parse(await runAi(env, [
     { role: 'system', content: 'You are a conservative private admin tool router. Never choose a write action.' },
     { role: 'user', content: prompt },
@@ -282,7 +323,7 @@ async function routeTool(env, message) {
     : { tool: 'none', reason: 'No safe tool selected.' }
 }
 
-async function toolData(env, tool) {
+async function toolData(env, tool, message = '') {
   if (tool === 'plugins') return { plugins: await pluginRegistry(env) }
   if (tool === 'system_status') return { status: await systemSnapshot(env) }
   if (tool === 'config_status') return { control_plane: await controlPlaneStatus(env) }
@@ -291,6 +332,7 @@ async function toolData(env, tool) {
   if (tool === 'release_summary') return { releases: await recentReleases(env) }
   if (tool === 'support_inbox') return { emails: await supportInbox(env, 15) }
   if (tool === 'support_audit') return { audit: await supportAudit(env) }
+  if (tool === 'knowledge_search') return { knowledge: await knowledgeSearch(env, message) }
   if (tool === 'full_report') return operationalReport(env)
   return null
 }
@@ -318,8 +360,8 @@ async function chat(env, body) {
     content: clean(x.content, 4000),
   }))
   const route = await routeTool(env, message)
-  const data = route.tool === 'none' ? null : await toolData(env, route.tool)
-  const system = `You are OTYA AI, the private administrator assistant for OTYA and PeterSmart Link. Work like an operator in a conversational interface: answer normal questions, inspect connected OTYA data when useful, and present reports directly in the conversation with priorities, counts, risks and recommended next actions. OTYA has one backend control plane. Firebase is a mobile-service provider behind Cloudflare: FCM handles push transport, Remote Config owns client experiment values with Cloudflare fallback, and Firebase identity is linked behind OTYA Auth. Cloudflare remains the safety-config, API, database, file and OTYA-session authority. Never ask for or expose Firebase service-account JSON, API credentials, Worker secrets, passwords, refresh tokens or OTPs. Do not force the admin to open a dashboard when supplied tool data can answer the question. Never pretend a plugin is connected when it is not. Read operations may happen automatically. Any external write action such as sending email, push notifications, publishing Remote Config, deployments, deletion, account changes or infrastructure mutation must require an explicit approval step before execution. If the admin asks for a write action, prepare the exact proposed action and clearly state that approval is required rather than claiming it happened. Use supplied tool data faithfully and mention when data is unavailable.`
+  const data = route.tool === 'none' ? null : await toolData(env, route.tool, message)
+  const system = `You are OTYA AI, the private administrator assistant for OTYA and PeterSmart Link. Work like an operator in a conversational interface: answer normal questions, inspect connected OTYA data and private OTYA knowledge when useful, and present reports directly in the conversation with priorities, counts, risks and recommended next actions. OTYA has one backend control plane. Firebase is a mobile-service provider behind Cloudflare: FCM handles push transport, Remote Config owns client experiment values with Cloudflare fallback, and Firebase identity is linked behind OTYA Auth. Cloudflare remains the safety-config, API, database, file and OTYA-session authority. Never ask for or expose Firebase service-account JSON, API credentials, Worker secrets, passwords, refresh tokens or OTPs. Do not force the admin to open a dashboard when supplied tool data can answer the question. Never pretend a plugin is connected when it is not. Read operations may happen automatically. Any external write action such as sending email, push notifications, publishing Remote Config, deployments, deletion, account changes or infrastructure mutation must require an explicit approval step before execution. If the admin asks for a write action, prepare the exact proposed action and clearly state that approval is required rather than claiming it happened. Use supplied tool data faithfully and mention when data is unavailable.`
   const context = data
     ? `\nRead-only tool used: ${route.tool}\nTool data:\n${JSON.stringify(data).slice(0, 22000)}`
     : ''
