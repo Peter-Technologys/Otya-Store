@@ -1,6 +1,7 @@
 const TELEGRAM_API = 'https://api.telegram.org'
 const RESEND_API = 'https://api.resend.com/emails'
 const ACTION_TTL_SECONDS = 15 * 60
+const LATEST_ACTION_KEY = 'owner-action:latest'
 
 const clean = (value, max = 4000) => String(value ?? '')
   .replace(/[\u0000-\u001f]/g, ' ')
@@ -127,6 +128,12 @@ async function prepare(env, body) {
     payload: normalized.payload,
   }
   await env.KV.put(actionKey(id), JSON.stringify(record), { expirationTtl: ACTION_TTL_SECONDS })
+  await env.KV.put(LATEST_ACTION_KEY, JSON.stringify({
+    id,
+    approval_token: approvalToken,
+    created_at: record.created_at,
+    expires_at: record.expires_at,
+  }), { expirationTtl: ACTION_TTL_SECONDS })
   return {
     id,
     approval_token: approvalToken,
@@ -143,6 +150,28 @@ async function readPending(env, id) {
   const raw = await env.KV.get(actionKey(id))
   if (!raw) return null
   try { return JSON.parse(raw) } catch { return null }
+}
+
+export async function latestPendingOwnerAction(env) {
+  if (!env.KV) return null
+  const raw = await env.KV.get(LATEST_ACTION_KEY)
+  if (!raw) return null
+  try {
+    const pointer = JSON.parse(raw)
+    const action = await readPending(env, clean(pointer?.id, 80))
+    if (!action || action.status !== 'pending') return null
+    return {
+      id: action.id,
+      approval_token: clean(pointer?.approval_token, 120),
+      type: action.type,
+      summary: action.summary,
+      payload: action.payload,
+      created_at: action.created_at,
+      expires_at: action.expires_at,
+    }
+  } catch {
+    return null
+  }
 }
 
 async function approve(env, body) {
