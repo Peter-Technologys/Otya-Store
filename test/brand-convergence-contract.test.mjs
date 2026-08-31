@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('Otya AI uses the three-ball identity and the web has a branded loader', () => {
+test('Next uses the three-ball identity and the web has a branded loader', () => {
   const mark = read('src/components/OtyaBrandMark.tsx')
   const consoleUi = read('src/app/admin/ai/ConsoleClient.tsx')
   const loading = read('src/app/loading.tsx')
@@ -12,10 +12,14 @@ test('Otya AI uses the three-ball identity and the web has a branded loader', ()
   const thinking = read('public/otya-ai-thinking.svg')
 
   assert.match(mark, /ai\?: boolean/)
+  assert.match(mark, /Next, Otya's assistant/)
   assert.match(mark, /src = thinking \? '\/otya-ai-thinking\.svg' : '\/otya-ai\.svg'/)
   assert.match(consoleUi, /<OtyaBrandMark ai/)
+  assert.match(consoleUi, />Next</)
+  assert.doesNotMatch(consoleUi, />Otya AI</)
   assert.doesNotMatch(consoleUi, />Command</)
   assert.match(loading, /<OtyaBrandMark ai thinking/)
+  assert.match(loading, /Next is getting/)
 
   for (const source of [ai, thinking]) {
     assert.match(source, /#2979FF|#1767e8/i)
