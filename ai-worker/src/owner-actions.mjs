@@ -63,14 +63,14 @@ function normalizeAction(type, payload, env) {
   throw new Error('Unsupported owner action')
 }
 
-async function executeTelegram(env, payload) {
+async function executeTelegram(env, action) {
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('Telegram bot is not configured')
   const response = await fetch(`${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: telegramTarget(env),
-      text: payload.text,
+      text: action.payload.text,
       disable_web_page_preview: true,
     }),
   })
@@ -83,7 +83,7 @@ async function executeTelegram(env, payload) {
   }
 }
 
-async function executeOwnerEmail(env, payload) {
+async function executeOwnerEmail(env, action) {
   if (!env.RESEND_API_KEY) throw new Error('Resend is not configured')
   const to = env.ADMIN_REPORT_EMAIL || 'petersmartlink@gmail.com'
   const response = await fetch(RESEND_API, {
@@ -91,13 +91,17 @@ async function executeOwnerEmail(env, payload) {
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       'Content-Type': 'application/json',
+      // Resend also receives a stable provider-side idempotency key. D1 is the
+      // primary execution guard; this is a second layer if a network retry
+      // reaches Resend after the provider accepted the first request.
+      'Idempotency-Key': `otya-owner-${action.id}`,
     },
     body: JSON.stringify({
       from: 'OTYA <noreply@petersmartlink.com>',
       to: [to],
       reply_to: 'support@petersmartlink.com',
-      subject: payload.subject,
-      text: payload.text,
+      subject: action.payload.subject,
+      text: action.payload.text,
     }),
   })
   const data = await response.json().catch(() => ({}))
@@ -106,9 +110,60 @@ async function executeOwnerEmail(env, payload) {
 }
 
 async function execute(env, action) {
-  if (action.type === 'telegram_post') return executeTelegram(env, action.payload)
-  if (action.type === 'owner_email') return executeOwnerEmail(env, action.payload)
+  if (action.type === 'telegram_post') return executeTelegram(env, action)
+  if (action.type === 'owner_email') return executeOwnerEmail(env, action)
   throw new Error('Unsupported owner action')
+}
+
+async function ensureExecutionSchema(env) {
+  if (!env.DB?.prepare) throw new Error('D1 execution guard is not configured')
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS owner_action_executions (
+      id TEXT PRIMARY KEY,
+      action_type TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('executing', 'completed', 'failed')),
+      claimed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TEXT,
+      failed_at TEXT,
+      provider TEXT,
+      provider_reference TEXT,
+      error TEXT
+    )
+  `).run()
+}
+
+async function claimExecution(env, action) {
+  await ensureExecutionSchema(env)
+  const result = await env.DB.prepare(`
+    INSERT INTO owner_action_executions (id, action_type, status)
+    VALUES (?, ?, 'executing')
+    ON CONFLICT(id) DO NOTHING
+  `).bind(action.id, action.type).run()
+  if (Number(result?.meta?.changes || 0) === 1) return
+
+  const existing = await env.DB.prepare(
+    'SELECT status FROM owner_action_executions WHERE id = ? LIMIT 1',
+  ).bind(action.id).first()
+  throw new Error(`Owner action was already claimed (${clean(existing?.status, 40) || 'unknown'}). Check its status instead of executing it again.`)
+}
+
+async function finishExecution(env, action, result) {
+  const reference = result?.message_id ?? result?.email_id ?? null
+  await env.DB.prepare(`
+    UPDATE owner_action_executions
+    SET status = 'completed', completed_at = CURRENT_TIMESTAMP,
+        provider = ?, provider_reference = ?, error = NULL
+    WHERE id = ? AND status = 'executing'
+  `).bind(clean(result?.provider, 40) || null, reference == null ? null : String(reference), action.id).run()
+}
+
+async function failExecution(env, action, error) {
+  if (!env.DB?.prepare) return
+  await env.DB.prepare(`
+    UPDATE owner_action_executions
+    SET status = 'failed', failed_at = CURRENT_TIMESTAMP, error = ?
+    WHERE id = ? AND status = 'executing'
+  `).bind(clean(error?.message, 300), action.id).run()
 }
 
 async function prepare(env, body) {
@@ -184,13 +239,18 @@ async function approve(env, body) {
   if (action.status !== 'pending') throw new Error('Owner action is no longer pending')
   if (action.approval_token !== token) throw new Error('Approval token does not match')
 
-  // Mark first so an accidental retry cannot execute the same external write twice.
+  // KV is intentionally used for short-lived conversational state, but it is
+  // eventually consistent. Claim the external write atomically in D1 before
+  // changing KV or contacting Telegram/Resend so concurrent approvals cannot
+  // execute the same action twice.
+  await claimExecution(env, action)
   action.status = 'executing'
   action.approval_token = null
   await env.KV.put(actionKey(id), JSON.stringify(action), { expirationTtl: ACTION_TTL_SECONDS })
 
   try {
     const result = await execute(env, action)
+    await finishExecution(env, action, result)
     action.status = 'completed'
     action.completed_at = new Date().toISOString()
     action.result = result
@@ -204,6 +264,7 @@ async function approve(env, body) {
       completed_at: action.completed_at,
     }
   } catch (error) {
+    await failExecution(env, action, error).catch(() => {})
     action.status = 'failed'
     action.failed_at = new Date().toISOString()
     action.error = clean(error?.message, 300)
