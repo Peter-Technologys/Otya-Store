@@ -1,0 +1,12 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const source = readFileSync(new URL('../src/app/api/account-session/[...path]/route.ts', import.meta.url), 'utf8')
+
+test('browser account proxy clears cookies when a protected factor change requires reauthentication', () => {
+  assert.match(source, /data\.sign_in_again === true/)
+  assert.match(source, /clearSessionCookies\(response\)/)
+  assert.match(source, /__Host-otya_access/)
+  assert.match(source, /__Host-otya_refresh/)
+})
