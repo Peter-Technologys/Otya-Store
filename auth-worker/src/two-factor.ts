@@ -5,6 +5,11 @@ interface KVNamespaceLike {
   get(key: string): Promise<string | null>
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
   delete(key: string): Promise<void>
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
+    keys: { name: string }[]
+    list_complete: boolean
+    cursor?: string
+  }>
 }
 
 export interface TwoFactorEnv {
@@ -47,10 +52,6 @@ async function requireUser(request: Request, env: TwoFactorEnv): Promise<string 
 }
 
 export async function ensureTwoFactorSchema(db: D1Database): Promise<void> {
-  // Use a prepared CREATE statement instead of db.exec(). D1's exec path is
-  // intended for SQL scripts and can be more brittle on a hot authentication
-  // request. This table is also included in the canonical auth schema, so this
-  // remains an idempotent compatibility guard for older deployments.
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS account_two_factor (
       user_id TEXT PRIMARY KEY,
@@ -65,6 +66,17 @@ export async function ensureTwoFactorSchema(db: D1Database): Promise<void> {
 
 function randomBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length))
+}
+
+function randomBelow(maxExclusive: number): number {
+  if (!Number.isSafeInteger(maxExclusive) || maxExclusive <= 0 || maxExclusive > 256) {
+    throw new Error('Invalid random range')
+  }
+  const limit = Math.floor(256 / maxExclusive) * maxExclusive
+  while (true) {
+    const value = randomBytes(1)[0]
+    if (value < limit) return value % maxExclusive
+  }
 }
 
 function bytesToBase32(bytes: Uint8Array): string {
@@ -196,9 +208,8 @@ function generateRecoveryCodes(): string[] {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   const codes: string[] = []
   for (let n = 0; n < RECOVERY_COUNT; n++) {
-    const bytes = randomBytes(RECOVERY_LENGTH)
     let code = ''
-    for (const byte of bytes) code += alphabet[byte % alphabet.length]
+    for (let i = 0; i < RECOVERY_LENGTH; i++) code += alphabet[randomBelow(alphabet.length)]
     codes.push(`${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}`)
   }
   return codes
@@ -227,6 +238,21 @@ async function consumeRecoveryCode(
     "UPDATE account_two_factor SET recovery_hashes = ?, updated_at = datetime('now') WHERE user_id = ?",
   ).bind(JSON.stringify(hashes), row.user_id).run()
   return true
+}
+
+async function revokeAllUserRefreshTokens(env: TwoFactorEnv, userId: string): Promise<void> {
+  let cursor: string | undefined
+  do {
+    const page = await env.AUTH_KV.list({ prefix: `rt_user:${userId}:`, limit: 1000, cursor })
+    for (const key of page.keys) {
+      const token = key.name.slice(`rt_user:${userId}:`.length)
+      await Promise.all([
+        env.AUTH_KV.delete(key.name),
+        env.AUTH_KV.delete(`rt:${token}`),
+      ])
+    }
+    cursor = page.list_complete ? undefined : page.cursor
+  } while (cursor)
 }
 
 export async function verifySecondFactor(
@@ -341,7 +367,8 @@ export async function handleTwoFactorRoute(
         updated_at = datetime('now')
     `).bind(userId, encrypted, JSON.stringify(hashes)).run()
     await env.AUTH_KV.delete(`2fa_pending:${userId}`)
-    return json({ ok: true, enabled: true, recovery_codes: recoveryCodes })
+    await revokeAllUserRefreshTokens(env, userId)
+    return json({ ok: true, enabled: true, recovery_codes: recoveryCodes, sign_in_again: true })
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/2fa/disable') {
@@ -363,7 +390,8 @@ export async function handleTwoFactorRoute(
     if (!verified) return json({ error: 'A valid authenticator or recovery code is required' }, 401)
     await env.AUTH_DB.prepare('DELETE FROM account_two_factor WHERE user_id = ?').bind(userId).run()
     await env.AUTH_KV.delete(`2fa_pending:${userId}`)
-    return json({ ok: true, enabled: false })
+    await revokeAllUserRefreshTokens(env, userId)
+    return json({ ok: true, enabled: false, sign_in_again: true })
   }
 
   if (request.method === 'POST' && url.pathname === '/auth/2fa/recovery-codes') {
@@ -382,7 +410,8 @@ export async function handleTwoFactorRoute(
     await env.AUTH_DB.prepare(
       "UPDATE account_two_factor SET recovery_hashes = ?, updated_at = datetime('now') WHERE user_id = ?",
     ).bind(JSON.stringify(hashes), userId).run()
-    return json({ ok: true, recovery_codes: recoveryCodes })
+    await revokeAllUserRefreshTokens(env, userId)
+    return json({ ok: true, recovery_codes: recoveryCodes, sign_in_again: true })
   }
 
   return null
