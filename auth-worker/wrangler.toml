@@ -23,6 +23,10 @@ database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 binding = "AUTH_KV"
 id      = "6b9faff751724fdb86c16452b9c99cf6"
 
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "otya-auth-analytics"
+
 [vars]
 CORS_ORIGIN = "https://petersmartlink.com"
 GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
