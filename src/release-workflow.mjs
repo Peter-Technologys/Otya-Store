@@ -44,11 +44,11 @@ function normalizePayload(raw = {}) {
   }
 
   const arm64Key = requireString(
-    raw.arm64Key ?? `releases/${tag}/OTYA-Player-${tag}-arm64.apk`,
+    raw.arm64Key ?? `releases/${tag}/Otya-arm64.apk`,
     'arm64Key',
   )
   const arm32Key = requireString(
-    raw.arm32Key ?? `releases/${tag}/OTYA-Player-${tag}-arm32.apk`,
+    raw.arm32Key ?? `releases/${tag}/Otya-arm32.apk`,
     'arm32Key',
   )
 
@@ -82,7 +82,7 @@ async function sendAdminReport(env, subject, text) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'OTYA Releases <noreply@petersmartlink.com>',
+      from: 'Otya <noreply@petersmartlink.com>',
       to: [env.ADMIN_REPORT_EMAIL],
       subject,
       text,
@@ -110,9 +110,9 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
             this.env.R2.head(release.arm64Key),
             this.env.R2.head(release.arm32Key),
           ])
-          if (!arm64 || !arm32) throw new Error('One or more versioned APK artifacts are missing from R2')
+          if (!arm64 || !arm32) throw new Error('One or more APK files are missing from R2')
           if ((arm64.size ?? 0) < 5_000_000 || (arm32.size ?? 0) < 5_000_000) {
-            throw new Error('One or more APK artifacts are unexpectedly small')
+            throw new Error('One or more APK files are too small')
           }
           return {
             arm64: { key: release.arm64Key, size: arm64.size, etag: arm64.etag },
@@ -121,7 +121,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         },
       )
 
-      const database = await step.do('upsert D1 release metadata safely', async () => {
+      const database = await step.do('save release metadata', async () => {
         const latest = await this.env.DB.prepare(
           'SELECT tag, version_code FROM releases ORDER BY version_code DESC LIMIT 1',
         ).first()
@@ -130,7 +130,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           && latest.tag !== release.tag
           && Number(latest.version_code) >= release.versionCode
         ) {
-          throw new Error(`Refusing non-monotonic version code ${release.versionCode}; current release is ${latest.tag} (${latest.version_code})`)
+          throw new Error(`Version code ${release.versionCode} must be newer than ${latest.version_code}`)
         }
 
         const date = new Date().toISOString().slice(0, 10)
@@ -175,18 +175,16 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           arm64: release.arm64Key,
           arm32: release.arm32Key,
           latestAliases: {
-            arm64: 'OtyaPlayer-arm64.apk',
-            arm32: 'OtyaPlayer-arm32.apk',
+            arm64: 'Otya-arm64.apk',
+            arm32: 'Otya-arm32.apk',
           },
-          changelog: release.changelog || `OTYA Player ${release.version} is now available.`,
+          changelog: release.changelog || `Otya ${release.version} is ready.`,
           minSdk: release.minSdk,
           targetSdk: release.targetSdk,
           workerUrl: release.workerUrl,
           downloads: {
             arm64: `${release.workerUrl}/apk/arm64`,
             arm32: `${release.workerUrl}/apk/arm32`,
-            // Generic consumers must not be silently routed to ARM64. The app
-            // uses the explicit ABI URLs; everyone else gets the download page.
             auto: `${release.workerUrl}/download/otya-player`,
             page: `${release.workerUrl}/download/otya-player`,
           },
@@ -203,18 +201,18 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         return value
       })
 
-      const firebaseDistribution = await step.do('mirror test build to Firebase App Distribution', async () => {
+      const firebaseDistribution = await step.do('send test build to Firebase', async () => {
         try {
           const apk = await this.env.R2.get(release.arm64Key)
           if (!apk?.body) return { configured: false, mirrored: false, reason: 'arm64-apk-missing' }
           return await mirrorApkToFirebaseAppDistribution(
             this.env,
             apk.body,
-            `OTYA-${release.tag}-arm64.apk`,
+            'Otya-arm64.apk',
             metadata.changelog,
           )
         } catch (error) {
-          console.error('[release] Firebase App Distribution mirror failed:', error?.message)
+          console.error('[release] Firebase mirror failed:', error?.message)
           return {
             configured: true,
             mirrored: false,
@@ -223,7 +221,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         }
       })
 
-      const notification = await step.do('queue update notification once', async () => {
+      const notification = await step.do('send update notification once', async () => {
         const markerKey = `release:push:${release.tag}`
         if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
         await this.env.PUSH_QUEUE.send({
@@ -238,9 +236,6 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         return { queued: true, duplicate: false }
       })
 
-      // Publication is already committed once metadata is live and the push is
-      // queued. Observability/reporting failures must never turn that completed
-      // release into a misleading "failed" state.
       const analytics = await step.do('record release analytics', async () => {
         try {
           if (!this.env.OTYA_ANALYTICS?.writeDataPoint) return { written: false, reason: 'binding-unavailable' }
@@ -256,23 +251,23 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         }
       })
 
-      const report = await step.do('send completion report', async () => {
+      const report = await step.do('send release report', async () => {
         try {
           return await sendAdminReport(
             this.env,
-            `OTYA ${release.tag} release workflow completed`,
+            `Otya ${release.tag} is ready`,
             [
               `Release: ${release.tag}`,
               `Version code: ${release.versionCode}`,
               `arm64: ${release.arm64Key}`,
               `arm32: ${release.arm32Key}`,
-              `Firebase test mirror: ${firebaseDistribution.mirrored ? 'yes' : 'no'}`,
-              `Push queued: ${notification.queued}`,
-              'Status: completed',
+              `Firebase test build: ${firebaseDistribution.mirrored ? 'yes' : 'no'}`,
+              `Update notice queued: ${notification.queued}`,
+              'Status: ready',
             ].join('\n'),
           )
         } catch (error) {
-          console.error('[release] Completion report failed:', error?.message)
+          console.error('[release] Release report failed:', error?.message)
           return { sent: false, error: error instanceof Error ? error.message : String(error) }
         }
       })
@@ -294,11 +289,11 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
       try {
         await step.do('send failure report', async () => sendAdminReport(
           this.env,
-          `OTYA release workflow failed${release?.tag ? `: ${release.tag}` : ''}`,
+          `Otya release failed${release?.tag ? `: ${release.tag}` : ''}`,
           `Status: failed\nReason: ${message}`,
         ))
       } catch {
-        // Reporting failure must not mask the original release failure.
+        // Reporting failure must not hide the release error.
       }
       throw error
     }
