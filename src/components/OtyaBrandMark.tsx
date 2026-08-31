@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 type Props = {
   size?: number
   thinking?: boolean
+  ai?: boolean
   className?: string
   label?: string
 }
@@ -17,8 +18,13 @@ function resolvedDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-/** Standalone Otya mark. Never paints its own card, box, border or background. */
-export function OtyaBrandMark({ size = 36, thinking = false, className = '', label }: Props) {
+/**
+ * Canonical Otya identity component.
+ *
+ * Product surfaces use the folded O mark. Otya AI surfaces use only the
+ * blue/red/yellow three-ball identity; the balls animate only while working.
+ */
+export function OtyaBrandMark({ size = 36, thinking = false, ai = false, className = '', label }: Props) {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
@@ -34,9 +40,12 @@ export function OtyaBrandMark({ size = 36, thinking = false, className = '', lab
     }
   }, [])
 
-  const src = thinking
-    ? dark ? '/otya-ai-thinking.svg' : '/otya-ai-thinking-light.svg'
-    : dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
+  let src: string
+  if (ai) {
+    src = thinking ? '/otya-ai-thinking.svg' : '/otya-ai.svg'
+  } else {
+    src = dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
+  }
 
   return <img
     src={src}
