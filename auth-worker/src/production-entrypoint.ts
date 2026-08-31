@@ -1,6 +1,11 @@
 import authWorker from './entrypoint'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
+import {
+  handleSecureOtpRoute,
+  hardenRegistrationVerification,
+  type SecureOtpEnv,
+} from './secure-otp'
 
 interface GoogleTokenPayload {
   aud?: string
@@ -10,7 +15,7 @@ interface GoogleTokenPayload {
   email_verified?: string | boolean
 }
 
-type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & {
+type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_WEB_CLIENT_ID?: string
 }
@@ -142,6 +147,11 @@ export default {
       if (response) return response
     }
 
+    // Password-reset and email-verification codes are purpose-bound, HMAC
+    // protected in KV, rate-limited, expiring and single-use.
+    const secureOtpResponse = await handleSecureOtpRoute(request, env)
+    if (secureOtpResponse) return secureOtpResponse
+
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
@@ -161,6 +171,14 @@ export default {
       request,
       env as Parameters<typeof authWorker.fetch>[1],
     )
+
+    // Registration remains on the compatibility core because it also owns
+    // consent/session orchestration. Immediately replace its short-lived
+    // plaintext verification code with a purpose-bound HMAC record.
+    if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
+      await hardenRegistrationVerification(response, env)
+    }
+
     return normalizeAccountResponse(response, env)
   },
 }
