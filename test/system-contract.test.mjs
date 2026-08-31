@@ -53,6 +53,30 @@ test('Admin MFA OTPs are format-checked, single-use, and hashed at rest', () => 
   assert.doesNotMatch(source, /put\(`admin_mfa_otp:\$\{user\.id\}`, otp,/)
 })
 
+test('OTYA one-time codes and public IDs use unbiased random allocation', () => {
+  const crypto = read('auth-worker/src/crypto.ts')
+  const db = read('auth-worker/src/db.ts')
+
+  assert.match(crypto, /randomBelow/)
+  assert.match(crypto, /randomBelow\(10_000\)/)
+  assert.doesNotMatch(crypto, /%\s*10000/)
+
+  assert.match(db, /randomBelow\(100_000_000\)/)
+  assert.match(db, /`2IS\$\{randomBelow\(100_000_000\)/)
+  assert.doesNotMatch(db, /\)\s*%\s*100000000/)
+  assert.match(db, /CREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id/)
+})
+
+test('OTYA public ID allocation retries collisions without exposing the internal UUID', () => {
+  const db = read('auth-worker/src/db.ts')
+  const account = read('src/app/account/page.tsx')
+
+  assert.match(db, /for \(let attempt = 0; attempt < 16; attempt\+\+\)/)
+  assert.match(db, /isUniqueConstraintError/)
+  assert.match(account, /otya_id/)
+  assert.doesNotMatch(account, /label=["']Account ID["'][^\n]*user\.id/)
+})
+
 test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
