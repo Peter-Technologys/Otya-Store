@@ -21,6 +21,7 @@ ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 ADMIN_CRASH_ALERT_THRESHOLD = "5"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
+AI_GATEWAY_ID = "otya-ai-gateway"
 # Public Otya catalog. Public model choice remains isolated from the private
 # Admin intelligence plane.
 AI_PUBLIC_MODELS = "llama-fast,otya-smart,gemma-4,granite,llama-70b,gpt-oss-20b,gpt-oss-120b,nemotron,llama-4-scout,qwen3,sea-lion"
@@ -35,6 +36,17 @@ GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.goog
 
 [ai]
 binding = "AI"
+
+[browser]
+binding = "BROWSER"
+
+[[ai_search]]
+binding = "AI_SEARCH"
+instance_name = "otya-knowledge"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "otya-ai-analytics"
 
 [[d1_databases]]
 binding = "DB"
@@ -61,8 +73,6 @@ dead_letter_queue = "otya-ai-queue-dlq"
 # 05:00 UTC = 08:00 Africa/Kampala: morning operations brief + churn signals.
 # Monday 06:00 UTC = 09:00 Africa/Kampala: deeper weekly review.
 crons = ["0 * * * *", "0 5 * * *", "0 6 * * 1"]
-# Add the EXISTING production Vectorize index as binding VECTORIZE only after
-# confirming its exact name in Cloudflare. Do not create a duplicate index.
 # Required secrets: RESEND_API_KEY. Optional integrations: TELEGRAM_BOT_TOKEN,
 # TELEGRAM_WEBHOOK_SECRET, INTERNAL_SECRET, GMAIL_GOOGLE_CLIENT_SECRET,
 # CONNECTOR_ENCRYPTION_KEY. Never commit secret values.
