@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { handleOwnerActions } from '../src/owner-actions.mjs'
+import { MemoryD1 } from './memory-d1.mjs'
 
 class MemoryKv {
   constructor(){ this.rows = new Map() }
@@ -24,7 +25,7 @@ function request(path, body) {
 test('owner actions reject requests without the private internal secret', async () => {
   const response = await handleOwnerActions(
     new Request('https://internal.example/api/admin/ai/actions/status?id=x'),
-    { INTERNAL_SECRET: 'owner-secret', KV: new MemoryKv() },
+    { INTERNAL_SECRET: 'owner-secret', KV: new MemoryKv(), DB: new MemoryD1() },
   )
   assert.equal(response.status, 401)
 })
@@ -34,7 +35,7 @@ test('Telegram writes require prepare then exact approval and cannot execute twi
   let externalWrites = 0
   globalThis.fetch = async (url, init) => {
     externalWrites += 1
-    assert.match(String(url), /^https:\/\/api\.telegram\.org\/bot/) 
+    assert.match(String(url), /^https:\/\/api\.telegram\.org\/bot/)
     const body = JSON.parse(init.body)
     assert.equal(body.chat_id, '@otyaplayer')
     assert.equal(body.text, 'New OTYA build is still being tested.')
@@ -48,6 +49,7 @@ test('Telegram writes require prepare then exact approval and cannot execute twi
     const env = {
       INTERNAL_SECRET: 'owner-secret',
       KV: new MemoryKv(),
+      DB: new MemoryD1(),
       TELEGRAM_BOT_TOKEN: 'test-token',
       TELEGRAM_CHANNEL_URL: 'https://t.me/otyaplayer',
     }
@@ -107,6 +109,7 @@ test('owner email action is restricted to the configured owner address', async (
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body)
     sentTo = body.to
+    assert.match(init.headers['Idempotency-Key'], /^otya-owner-/)
     return new Response(JSON.stringify({ id: 'email-1' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -117,6 +120,7 @@ test('owner email action is restricted to the configured owner address', async (
     const env = {
       INTERNAL_SECRET: 'owner-secret',
       KV: new MemoryKv(),
+      DB: new MemoryD1(),
       RESEND_API_KEY: 'test-key',
       ADMIN_REPORT_EMAIL: 'owner@example.com',
     }
