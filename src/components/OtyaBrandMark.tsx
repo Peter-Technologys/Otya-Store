@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { OtyaAiMark } from './OtyaAiMark'
 
 type Props = {
   size?: number
@@ -17,7 +18,13 @@ function resolvedDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-/** Standalone Otya mark. Never paints its own card, box, border or background. */
+/**
+ * Standalone Otya product mark.
+ *
+ * The full OTYA logo is always the product/brand identity. Legacy callers that
+ * pass `thinking` are intentionally routed to the separate three-ball OTYA AI
+ * mark so AI activity never animates or substitutes the full brand logo.
+ */
 export function OtyaBrandMark({ size = 36, thinking = false, className = '', label }: Props) {
   const [dark, setDark] = useState(false)
 
@@ -34,9 +41,11 @@ export function OtyaBrandMark({ size = 36, thinking = false, className = '', lab
     }
   }, [])
 
-  const src = thinking
-    ? dark ? '/otya-ai-thinking.svg' : '/otya-ai-thinking-light.svg'
-    : dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
+  if (thinking) {
+    return <OtyaAiMark size={size} active label={label ?? 'Otya AI is working'} className={className} />
+  }
+
+  const src = dark ? '/otya-icon-dark.svg' : '/otya-icon.svg'
 
   return <img
     src={src}
