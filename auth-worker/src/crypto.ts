@@ -78,9 +78,20 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtPaylo
 export function generateOtp(): string {
   // Exclude I and O — visually confusing with 1 and 0.
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-  const bytes = crypto.getRandomValues(new Uint8Array(5))
-  const letter = letters[bytes[0] % letters.length]
-  const number = (((bytes[1] << 24) >>> 0) + (bytes[2] << 16) + (bytes[3] << 8) + bytes[4]) % 10000
+
+  // Rejection sampling avoids modulo bias. For each range, discard the high
+  // tail that cannot be divided evenly by the target size.
+  const randomBelow = (maxExclusive: number): number => {
+    const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive
+    while (true) {
+      const bytes = crypto.getRandomValues(new Uint8Array(4))
+      const value = (((bytes[0] << 24) >>> 0) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3]) >>> 0
+      if (value < limit) return value % maxExclusive
+    }
+  }
+
+  const letter = letters[randomBelow(letters.length)]
+  const number = randomBelow(10_000)
   return `${letter}${String(number).padStart(4, '0')}`
 }
 
