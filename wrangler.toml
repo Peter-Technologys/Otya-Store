@@ -49,9 +49,14 @@ binding       = "DB"
 database_name = "otya-store-db"
 database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 
-# Request/release telemetry written by src/entrypoint.mjs and the release
-# workflow. This binding had code-level instrumentation but no production
-# dataset binding, which silently disabled Analytics Engine writes.
+# Preserve the verified live per-Worker Analytics Engine binding. New source
+# instrumentation should target env.ANALYTICS. The compatibility binding below
+# remains temporarily because the current entrypoint/release workflow still
+# writes through env.OTYA_ANALYTICS; remove it only after those callers migrate.
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "otya-store-analytics"
+
 [[analytics_engine_datasets]]
 binding = "OTYA_ANALYTICS"
 dataset = "otya_system_analytics"
