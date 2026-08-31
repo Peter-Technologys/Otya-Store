@@ -63,11 +63,18 @@ async function forward(request: NextRequest): Promise<Response> {
     const contentType = upstream.headers.get('content-type') || ''
     if (contentType.includes('application/json')) {
       const data = await upstream.clone().json().catch(() => ({})) as TelegramLoginPayload
+
+      // Admin Telegram is a privilege step-up for the existing signed-in
+      // browser. It must not replace the normal access/refresh cookies with a
+      // second, untracked account session.
+      if (data.telegram_login === true && data.admin_mfa === true) {
+        const response = NextResponse.redirect(new URL('/admin?telegram=verified', request.url), 302)
+        response.headers.set('Cache-Control', 'no-store')
+        return response
+      }
+
       if (data.telegram_login === true && data.access_token && data.refresh_token) {
-        const destination = data.admin_mfa === true
-          ? '/admin?telegram=verified'
-          : '/account?telegram=signed-in'
-        const response = NextResponse.redirect(new URL(destination, request.url), 302)
+        const response = NextResponse.redirect(new URL('/account?telegram=signed-in', request.url), 302)
         response.cookies.set(ACCESS_COOKIE, data.access_token, cookieOptions(ACCESS_MAX_AGE))
         response.cookies.set(REFRESH_COOKIE, data.refresh_token, cookieOptions(REFRESH_MAX_AGE))
         response.headers.set('Cache-Control', 'no-store')
