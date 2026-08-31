@@ -1,6 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { OtyaBrandMark } from '@/components/OtyaBrandMark'
+import { OtyaAiMark } from '@/components/OtyaAiMark'
 
 type Health = { url: string; status: number; latency: number; ok: boolean }
 type Stats = {
@@ -11,322 +14,94 @@ type Stats = {
   ratings: { average: number | null; total: number }
   health: Health[]
 }
-type Feedback = {
-  id: number
-  category?: string | null
-  description?: string | null
-  user_email?: string | null
-  app_version?: string | null
-  sentiment?: string | null
-  created_at?: string | null
-}
-type CrashGroup = { group_id?: string | null; error_type?: string | null; count?: number; latest?: string | null }
-type FirebaseSync = { configured?: boolean; synced?: boolean; revision?: number; updatedAt?: string }
-type SessionState = { loading: boolean; configured: boolean; authenticated: boolean; accountAdmin: boolean }
-type Latest = { version?: string; versionCode?: number; changelog?: string; date?: string }
+type Feedback = { id:number; category?:string|null; description?:string|null; user_email?:string|null; app_version?:string|null; sentiment?:string|null; created_at?:string|null }
+type CrashGroup = { group_id?:string|null; error_type?:string|null; count?:number; latest?:string|null }
+type FirebaseSync = { configured?:boolean; synced?:boolean; revision?:number; updatedAt?:string }
+type SessionState = { loading:boolean; configured:boolean; authenticated:boolean; accountAdmin:boolean }
+type Latest = { version?:string; versionCode?:number; changelog?:string; date?:string }
+type Section = 'overview'|'users'|'content'|'insights'|'app-control'|'platform'|'security'|'connections'|'settings'
+type Utility = null|'notifications'|'control'
 
 const card = 'rounded-2xl border p-4 sm:p-5'
 const input = 'w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-500/40'
+const sections: Array<{id:Section;label:string;tools:string[]}> = [
+  {id:'overview',label:'Overview',tools:['Dashboard','Key metrics','Recent activity','Health summary']},
+  {id:'users',label:'Users',tools:['Accounts','Roles & permissions','Devices','Sessions','Account actions']},
+  {id:'content',label:'Content',tools:['Music library','Playback','Downloads','Offline media','Media processing']},
+  {id:'insights',label:'Insights',tools:['Analytics','Retention','Usage trends','Feedback','Crashes','Reports','Version adoption']},
+  {id:'app-control',label:'App Control',tools:['Remote config','Feature flags','Themes','Maintenance','Announcements','Releases','Rollout & rollback']},
+  {id:'platform',label:'Platform',tools:['APIs','Workers','D1','R2','KV','Queues','Webhooks','Jobs','Backups','Rate limits']},
+  {id:'security',label:'Security',tools:['Authentication','Turnstile','Suspicious activity','Audit history','Sessions','Admin history']},
+  {id:'connections',label:'Connections',tools:['Google','Resend','GitHub','Telegram','External APIs']},
+  {id:'settings',label:'Settings',tools:['Project','Domains','Branding','App IDs','Environments','Team access','Developer config','Exports']},
+]
 
-function surfaceStyle() {
-  return { background: 'var(--cosmos-card)', borderColor: 'var(--cosmos-divider)' }
+function surfaceStyle(){return {background:'var(--cosmos-card)',borderColor:'var(--cosmos-divider)'}}
+function StatCard({label,value,sub}:{label:string;value:string|number;sub?:string}){return <div className={card} style={surfaceStyle()}><div className="text-xs font-bold uppercase tracking-wider otya-muted">{label}</div><div className="mt-1 text-2xl font-black">{value}</div>{sub&&<div className="mt-1 text-xs otya-muted">{sub}</div>}</div>}
+function RailButton({label,children,onClick}:{label:string;children:React.ReactNode;onClick?:()=>void}){return <button title={label} aria-label={label} onClick={onClick} className="grid h-11 w-11 place-items-center rounded-2xl hover:bg-black/[.05] dark:hover:bg-white/[.07]">{children}</button>}
+function Glyph({kind}:{kind:'profile'|'bell'|'control'|'help'|'theme'}){const paths={profile:<><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19c.8-3.2 3.1-5 6.5-5s5.7 1.8 6.5 5"/></>,bell:<><path d="M6.5 17h11l-1.3-2.2V10a4.2 4.2 0 0 0-8.4 0v4.8L6.5 17Z"/><path d="M10 19h4"/></>,control:<><circle cx="12" cy="12" r="8"/><path d="M12 12l3-3M8 16h8"/></>,help:<><circle cx="12" cy="12" r="9"/><path d="M9.7 9.5a2.4 2.4 0 1 1 3.8 2c-1 .7-1.5 1.2-1.5 2.4M12 17h.01"/></>,theme:<><path d="M20 14.2A7.5 7.5 0 0 1 9.8 4 8 8 0 1 0 20 14.2Z"/></>};return <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>}
+
+function AdminGate({configured,accountAdmin,onSuccess}:{configured:boolean;accountAdmin:boolean;onSuccess:()=>void}){
+  const [otp,setOtp]=useState(''); const [stage,setStage]=useState<'start'|'otp'|'telegram'>('start'); const [error,setError]=useState(''); const [loading,setLoading]=useState(false)
+  const post=useCallback(async(body:Record<string,unknown>)=>{const res=await fetch('/api/admin/session',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});const data=await res.json().catch(()=>({})) as {error?:string};if(!res.ok)throw new Error(data.error??'Admin verification failed');return data},[])
+  useEffect(()=>{if(!accountAdmin||typeof window==='undefined')return;const p=new URLSearchParams(window.location.search);const telegram=p.get('telegram');if(telegram==='verified'){setLoading(true);post({action:'complete'}).then(()=>{window.history.replaceState({},'','/admin');onSuccess()}).catch(e=>setError((e as Error).message)).finally(()=>setLoading(false))}else if(telegram){setStage('telegram');setError('Telegram verification was not completed. Try again.')}},[accountAdmin,onSuccess,post])
+  async function sendOtp(){setLoading(true);setError('');try{await post({action:'start'});setStage('otp')}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
+  async function verifyOtp(e:FormEvent){e.preventDefault();if(!otp.trim())return;setLoading(true);setError('');try{await post({action:'verify-otp',otp:otp.trim()});setOtp('');setStage('telegram');const res=await fetch('/api/auth/telegram/start?mode=admin',{method:'POST',credentials:'same-origin'});const data=await res.json().catch(()=>({})) as {authorization_url?:string;error?:string};if(!res.ok||!data.authorization_url)throw new Error(data.error??'Telegram verification could not start.');window.location.assign(data.authorization_url)}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
+  return <main className="min-h-screen grid place-items-center px-4 py-10" style={{background:'var(--cosmos-scaffold)'}}><div className="w-full max-w-sm rounded-3xl border p-6 sm:p-8" style={surfaceStyle()}><div className="flex justify-center"><OtyaBrandMark size={58}/></div><h1 className="mt-4 text-center text-2xl font-black">OTYA Admin</h1><p className="mt-2 text-center text-sm otya-muted">Use your Otya account, fresh email verification and Telegram step-up.</p>{!configured?<div className="mt-5 rounded-xl border p-4 text-xs" style={{borderColor:'var(--cosmos-divider)'}}>Admin MFA is not fully configured on the server.</div>:!accountAdmin?<div className="mt-6"><Link href="/sign-in?next=/admin" className="cosmos-button flex min-h-11 items-center justify-center rounded-xl text-sm font-black">Sign in to Otya</Link></div>:stage==='start'?<button onClick={sendOtp} disabled={loading} className="cosmos-button mt-6 w-full rounded-xl px-4 py-3 text-sm font-black disabled:opacity-50">{loading?'Sending…':'Verify admin access'}</button>:stage==='otp'?<form onSubmit={verifyOtp} className="mt-6 space-y-3"><input className={input} style={surfaceStyle()} autoComplete="one-time-code" placeholder="Email verification code" value={otp} onChange={e=>setOtp(e.target.value.toUpperCase().slice(0,5))}/><button disabled={loading||otp.trim().length!==5} className="cosmos-button w-full rounded-xl px-4 py-3 text-sm font-black disabled:opacity-50">Continue with Telegram</button></form>:<button onClick={async()=>{const r=await fetch('/api/auth/telegram/start?mode=admin',{method:'POST',credentials:'same-origin'});const d=await r.json().catch(()=>({})) as {authorization_url?:string};if(d.authorization_url)window.location.assign(d.authorization_url)}} className="cosmos-button mt-6 w-full rounded-xl px-4 py-3 text-sm font-black">Continue with Telegram</button>}{error&&<p className="mt-4 text-sm text-red-400">{error}</p>}</div></main>
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return <div className={card} style={surfaceStyle()}>
-    <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--cosmos-text-secondary)' }}>{label}</div>
-    <div className="mt-1 text-2xl font-black">{value}</div>
-    {sub && <div className="mt-1 text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{sub}</div>}
+export default function AdminPage(){
+  const [session,setSession]=useState<SessionState>({loading:true,configured:false,authenticated:false,accountAdmin:false});const [section,setSection]=useState<Section>('overview');const [query,setQuery]=useState('');const [utility,setUtility]=useState<Utility>(null);const [stats,setStats]=useState<Stats|null>(null);const [feedback,setFeedback]=useState<Feedback[]>([]);const [crashes,setCrashes]=useState<CrashGroup[]>([]);const [latest,setLatest]=useState<Latest|null>(null);const [configText,setConfigText]=useState('');const [firebaseSync,setFirebaseSync]=useState<FirebaseSync|null>(null);const [themeText,setThemeText]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false)
+  const refreshSession=useCallback(async()=>{try{const r=await fetch('/api/admin/session',{cache:'no-store',credentials:'same-origin'});const b=await r.json() as {configured?:boolean;authenticated?:boolean;accountAdmin?:boolean};setSession({loading:false,configured:b.configured===true,authenticated:b.authenticated===true,accountAdmin:b.accountAdmin===true})}catch{setSession({loading:false,configured:false,authenticated:false,accountAdmin:false})}},[])
+  useEffect(()=>{void refreshSession()},[refreshSession])
+  const api=useCallback(async(url:string,init?:RequestInit)=>{const r=await fetch(url,{...init,credentials:'same-origin',cache:'no-store'});if(r.status===401){setSession(s=>({...s,authenticated:false}));throw new Error('Admin session expired')}return r},[])
+  const loadOverview=useCallback(async()=>{const [s,l]=await Promise.all([api('/api/admin/stats'),fetch('/latest',{cache:'no-store'})]);if(!s.ok)throw new Error(`Stats HTTP ${s.status}`);setStats(await s.json() as Stats);if(l.ok)setLatest(await l.json() as Latest)},[api])
+  const loadInsights=useCallback(async()=>{const [f,c]=await Promise.all([api('/api/admin/feedback?limit=50'),api('/api/admin/crashes?limit=50')]);if(f.ok)setFeedback(((await f.json()) as {feedback?:Feedback[]}).feedback??[]);if(c.ok)setCrashes(((await c.json()) as {groups?:CrashGroup[]}).groups??[])},[api])
+  const loadConfig=useCallback(async()=>{const r=await api('/api/admin/app-config');if(!r.ok)throw new Error(`Config HTTP ${r.status}`);const b=await r.json() as {config?:unknown;firebase?:FirebaseSync};setConfigText(JSON.stringify(b.config??{},null,2));setFirebaseSync(b.firebase??null)},[api])
+  const loadThemes=useCallback(async()=>{const r=await api('/api/admin/themes');if(!r.ok)throw new Error(`Themes HTTP ${r.status}`);const b=await r.json() as {catalog?:unknown};setThemeText(JSON.stringify(b.catalog??{},null,2))},[api])
+  useEffect(()=>{if(!session.authenticated)return;const work=section==='insights'?loadInsights:section==='app-control'?async()=>{await Promise.all([loadConfig(),loadThemes(),loadOverview()])}:loadOverview;work().catch(e=>setMessage((e as Error).message))},[session.authenticated,section,loadInsights,loadConfig,loadThemes,loadOverview])
+  const healthOk=useMemo(()=>stats?.health.filter(h=>h.ok).length??0,[stats])
+  const visible=useMemo(()=>{const q=query.trim().toLowerCase();if(!q)return sections;return sections.filter(s=>`${s.label} ${s.tools.join(' ')}`.toLowerCase().includes(q))},[query])
+  async function saveJson(url:string,value:string){setBusy(true);setMessage('');try{const parsed=JSON.parse(value);const r=await api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed)});const b=await r.json().catch(()=>({})) as {error?:string;firebase?:FirebaseSync};if(!r.ok)throw new Error(b.error??`HTTP ${r.status}`);if(b.firebase)setFirebaseSync(b.firebase);setMessage('Saved successfully.')}catch(e){setMessage((e as Error).message)}finally{setBusy(false)}}
+  function cycleTheme(){const root=document.documentElement;const current=root.getAttribute('data-theme');root.setAttribute('data-theme',current==='dark'?'light':'dark')}
+  if(session.loading)return <div className="min-h-screen grid place-items-center"><OtyaBrandMark size={48}/></div>
+  if(!session.authenticated)return <AdminGate configured={session.configured} accountAdmin={session.accountAdmin} onSuccess={refreshSession}/>
+
+  const current=sections.find(s=>s.id===section)!
+  return <div className="h-[100dvh] overflow-hidden flex" style={{background:'var(--cosmos-scaffold)',color:'var(--cosmos-text-primary)'}}>
+    <aside className="hidden md:flex w-[258px] shrink-0 flex-col border-r" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}>
+      <div className="h-16 px-4 flex items-center gap-2 border-b" style={{borderColor:'var(--cosmos-divider)'}}><OtyaBrandMark size={34}/><span className="font-black tracking-[-.04em]">tya</span><span className="ml-1 text-xs otya-muted">Console</span></div>
+      <div className="p-3"><label className="flex h-11 items-center gap-2 rounded-2xl border px-3" style={{borderColor:'var(--cosmos-divider)'}}><span aria-hidden="true">⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search Otya" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/></label></div>
+      <nav className="flex-1 overflow-auto px-2 pb-3" aria-label="Console navigation">{visible.map(item=><button key={item.id} onClick={()=>{setSection(item.id);setUtility(null);setMessage('')}} className="w-full rounded-xl px-3 py-2.5 text-left text-sm" style={{background:section===item.id?'color-mix(in srgb,var(--cosmos-primary) 11%,transparent)':'transparent',fontWeight:section===item.id?800:600}}>{item.label}</button>)}</nav>
+    </aside>
+
+    <section className="min-w-0 flex-1 flex flex-col">
+      <header className="h-16 shrink-0 border-b px-4 flex items-center" style={{background:'var(--cosmos-app-bar)',borderColor:'var(--cosmos-divider)'}}><div><div className="font-black">{utility==='notifications'?'Notifications':utility==='control'?'Control Center':current.label}</div><div className="text-[11px] otya-muted truncate max-w-[70vw]">{utility? 'OTYA utility panel' : current.tools.join(' · ')}</div></div><select value={section} onChange={e=>{setSection(e.target.value as Section);setUtility(null)}} className="md:hidden ml-auto rounded-xl border bg-transparent px-2 py-2 text-xs" style={{borderColor:'var(--cosmos-divider)'}}>{sections.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></header>
+      <main className="flex-1 overflow-auto p-4 sm:p-6">{message&&<div className="mb-4 rounded-xl border p-3 text-sm" style={surfaceStyle()}>{message}</div>}{utility==='notifications'?<PushPanel api={api} onMessage={setMessage}/>:utility==='control'?<ControlPanel stats={stats} latest={latest}/>:<Workspace section={section} stats={stats} latest={latest} healthOk={healthOk} feedback={feedback} crashes={crashes} configText={configText} setConfigText={setConfigText} firebaseSync={firebaseSync} themeText={themeText} setThemeText={setThemeText} busy={busy} saveJson={saveJson} api={api} onMessage={setMessage}/>}</main>
+    </section>
+
+    <aside className="w-[60px] shrink-0 border-l flex flex-col items-center py-2" style={{background:'var(--cosmos-surface)',borderColor:'var(--cosmos-divider)'}}>
+      <Link href="/account" title="Profile" aria-label="Profile" className="grid h-11 w-11 place-items-center rounded-2xl hover:bg-black/[.05] dark:hover:bg-white/[.07]"><Glyph kind="profile"/></Link>
+      <Link href="/admin/ai" title="OTYA AI" aria-label="OTYA AI" className="grid h-11 w-11 place-items-center rounded-2xl hover:bg-black/[.05] dark:hover:bg-white/[.07]"><OtyaAiMark size={29}/></Link>
+      <RailButton label="Notifications" onClick={()=>setUtility(utility==='notifications'?null:'notifications')}><Glyph kind="bell"/></RailButton>
+      <RailButton label="Control Center" onClick={()=>setUtility(utility==='control'?null:'control')}><Glyph kind="control"/></RailButton>
+      <div className="flex-1"/>
+      <Link href="/help" title="Help" aria-label="Help" className="grid h-11 w-11 place-items-center rounded-2xl hover:bg-black/[.05] dark:hover:bg-white/[.07]"><Glyph kind="help"/></Link>
+      <RailButton label="Theme" onClick={cycleTheme}><Glyph kind="theme"/></RailButton>
+    </aside>
   </div>
 }
 
-function AdminGate({ configured, accountAdmin, onSuccess }: { configured: boolean; accountAdmin: boolean; onSuccess: () => void }) {
-  const [otp, setOtp] = useState('')
-  const [stage, setStage] = useState<'start' | 'otp' | 'telegram'>('start')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const post = useCallback(async (body: Record<string, unknown>) => {
-    const res = await fetch('/api/admin/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify(body),
-    })
-    const data = await res.json().catch(() => ({})) as { error?: string; ok?: boolean }
-    if (!res.ok) throw new Error(data.error ?? 'Admin verification failed')
-    return data
-  }, [])
-
-  useEffect(() => {
-    if (!accountAdmin || typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    const telegram = params.get('telegram')
-    if (telegram === 'verified') {
-      setLoading(true)
-      post({ action: 'complete' })
-        .then(() => {
-          window.history.replaceState({}, '', '/admin')
-          onSuccess()
-        })
-        .catch(e => setError((e as Error).message))
-        .finally(() => setLoading(false))
-    } else if (telegram === 'not-linked') {
-      setStage('telegram')
-      setError('Link your Telegram account to this Otya account before using it for admin verification.')
-    } else if (telegram === 'error' || telegram === 'expired' || telegram === 'cancelled') {
-      setStage('telegram')
-      setError('Telegram verification was not completed. Try again.')
-    }
-  }, [accountAdmin, onSuccess, post])
-
-  async function sendOtp() {
-    setLoading(true); setError('')
-    try {
-      await post({ action: 'start' })
-      setStage('otp')
-    } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
-  }
-
-  async function verifyOtp(e: FormEvent) {
-    e.preventDefault()
-    if (!otp.trim()) return
-    setLoading(true); setError('')
-    try {
-      await post({ action: 'verify-otp', otp: otp.trim() })
-      setOtp('')
-      setStage('telegram')
-      const res = await fetch('/api/auth/telegram/start?mode=admin', { method: 'POST', credentials: 'same-origin' })
-      const data = await res.json().catch(() => ({})) as { authorization_url?: string; error?: string }
-      if (!res.ok || !data.authorization_url) throw new Error(data.error ?? 'Telegram verification could not start.')
-      window.location.assign(data.authorization_url)
-    } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
-  }
-
-  return <main className="min-h-screen grid place-items-center px-4 py-10" style={{ background: 'var(--cosmos-scaffold)' }}>
-    <div className="w-full max-w-sm rounded-3xl border p-6 sm:p-8" style={surfaceStyle()}>
-      <div className="mx-auto mb-4 h-16 w-16 overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--cosmos-divider)' }}>
-        <img src="/android-chrome-192x192.png" alt="OTYA" className="h-full w-full object-cover" />
-      </div>
-      <h1 className="text-center text-2xl font-black">OTYA Admin</h1>
-      <p className="mt-2 text-center text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>
-        Admin access uses your normal Otya account plus fresh email and Telegram verification.
-      </p>
-
-      {!configured ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
-        Admin MFA is not fully configured on the server.
-      </div> : !accountAdmin ? <div className="mt-6 space-y-3">
-        <p className="text-sm text-center" style={{ color: 'var(--cosmos-text-secondary)' }}>Sign in to your Otya account first. Only allowlisted accounts can continue to Admin.</p>
-        <a href="/sign-in?next=/admin" className="block w-full rounded-xl bg-violet-500 px-4 py-3 text-center text-sm font-black text-white">Sign in to Otya</a>
-      </div> : stage === 'start' ? <div className="mt-6 space-y-3">
-        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>We will send a single-use code to the email already verified on this Otya account. Telegram is required after the code.</p>
-        <button onClick={sendOtp} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Sending…' : 'Verify admin access'}</button>
-      </div> : stage === 'otp' ? <form onSubmit={verifyOtp} className="mt-6 space-y-3">
-        <input className={input} style={surfaceStyle()} autoComplete="one-time-code" inputMode="text" placeholder="Email verification code" value={otp} onChange={e => setOtp(e.target.value.toUpperCase().slice(0, 5))} />
-        <button disabled={loading || otp.trim().length !== 5} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Checking…' : 'Continue with Telegram'}</button>
-        <button type="button" onClick={sendOtp} disabled={loading} className="w-full rounded-xl border px-4 py-2.5 text-sm font-bold" style={{ borderColor: 'var(--cosmos-divider)' }}>Send a new code</button>
-      </form> : <div className="mt-6 space-y-3">
-        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>Email verification passed. Complete verification with the Telegram identity linked to this same Otya account.</p>
-        <button onClick={() => verifyOtp({ preventDefault() {} } as FormEvent)} disabled className="hidden" />
-        <button onClick={async () => {
-          setLoading(true); setError('')
-          try {
-            const res = await fetch('/api/auth/telegram/start?mode=admin', { method: 'POST', credentials: 'same-origin' })
-            const data = await res.json().catch(() => ({})) as { authorization_url?: string; error?: string }
-            if (!res.ok || !data.authorization_url) throw new Error(data.error ?? 'Telegram verification could not start.')
-            window.location.assign(data.authorization_url)
-          } catch (e) { setError((e as Error).message); setLoading(false) }
-        }} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Opening Telegram…' : 'Continue with Telegram'}</button>
-      </div>}
-      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
-    </div>
-  </main>
+function Workspace(p:{section:Section;stats:Stats|null;latest:Latest|null;healthOk:number;feedback:Feedback[];crashes:CrashGroup[];configText:string;setConfigText:(v:string)=>void;firebaseSync:FirebaseSync|null;themeText:string;setThemeText:(v:string)=>void;busy:boolean;saveJson:(u:string,v:string)=>Promise<void>;api:(u:string,i?:RequestInit)=>Promise<Response>;onMessage:(m:string)=>void}){
+  if(p.section==='overview')return <div className="space-y-4"><div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><StatCard label="Downloads" value={p.stats?.downloads.total??'—'} sub={`${p.stats?.downloads.last7d??0} in 7 days`}/><StatCard label="Active devices" value={p.stats?.devices.active30d??'—'} sub="last 30 days"/><StatCard label="Rating" value={p.stats?.ratings.average??'—'} sub={`${p.stats?.ratings.total??0} ratings`}/><StatCard label="Systems online" value={`${p.healthOk}/${p.stats?.health.length??0}`} sub={`Latest ${p.latest?.version??'unknown'}`}/></div><ControlPanel stats={p.stats} latest={p.latest}/></div>
+  if(p.section==='insights')return <div className="grid gap-4 xl:grid-cols-2"><div><h2 className="mb-3 font-black">Feedback</h2><div className="space-y-3">{p.feedback.length?p.feedback.map(r=><div key={r.id} className={card} style={surfaceStyle()}><b className="text-sm">{r.category??'Other'}</b><p className="mt-2 text-sm whitespace-pre-wrap">{r.description}</p><p className="mt-2 text-xs otya-muted">{r.created_at??''}</p></div>):<div className={card} style={surfaceStyle()}>No feedback yet.</div>}</div></div><div><h2 className="mb-3 font-black">Crashes</h2><div className="space-y-3">{p.crashes.length?p.crashes.map((r,i)=><div key={`${r.group_id}-${i}`} className={card} style={surfaceStyle()}><div className="flex justify-between"><b className="text-sm">{r.error_type??r.group_id??'Unknown'}</b><strong>{r.count??0}</strong></div><p className="mt-1 text-xs otya-muted">{r.latest??''}</p></div>):<div className={card} style={surfaceStyle()}>No crash groups yet.</div>}</div></div></div>
+  if(p.section==='app-control')return <div className="space-y-4"><div className={card} style={surfaceStyle()}><div className="flex justify-between gap-3"><div><h2 className="font-black">Remote configuration</h2><p className="text-xs otya-muted">Feature flags, maintenance and client behavior live here.</p></div><span className="text-xs font-bold">{p.firebaseSync?.synced?'Synced':'Cloudflare source'}</span></div><textarea spellCheck={false} className="mt-4 min-h-[300px] w-full rounded-xl border p-3 font-mono text-xs" style={surfaceStyle()} value={p.configText} onChange={e=>p.setConfigText(e.target.value)}/><button disabled={p.busy} onClick={()=>void p.saveJson('/api/admin/app-config',p.configText)} className="cosmos-button mt-3 rounded-xl px-4 py-2.5 text-sm font-black">Save config</button></div><ReleasePanel api={p.api} latest={p.latest} onMessage={p.onMessage}/><div className={card} style={surfaceStyle()}><h2 className="font-black">Themes</h2><textarea spellCheck={false} className="mt-3 min-h-[240px] w-full rounded-xl border p-3 font-mono text-xs" style={surfaceStyle()} value={p.themeText} onChange={e=>p.setThemeText(e.target.value)}/><button disabled={p.busy} onClick={()=>void p.saveJson('/api/admin/themes',p.themeText)} className="cosmos-button mt-3 rounded-xl px-4 py-2.5 text-sm font-black">Save themes</button></div></div>
+  if(p.section==='platform')return <ControlPanel stats={p.stats} latest={p.latest}/>
+  if(p.section==='security')return <AuditPanel api={p.api} onMessage={p.onMessage}/>
+  const item=sections.find(s=>s.id===p.section)!;return <div><h2 className="text-2xl font-black tracking-[-.04em]">{item.label}</h2><p className="mt-2 otya-muted">Related functions are merged here so they do not become duplicate top-level destinations.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{item.tools.map(t=><div key={t} className={card} style={surfaceStyle()}><div className="font-bold">{t}</div><div className="mt-1 text-xs otya-muted">Managed from {item.label}.</div></div>)}</div></div>
 }
 
-const sections = [
-  ['overview', 'Overview'], ['config', 'Config'], ['releases', 'Releases'], ['push', 'Push'],
-  ['feedback', 'Feedback'], ['crashes', 'Crashes'], ['themes', 'Themes'], ['audit', 'Audit'],
-] as const
-
-type Section = typeof sections[number][0]
-
-export default function AdminPage() {
-  const [session, setSession] = useState<SessionState>({ loading: true, configured: false, authenticated: false, accountAdmin: false })
-  const [section, setSection] = useState<Section>('overview')
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [feedback, setFeedback] = useState<Feedback[]>([])
-  const [crashes, setCrashes] = useState<CrashGroup[]>([])
-  const [latest, setLatest] = useState<Latest | null>(null)
-  const [configText, setConfigText] = useState('')
-  const [firebaseSync, setFirebaseSync] = useState<FirebaseSync | null>(null)
-  const [themeText, setThemeText] = useState('')
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const refreshSession = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' })
-      const body = await res.json() as { configured?: boolean; authenticated?: boolean; accountAdmin?: boolean }
-      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true, accountAdmin: body.accountAdmin === true })
-    } catch {
-      setSession({ loading: false, configured: false, authenticated: false, accountAdmin: false })
-    }
-  }, [])
-
-  useEffect(() => { refreshSession() }, [refreshSession])
-
-  const api = useCallback(async (url: string, init?: RequestInit) => {
-    const res = await fetch(url, { ...init, credentials: 'same-origin', cache: 'no-store' })
-    if (res.status === 401) {
-      setSession(s => ({ ...s, authenticated: false }))
-      throw new Error('Admin session expired')
-    }
-    return res
-  }, [])
-
-  const loadOverview = useCallback(async () => {
-    const [statsRes, latestRes] = await Promise.all([api('/api/admin/stats'), fetch('/latest', { cache: 'no-store' })])
-    if (!statsRes.ok) throw new Error(`Stats HTTP ${statsRes.status}`)
-    setStats(await statsRes.json() as Stats)
-    if (latestRes.ok) setLatest(await latestRes.json() as Latest)
-  }, [api])
-
-  const loadFeedback = useCallback(async () => {
-    const res = await api('/api/admin/feedback?limit=50')
-    if (!res.ok) throw new Error(`Feedback HTTP ${res.status}`)
-    const body = await res.json() as { feedback?: Feedback[] }
-    setFeedback(body.feedback ?? [])
-  }, [api])
-
-  const loadCrashes = useCallback(async () => {
-    const res = await api('/api/admin/crashes?limit=50')
-    if (!res.ok) throw new Error(`Crashes HTTP ${res.status}`)
-    const body = await res.json() as { groups?: CrashGroup[] }
-    setCrashes(body.groups ?? [])
-  }, [api])
-
-  const loadConfig = useCallback(async () => {
-    const res = await api('/api/admin/app-config')
-    if (!res.ok) throw new Error(`Config HTTP ${res.status}`)
-    const body = await res.json() as { config?: unknown; firebase?: FirebaseSync }
-    setConfigText(JSON.stringify(body.config ?? {}, null, 2))
-    setFirebaseSync(body.firebase ?? null)
-  }, [api])
-
-  const loadThemes = useCallback(async () => {
-    const res = await api('/api/admin/themes')
-    if (!res.ok) throw new Error(`Themes HTTP ${res.status}`)
-    const body = await res.json() as { catalog?: unknown }
-    setThemeText(JSON.stringify(body.catalog ?? {}, null, 2))
-  }, [api])
-
-  useEffect(() => {
-    if (!session.authenticated) return
-    const loader = section === 'overview' || section === 'releases' || section === 'push' || section === 'audit'
-      ? loadOverview
-      : section === 'feedback' ? loadFeedback
-      : section === 'crashes' ? loadCrashes
-      : section === 'config' ? loadConfig
-      : loadThemes
-    loader().catch(e => setMessage((e as Error).message))
-  }, [session.authenticated, section, loadOverview, loadFeedback, loadCrashes, loadConfig, loadThemes])
-
-  const healthOk = useMemo(() => stats?.health.filter(h => h.ok).length ?? 0, [stats])
-
-  async function logout() {
-    await fetch('/api/admin/session', { method: 'DELETE', credentials: 'same-origin' }).catch(() => null)
-    setSession(s => ({ ...s, authenticated: false }))
-  }
-
-  async function saveJson(url: string, value: string) {
-    setBusy(true); setMessage('')
-    try {
-      const parsed = JSON.parse(value) as unknown
-      const res = await api(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed) })
-      const body = await res.json().catch(() => ({})) as { error?: string; firebase?: FirebaseSync }
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      if (body.firebase) setFirebaseSync(body.firebase)
-      setMessage('Saved successfully.')
-    } catch (e) { setMessage((e as Error).message) } finally { setBusy(false) }
-  }
-
-  if (session.loading) return <div className="min-h-screen grid place-items-center">Loading OTYA Admin…</div>
-  if (!session.authenticated) return <AdminGate configured={session.configured} accountAdmin={session.accountAdmin} onSuccess={refreshSession} />
-
-  return <div className="min-h-screen" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
-    <header className="sticky top-0 z-40 border-b" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)' }}>
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <img src="/android-chrome-192x192.png" alt="OTYA" className="h-9 w-9 rounded-xl" />
-          <div><div className="text-sm font-black">OTYA Admin</div><div className="text-[11px]" style={{ color: 'var(--cosmos-text-secondary)' }}>Control center</div></div>
-        </div>
-        <div className="flex gap-2"><a href="/admin/ai" className="rounded-lg border px-3 py-2 text-xs font-bold" style={{ borderColor: 'var(--cosmos-divider)' }}>Admin AI</a><button onClick={logout} className="rounded-lg border px-3 py-2 text-xs font-bold text-red-400 border-red-400/30">Sign out</button></div>
-      </div>
-      <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-2">
-        {sections.map(([id, label]) => <button key={id} onClick={() => { setMessage(''); setSection(id) }} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${section === id ? 'bg-violet-500 text-white' : ''}`} style={section === id ? undefined : { color: 'var(--cosmos-text-secondary)' }}>{label}</button>)}
-      </nav>
-    </header>
-
-    <main className="mx-auto max-w-6xl p-4 sm:p-6">
-      {message && <div className="mb-4 rounded-xl border p-3 text-sm" style={surfaceStyle()}>{message}</div>}
-
-      {section === 'overview' && <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Downloads" value={stats?.downloads.total ?? '—'} sub={`${stats?.downloads.last7d ?? 0} in 7 days`} />
-          <StatCard label="Active devices" value={stats?.devices.active30d ?? '—'} sub="last 30 days" />
-          <StatCard label="Rating" value={stats?.ratings.average ?? '—'} sub={`${stats?.ratings.total ?? 0} ratings`} />
-          <StatCard label="Systems online" value={`${healthOk}/${stats?.health.length ?? 0}`} sub={`Latest ${latest?.version ?? 'unknown'}`} />
-        </div>
-        <div className={card} style={surfaceStyle()}><h2 className="font-black">System health</h2><div className="mt-3 space-y-2">{(stats?.health ?? []).map(h => <div key={h.url} className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{h.url}</span><span className={h.ok ? 'text-emerald-400' : 'text-red-400'}>{h.status} · {h.latency}ms</span></div>)}</div></div>
-      </div>}
-
-      {section === 'config' && <div className="space-y-4"><div className={card} style={surfaceStyle()}><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-black">App configuration</h2><p className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Cloudflare stores safety/fallback config and mirrors the Firebase-owned client subset.</p></div><span className={`text-xs font-bold ${firebaseSync?.synced ? 'text-emerald-400' : 'text-amber-400'}`}>Firebase {firebaseSync?.synced ? 'synced' : firebaseSync?.configured ? 'not synced' : 'not configured'}</span></div><textarea spellCheck={false} className="mt-4 min-h-[420px] w-full rounded-xl border p-3 font-mono text-xs" style={surfaceStyle()} value={configText} onChange={e => setConfigText(e.target.value)} /><button disabled={busy} onClick={() => saveJson('/api/admin/app-config', configText)} className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save config</button></div></div>}
-
-      {section === 'releases' && <ReleasePanel api={api} latest={latest} onMessage={setMessage} />}
-      {section === 'push' && <PushPanel api={api} onMessage={setMessage} />}
-      {section === 'feedback' && <div className="space-y-3">{feedback.length === 0 ? <div className={card} style={surfaceStyle()}>No feedback yet.</div> : feedback.map(row => <div key={row.id} className={card} style={surfaceStyle()}><div className="flex flex-wrap justify-between gap-2"><b className="text-sm">{row.category ?? 'Other'}</b><span className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{row.created_at ?? ''}</span></div><p className="mt-2 text-sm whitespace-pre-wrap">{row.description}</p>{row.user_email && <p className="mt-2 text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{row.user_email} · {row.app_version ?? ''}</p>}</div>)}</div>}
-      {section === 'crashes' && <div className="space-y-3">{crashes.length === 0 ? <div className={card} style={surfaceStyle()}>No crash groups yet.</div> : crashes.map((row, i) => <div key={`${row.group_id}-${i}`} className={card} style={surfaceStyle()}><div className="flex items-center justify-between gap-3"><div><b className="text-sm">{row.error_type ?? row.group_id ?? 'Unknown'}</b><p className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>{row.group_id ?? 'Ungrouped'}</p></div><div className="text-right"><div className="text-xl font-black">{row.count ?? 0}</div><div className="text-[11px]" style={{ color: 'var(--cosmos-text-secondary)' }}>{row.latest ?? ''}</div></div></div></div>)}</div>}
-      {section === 'themes' && <div className={card} style={surfaceStyle()}><h2 className="font-black">Theme catalog</h2><p className="mt-1 text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>One catalog controls Personalize. Invalid JSON is rejected by the server.</p><textarea spellCheck={false} className="mt-4 min-h-[420px] w-full rounded-xl border p-3 font-mono text-xs" style={surfaceStyle()} value={themeText} onChange={e => setThemeText(e.target.value)} /><button disabled={busy} onClick={() => saveJson('/api/admin/themes', themeText)} className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save themes</button></div>}
-      {section === 'audit' && <AuditPanel api={api} onMessage={setMessage} />}
-    </main>
-  </div>
-}
-
-function ReleasePanel({ api, latest, onMessage }: { api: (url: string, init?: RequestInit) => Promise<Response>; latest: Latest | null; onMessage: (m: string) => void }) {
-  const [version, setVersion] = useState(latest?.version ?? '1.0.0')
-  const [code, setCode] = useState(String(latest?.versionCode ?? 1))
-  const [changelog, setChangelog] = useState('')
-  const [force, setForce] = useState(false)
-  useEffect(() => { if (latest?.version) setVersion(latest.version); if (latest?.versionCode) setCode(String(latest.versionCode)) }, [latest])
-  async function publish(e: FormEvent) {
-    e.preventDefault(); onMessage('')
-    const versionCode = Number(code)
-    if (!version.trim() || !Number.isInteger(versionCode) || versionCode < 1) { onMessage('Enter a valid version and version code.'); return }
-    const res = await api('/api/admin/release', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag: `v${version.trim()}`, version: version.trim(), version_code: versionCode, changelog: changelog.trim(), force_update: force }) })
-    const body = await res.json().catch(() => ({})) as { error?: string }
-    onMessage(res.ok ? `Release ${version.trim()} metadata published.` : body.error ?? `Release HTTP ${res.status}`)
-  }
-  return <form onSubmit={publish} className={`${card} space-y-3`} style={surfaceStyle()}><h2 className="font-black">Publish release metadata</h2><p className="text-xs" style={{ color: 'var(--cosmos-text-secondary)' }}>Use this after validated APKs are uploaded. This does not fabricate an APK.</p><div className="grid gap-3 sm:grid-cols-2"><input className={input} style={surfaceStyle()} value={version} onChange={e => setVersion(e.target.value)} placeholder="Version, e.g. 1.0.0" /><input className={input} style={surfaceStyle()} value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" placeholder="Version code" /></div><textarea className={`${input} min-h-32`} style={surfaceStyle()} value={changelog} onChange={e => setChangelog(e.target.value)} placeholder="Release notes" /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} /> Force update only when an older build is unsafe</label><button className="rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white">Publish metadata</button></form>
-}
-
-function PushPanel({ api, onMessage }: { api: (url: string, init?: RequestInit) => Promise<Response>; onMessage: (m: string) => void }) {
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [deviceId, setDeviceId] = useState('')
-  async function send(e: FormEvent) {
-    e.preventDefault(); onMessage('')
-    const res = await api('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body, ...(deviceId.trim() ? { deviceId: deviceId.trim() } : {}) }) })
-    const data = await res.json().catch(() => ({})) as { error?: string; sent?: number; failed?: number }
-    onMessage(res.ok ? `Push complete: ${data.sent ?? 0} sent, ${data.failed ?? 0} failed.` : data.error ?? `Push HTTP ${res.status}`)
-  }
-  return <form onSubmit={send} className={`${card} space-y-3`} style={surfaceStyle()}><h2 className="font-black">Push notification</h2><input className={input} style={surfaceStyle()} value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" /><textarea className={`${input} min-h-28`} style={surfaceStyle()} value={body} onChange={e => setBody(e.target.value)} placeholder="Message" /><input className={input} style={surfaceStyle()} value={deviceId} onChange={e => setDeviceId(e.target.value)} placeholder="Optional device ID — blank sends to all registered devices" /><button disabled={!title.trim() || !body.trim()} className="rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Send push</button></form>
-}
-
-function AuditPanel({ api, onMessage }: { api: (url: string, init?: RequestInit) => Promise<Response>; onMessage: (m: string) => void }) {
-  async function run() {
-    const res = await api('/api/notifications/reengage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: true }) })
-    const body = await res.json().catch(() => ({})) as { eligibleDormantDevices?: number; reason?: string; error?: string }
-    onMessage(res.ok ? `${body.eligibleDormantDevices ?? 0} installations have been dormant for 30+ days. ${body.reason ?? ''}` : body.error ?? `Audit HTTP ${res.status}`)
-  }
-  return <div className={card} style={surfaceStyle()}><h2 className="font-black">Dormant-device audit</h2><p className="mt-2 text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>This is intentionally audit-only. OTYA will not send marketing email until explicit consent and unsubscribe state exist.</p><button onClick={run} className="mt-4 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white">Run audit</button></div>
-}
+function ControlPanel({stats,latest}:{stats:Stats|null;latest:Latest|null}){return <div className={card} style={surfaceStyle()}><div className="flex items-center justify-between"><div><h2 className="font-black">System health</h2><p className="text-xs otya-muted">Latest release {latest?.version??'unknown'}</p></div></div><div className="mt-4 space-y-2">{(stats?.health??[]).map(h=><div key={h.url} className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{h.url}</span><span className={h.ok?'text-emerald-400':'text-red-400'}>{h.status} · {h.latency}ms</span></div>)}</div></div>}
+function ReleasePanel({api,latest,onMessage}:{api:(u:string,i?:RequestInit)=>Promise<Response>;latest:Latest|null;onMessage:(m:string)=>void}){const [version,setVersion]=useState(latest?.version??'1.0.0');const [code,setCode]=useState(String(latest?.versionCode??1));const [changelog,setChangelog]=useState('');const [force,setForce]=useState(false);useEffect(()=>{if(latest?.version)setVersion(latest.version);if(latest?.versionCode)setCode(String(latest.versionCode))},[latest]);async function publish(e:FormEvent){e.preventDefault();const versionCode=Number(code);if(!version.trim()||!Number.isInteger(versionCode)){onMessage('Enter a valid version and version code.');return}const r=await api('/api/admin/release',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:`v${version.trim()}`,version:version.trim(),version_code:versionCode,changelog:changelog.trim(),force_update:force})});const b=await r.json().catch(()=>({})) as {error?:string};onMessage(r.ok?`Release ${version.trim()} metadata published.`:b.error??`Release HTTP ${r.status}`)}return <form onSubmit={publish} className={`${card} space-y-3`} style={surfaceStyle()}><h2 className="font-black">Releases</h2><div className="grid gap-3 sm:grid-cols-2"><input className={input} style={surfaceStyle()} value={version} onChange={e=>setVersion(e.target.value)}/><input className={input} style={surfaceStyle()} value={code} onChange={e=>setCode(e.target.value)}/></div><textarea className={`${input} min-h-28`} style={surfaceStyle()} value={changelog} onChange={e=>setChangelog(e.target.value)} placeholder="Release notes"/><label className="flex gap-2 text-sm"><input type="checkbox" checked={force} onChange={e=>setForce(e.target.checked)}/> Force update only when necessary</label><button className="cosmos-button rounded-xl px-4 py-2.5 text-sm font-black">Publish metadata</button></form>}
+function PushPanel({api,onMessage}:{api:(u:string,i?:RequestInit)=>Promise<Response>;onMessage:(m:string)=>void}){const [title,setTitle]=useState('');const [body,setBody]=useState('');const [deviceId,setDeviceId]=useState('');async function send(e:FormEvent){e.preventDefault();const r=await api('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,body,...(deviceId.trim()?{deviceId:deviceId.trim()}: {})})});const d=await r.json().catch(()=>({})) as {error?:string;sent?:number;failed?:number};onMessage(r.ok?`Push complete: ${d.sent??0} sent, ${d.failed??0} failed.`:d.error??`Push HTTP ${r.status}`)}return <form onSubmit={send} className={`${card} space-y-3 max-w-2xl`} style={surfaceStyle()}><h2 className="font-black">Notifications</h2><p className="text-xs otya-muted">System alerts and outbound push controls stay in this right-side utility, not the left navigation.</p><input className={input} style={surfaceStyle()} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title"/><textarea className={`${input} min-h-28`} style={surfaceStyle()} value={body} onChange={e=>setBody(e.target.value)} placeholder="Message"/><input className={input} style={surfaceStyle()} value={deviceId} onChange={e=>setDeviceId(e.target.value)} placeholder="Optional device ID"/><button disabled={!title.trim()||!body.trim()} className="cosmos-button rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50">Send push</button></form>}
+function AuditPanel({api,onMessage}:{api:(u:string,i?:RequestInit)=>Promise<Response>;onMessage:(m:string)=>void}){async function run(){const r=await api('/api/notifications/reengage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dryRun:true})});const b=await r.json().catch(()=>({})) as {eligibleDormantDevices?:number;reason?:string;error?:string};onMessage(r.ok?`${b.eligibleDormantDevices??0} installations have been dormant for 30+ days. ${b.reason??''}`:b.error??`Audit HTTP ${r.status}`)}return <div className={card} style={surfaceStyle()}><h2 className="font-black">Security & audit</h2><p className="mt-2 text-sm otya-muted">Authentication, elevated admin access and audit-only checks remain server-enforced.</p><button onClick={()=>void run()} className="cosmos-button mt-4 rounded-xl px-4 py-2.5 text-sm font-black">Run dormant-device audit</button></div>}
