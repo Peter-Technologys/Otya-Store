@@ -4,12 +4,31 @@ import { mirrorApkToFirebaseAppDistribution } from './lib/firebase_app_distribut
 const TAG_RE = /^v\d+\.\d+\.\d+$/
 const VERSION_RE = /^\d+\.\d+\.\d+$/
 const DEFAULT_WORKER_URL = 'https://petersmartlink.com'
+const OFFICIAL_RELEASE_HOSTS = new Set(['petersmartlink.com', 'www.petersmartlink.com'])
 
 function requireString(value, name) {
   if (typeof value !== 'string' || !value.trim()) {
     throw new Error(`${name} is required`)
   }
   return value.trim()
+}
+
+function normalizeWorkerUrl(value) {
+  if (value == null || value === '') return DEFAULT_WORKER_URL
+  if (typeof value !== 'string') throw new Error('workerUrl must be an HTTPS URL')
+  let url
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('workerUrl must be a valid HTTPS URL')
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || !OFFICIAL_RELEASE_HOSTS.has(url.hostname)) {
+    throw new Error('workerUrl must use an official PeterSmart Link HTTPS host')
+  }
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('workerUrl must be an origin without a path, query, or fragment')
+  }
+  return url.origin
 }
 
 function normalizePayload(raw = {}) {
@@ -47,9 +66,7 @@ function normalizePayload(raw = {}) {
     minSdk: Number.isSafeInteger(Number(raw.minSdk)) ? Number(raw.minSdk) : 24,
     targetSdk: Number.isSafeInteger(Number(raw.targetSdk)) ? Number(raw.targetSdk) : 36,
     forceUpdate: raw.forceUpdate === true,
-    workerUrl: typeof raw.workerUrl === 'string' && raw.workerUrl.startsWith('https://')
-      ? raw.workerUrl.replace(/\/$/, '')
-      : DEFAULT_WORKER_URL,
+    workerUrl: normalizeWorkerUrl(raw.workerUrl),
   }
 }
 
