@@ -181,7 +181,9 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           downloads: {
             arm64: `${release.workerUrl}/apk/arm64`,
             arm32: `${release.workerUrl}/apk/arm32`,
-            auto: `${release.workerUrl}/apk/arm64`,
+            // Generic consumers must not be silently routed to ARM64. The app
+            // uses the explicit ABI URLs; everyone else gets the download page.
+            auto: `${release.workerUrl}/download/otya-player`,
             page: `${release.workerUrl}/download/otya-player`,
           },
         }
