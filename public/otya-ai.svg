@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 72" role="img" aria-label="Otya AI">
+  <defs>
+    <radialGradient id="b" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#6aa8ff"/><stop offset="1" stop-color="#1767e8"/></radialGradient>
+    <radialGradient id="r" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#ff8178"/><stop offset="1" stop-color="#d51c15"/></radialGradient>
+    <radialGradient id="y" cx="34%" cy="28%" r="76%"><stop stop-color="#fff"/><stop offset=".28" stop-color="#ffe975"/><stop offset="1" stop-color="#e0a900"/></radialGradient>
+  </defs>
+  <circle cx="30" cy="42" r="14" fill="url(#b)"/>
+  <circle cx="60" cy="28" r="14" fill="url(#r)"/>
+  <circle cx="90" cy="42" r="14" fill="url(#y)"/>
+</svg>
