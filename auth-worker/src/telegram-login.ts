@@ -280,13 +280,14 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
       ).bind(claims.preferred_username ?? null, claims.sub).run()
       await applyVerifiedPhone(env, user.id, claims)
       await markAdminTelegramComplete(env, userId)
-      const tokens = await issueBrowserTokens(user, env)
+      // Admin verification elevates the already-authenticated browser session.
+      // Do not mint a second access/refresh pair here; doing so creates an
+      // untracked parallel login and needlessly rotates the user's normal
+      // account session during privilege elevation.
       return json({
         ok: true,
         telegram_login: true,
         admin_mfa: true,
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
         user: {
           id: user.id,
           otya_id: user.otya_id,
