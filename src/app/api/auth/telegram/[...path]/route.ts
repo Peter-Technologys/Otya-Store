@@ -17,6 +17,9 @@ type TelegramLoginPayload = {
   admin_mfa?: boolean
   access_token?: string
   refresh_token?: string
+  provider_mode?: 'oidc' | 'widget'
+  bot_username?: string
+  widget_auth_url?: string
 }
 
 function cookieOptions(maxAge: number) {
@@ -27,6 +30,28 @@ function cookieOptions(maxAge: number) {
     path: '/',
     maxAge,
   }
+}
+
+function safeWidgetPage(request: NextRequest, data: TelegramLoginPayload): string | null {
+  if (data.provider_mode !== 'widget' || !data.bot_username || !data.widget_auth_url) return null
+  if (!/^[A-Za-z0-9_]{5,32}$/.test(data.bot_username)) return null
+  let callback: URL
+  try {
+    callback = new URL(data.widget_auth_url)
+  } catch {
+    return null
+  }
+  if (
+    callback.protocol !== 'https:'
+    || callback.hostname !== 'petersmartlink.com'
+    || callback.pathname !== '/api/auth/telegram/widget/callback'
+    || !callback.searchParams.get('state')
+  ) return null
+
+  const page = new URL('/telegram-login', request.url)
+  page.searchParams.set('bot', data.bot_username)
+  page.searchParams.set('auth', callback.toString())
+  return page.toString()
 }
 
 async function forward(request: NextRequest): Promise<Response> {
@@ -58,6 +83,20 @@ async function forward(request: NextRequest): Promise<Response> {
     body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
     redirect: 'manual',
   }))
+
+  if (publicUrl.pathname.endsWith('/start') && upstream.ok) {
+    const contentType = upstream.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const data = await upstream.clone().json().catch(() => ({})) as TelegramLoginPayload
+      const widgetPage = safeWidgetPage(request, data)
+      if (widgetPage) {
+        return NextResponse.json(
+          { ...data, authorization_url: widgetPage },
+          { status: upstream.status, headers: { 'Cache-Control': 'no-store' } },
+        )
+      }
+    }
+  }
 
   if (publicUrl.pathname.endsWith('/callback') && upstream.ok) {
     const contentType = upstream.headers.get('content-type') || ''
