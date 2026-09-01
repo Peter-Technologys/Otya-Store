@@ -26,9 +26,10 @@ export default {
     const host = url.hostname.toLowerCase()
 
     if (url.pathname === '/api/version' || url.pathname === '/api/version/') {
-      const routed = routedRequest(request, url, '/latest', 'api-version')
-      routed.headers.set('X-OTYA-Version-Alias', 'api-version')
-      return worker.fetch(routed, env, ctx)
+      url.pathname = '/latest'
+      const headers = new Headers(request.headers)
+      headers.set('X-OTYA-Version-Alias', 'api-version')
+      return worker.fetch(new Request(url, { method: request.method, headers }), env, ctx)
     }
 
     if (request.method === 'GET' || request.method === 'HEAD') {
