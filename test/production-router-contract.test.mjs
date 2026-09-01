@@ -13,5 +13,7 @@ test('/api/version is resolved to canonical /latest before Next routing', () => 
   const router = read('src/production-router.mjs')
   assert.match(router, /url\.pathname === '\/api\/version'/)
   assert.match(router, /url\.pathname = '\/latest'/)
-  assert.match(router, /worker\.fetch\(new Request\(url/)
+  assert.match(router, /X-OTYA-Version-Alias/)
+  assert.match(router, /dispatchWorker\(new Request\(url/)
+  assert.match(router, /applyCanonicalBrowserPolicy\(await worker\.fetch/)
 })
