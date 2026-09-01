@@ -26,6 +26,16 @@ test('failed password-reset delivery removes the unusable reset code', () => {
   assert.match(source, /Password-reset email failed/)
 })
 
+test('failed password-reset delivery still keeps the account response generic', () => {
+  const forgotStart = source.indexOf("if (path === '/auth/forgot-password')")
+  const resetStart = source.indexOf("if (path === '/auth/reset-password')")
+  const forgotBlock = source.slice(forgotStart, resetStart)
+
+  assert.match(forgotBlock, /catch \(error\) \{[\s\S]*AUTH_KV\.delete\(resetKey\)[\s\S]*\}/)
+  assert.match(forgotBlock, /return json\(\{ ok: true, message: GENERIC_RESET_MESSAGE \}\)/)
+  assert.doesNotMatch(forgotBlock, /Password-reset email is temporarily unavailable/)
+})
+
 test('failed verification delivery removes the unusable verification code', () => {
   assert.match(source, /const verificationKey = `verify_otp:\$\{user\.id\}`/)
   assert.match(source, /await env\.AUTH_KV\.delete\(verificationKey\)/)
