@@ -13,7 +13,7 @@ const CANONICAL_CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://challenges.cloudflare.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https: https://pagead2.googlesyndication.com",
-  "connect-src 'self' https://petersmartlink.com https://accounts.google.com https://telegram.org https://oauth.telegram.org https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
+  "connect-src 'self' https://petersmartlink.com https://space.petersmartlink.com https://accounts.google.com https://telegram.org https://oauth.telegram.org https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
   "frame-src https://accounts.google.com https://oauth.telegram.org https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
   "object-src 'none'",
   "base-uri 'self'",
@@ -22,10 +22,10 @@ const CANONICAL_CSP = [
   'upgrade-insecure-requests',
 ].join('; ')
 
-function publicSurfaceRedirect(url, pathname) {
+function redirectToHost(url, hostname, pathname) {
   const target = new URL(url)
   target.protocol = 'https:'
-  target.hostname = APP_HOST
+  target.hostname = hostname
   target.pathname = pathname
   target.search = ''
   target.hash = ''
@@ -67,10 +67,11 @@ async function dispatchOpenNext(request, env, ctx) {
   return applyCanonicalBrowserPolicy(await openNextWorker.fetch(request, env, ctx))
 }
 
-async function dispatchCanonical(request, url, env, ctx) {
+async function dispatchCanonical(request, url, env, ctx, pathname = url.pathname) {
   const target = new URL(url)
   target.protocol = 'https:'
   target.hostname = APP_HOST
+  target.pathname = pathname
   const headers = new Headers(request.headers)
   headers.set('X-Forwarded-Host', url.hostname)
   headers.set('X-Forwarded-Proto', 'https')
@@ -85,8 +86,6 @@ export default {
     const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
 
-    // Telegram Bot API/webhook/admin Telegram routes are intentionally owned by
-    // otya-core and are not Next.js application routes.
     if (isCoreTelegramRoute(url.pathname)) return backendWorker.fetch(request, env, ctx)
 
     if (url.pathname === '/api/version' || url.pathname === '/api/version/') {
@@ -97,14 +96,23 @@ export default {
     }
 
     if (host === SPACE_HOST) {
+      if (url.pathname === '/' || url.pathname === '/account' || url.pathname === '/account/') {
+        return dispatchCanonical(request, url, env, ctx, '/account')
+      }
+      if (url.pathname === '/sign-in' || url.pathname === '/sign-in/') {
+        return dispatchCanonical(request, url, env, ctx, '/sign-in')
+      }
       if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
-      if (request.method === 'GET' || request.method === 'HEAD') return publicSurfaceRedirect(url, '/sign-in')
+      if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, SPACE_HOST, '/')
       return dispatchCanonical(request, url, env, ctx)
     }
 
     if (request.method === 'GET' || request.method === 'HEAD') {
-      if (host === DOCS_HOST) return publicSurfaceRedirect(url, '/help')
-      if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
+      if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) {
+        return redirectToHost(url, SPACE_HOST, '/')
+      }
+      if (host === DOCS_HOST) return redirectToHost(url, APP_HOST, '/help')
+      if (host === STATUS_HOST) return redirectToHost(url, APP_HOST, '/status')
     }
 
     return dispatchOpenNext(request, env, ctx)
