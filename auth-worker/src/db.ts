@@ -237,12 +237,43 @@ export async function insertUser(
   }
 }
 
+async function refreshGoogleProfile(
+  db: D1Database,
+  userId: string,
+  user: Pick<UserRow, 'name' | 'avatar_url'>,
+): Promise<UserRow | null> {
+  await db.prepare(`
+    UPDATE users SET
+      name = COALESCE(?, name),
+      avatar_url = COALESCE(?, avatar_url),
+      is_verified = 1,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(user.name ?? null, user.avatar_url ?? null, userId).run()
+  return getUserById(db, userId)
+}
+
+function assertGoogleIdentityCanLink(existing: UserRow, googleId: string): void {
+  if (existing.google_id && existing.google_id !== googleId) {
+    throw new Error('GOOGLE_IDENTITY_CONFLICT')
+  }
+}
+
 export async function upsertGoogleUser(
   db: D1Database,
   user: Pick<UserRow, 'id' | 'email' | 'google_id' | 'name' | 'avatar_url'>,
 ): Promise<UserRow | null> {
-  const existing = await getUserByEmail(db, user.email)
-  if (existing) {
+  const googleId = user.google_id?.trim()
+  if (!googleId) throw new Error('GOOGLE_IDENTITY_MISSING')
+
+  // Google `sub` is the immutable provider identity. Always resolve by subject
+  // first, then treat the verified email only as a safe account-linking hint.
+  const bySubject = await getUserByGoogleId(db, googleId)
+  if (bySubject) return refreshGoogleProfile(db, bySubject.id, user)
+
+  const byEmail = await getUserByEmail(db, user.email)
+  if (byEmail) {
+    assertGoogleIdentityCanLink(byEmail, googleId)
     await db.prepare(`
       UPDATE users SET
         google_id = ?,
@@ -251,8 +282,8 @@ export async function upsertGoogleUser(
         is_verified = 1,
         updated_at = datetime('now')
       WHERE id = ?
-    `).bind(user.google_id ?? null, user.name ?? null, user.avatar_url ?? null, existing.id).run()
-    return getUserById(db, existing.id)
+    `).bind(googleId, user.name ?? null, user.avatar_url ?? null, byEmail.id).run()
+    return getUserById(db, byEmail.id)
   }
 
   for (let attempt = 0; attempt < 16; attempt++) {
@@ -265,16 +296,22 @@ export async function upsertGoogleUser(
         user.id,
         otyaId,
         user.email,
-        user.google_id ?? null,
+        googleId,
         user.name ?? null,
         user.avatar_url ?? null,
       ).run()
-      return getUserByEmail(db, user.email)
+      return getUserByGoogleId(db, googleId)
     } catch (error) {
-      // Another request may have created this email while Google sign-in was
-      // in flight. Merge into that account instead of creating a duplicate.
-      const raced = await getUserByEmail(db, user.email)
-      if (raced) {
+      if (!isUniqueConstraintError(error)) throw error
+
+      // Resolve races by immutable provider subject first. Only link by email if
+      // that account is not already attached to a different Google subject.
+      const racedSubject = await getUserByGoogleId(db, googleId)
+      if (racedSubject) return refreshGoogleProfile(db, racedSubject.id, user)
+
+      const racedEmail = await getUserByEmail(db, user.email)
+      if (racedEmail) {
+        assertGoogleIdentityCanLink(racedEmail, googleId)
         await db.prepare(`
           UPDATE users SET
             google_id = ?,
@@ -283,10 +320,11 @@ export async function upsertGoogleUser(
             is_verified = 1,
             updated_at = datetime('now')
           WHERE id = ?
-        `).bind(user.google_id ?? null, user.name ?? null, user.avatar_url ?? null, raced.id).run()
-        return getUserById(db, raced.id)
+        `).bind(googleId, user.name ?? null, user.avatar_url ?? null, racedEmail.id).run()
+        return getUserById(db, racedEmail.id)
       }
-      if (!isUniqueConstraintError(error) || attempt === 15) throw error
+
+      if (attempt === 15) throw error
     }
   }
   return null
