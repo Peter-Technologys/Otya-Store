@@ -48,6 +48,13 @@ const securityHeaders = [
   },
 ]
 
+const noStoreHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'private, no-store, no-cache, max-age=0, must-revalidate',
+  },
+]
+
 const nextConfig = {
   images: {
     unoptimized: true,
@@ -55,6 +62,18 @@ const nextConfig = {
   trailingSlash: true,
   async headers() {
     return [
+      {
+        source: '/sign-in/:path*',
+        headers: noStoreHeaders,
+      },
+      {
+        source: '/account/:path*',
+        headers: noStoreHeaders,
+      },
+      {
+        source: '/telegram-login/:path*',
+        headers: noStoreHeaders,
+      },
       {
         source: '/(.*)',
         headers: securityHeaders,
