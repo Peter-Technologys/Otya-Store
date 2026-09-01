@@ -1,16 +1,16 @@
 export const OTYA = {
-  name: 'Otya',
-  player: 'Otya Player',
-  ai: 'Ask Otya',
-  auth: 'Otya Account',
-  console: 'Otya Command Center',
-  backend: 'Otya Backend',
+  name: 'OTYA',
+  player: 'OTYA',
+  ai: 'Next',
+  auth: 'OTYA Account',
+  console: 'OTYA Command Center',
+  backend: 'OTYA Backend',
   website: 'https://petersmartlink.com',
   supportEmail: 'support@petersmartlink.com',
   noReplyEmail: 'noreply@petersmartlink.com',
   telegramChannel: 'https://t.me/otyaplayer',
   telegramSupport: 'https://t.me/OtyaPlayerBot',
-  description: 'Otya brings together music discovery, Otya Player, Ask Otya, one secure account, support and downloads.',
+  description: 'OTYA brings together local video and music, nearby transfer, private media, practical tools, one secure account and Next when connected help is useful.',
 } as const;
 
 export const SITE_CONFIG = {
