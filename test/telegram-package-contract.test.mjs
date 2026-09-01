@@ -60,12 +60,15 @@ test('Telegram Mini App validates raw initData server-side', () => {
   assert.doesNotMatch(miniAuth, /initDataUnsafe/)
 })
 
-test('Mini App auth establishes normal OTYA browser cookies without exposing tokens', () => {
+test('Mini App auth establishes shared secure OTYA browser cookies without exposing tokens', () => {
   assert.match(proxy, /endsWith\('\/miniapp'\)/)
-  assert.match(proxy, /__Host-otya_access/)
-  assert.match(proxy, /__Host-otya_refresh/)
+  assert.match(proxy, /__Secure-otya_access/)
+  assert.match(proxy, /__Secure-otya_refresh/)
+  assert.match(proxy, /COOKIE_DOMAIN = '\.petersmartlink\.com'/)
   assert.match(proxy, /delete safe\.access_token/)
   assert.match(proxy, /delete safe\.refresh_token/)
+  assert.match(proxy, /httpOnly: true/)
+  assert.match(proxy, /secure: true/)
   assert.match(proxy, /sameSite: 'lax'/)
 })
 
