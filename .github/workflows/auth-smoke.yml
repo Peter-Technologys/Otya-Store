@@ -47,6 +47,24 @@ jobs:
           printf '%s\n' "$body"
           printf '%s\n' "$body" | grep -E '"authenticated"|"error"' >/dev/null
 
+      - name: Prove Account schema is available without creating a user
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            --data '{"email":"not-an-email","password":"x"}' \
+            https://petersmartlink.com/api/account-session/register)"
+          cat "$response"
+          echo
+          echo "HTTP $status"
+          test "$status" -ge 400
+          test "$status" -lt 500
+          ! grep -q 'AUTH_SCHEMA_UNAVAILABLE' "$response"
+          ! grep -q 'temporarily unavailable' "$response"
+
       - name: Require Telegram Sign-In provider
         shell: bash
         run: |
