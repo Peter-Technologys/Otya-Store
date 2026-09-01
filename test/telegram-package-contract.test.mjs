@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const coreConfig = read('wrangler.toml')
 const authConfig = read('auth-worker/wrangler.toml')
+const authWrapper = read('auth-worker/src/production-entrypoint-miniapp.ts')
 const core = read('src/telegram-entrypoint.mjs')
 const bot = read('src/lib/telegram-bot.mjs')
 const miniAuth = read('auth-worker/src/telegram-miniapp.ts')
@@ -13,15 +14,17 @@ const page = read('src/app/telegram/page.tsx')
 const router = read('src/production-router.mjs')
 
 test('Telegram credentials stay in the centralized Cloudflare Secrets Store', () => {
-  for (const source of [coreConfig, authConfig]) {
-    assert.match(source, /\[\[secrets_store_secrets\]\]/)
-    assert.match(source, /binding\s*=\s*"TELEGRAM_BOT_TOKEN"/)
-    assert.match(source, /store_id\s*=\s*"a1df6b906c6e4c1da6e7687330ea0f9c"/)
-  }
+  assert.match(coreConfig, /\[\[secrets_store_secrets\]\]/)
+  assert.match(coreConfig, /binding\s*=\s*"TELEGRAM_BOT_TOKEN"/)
   assert.match(coreConfig, /binding\s*=\s*"TELEGRAM_WEBHOOK_SECRET"/)
+  assert.match(coreConfig, /store_id\s*=\s*"a1df6b906c6e4c1da6e7687330ea0f9c"/)
+  assert.match(authConfig, /binding\s*=\s*"TELEGRAM_MINIAPP_BOT_TOKEN"/)
+  assert.match(authConfig, /secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.match(authConfig, /store_id\s*=\s*"a1df6b906c6e4c1da6e7687330ea0f9c"/)
+  assert.match(authWrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
   assert.match(bot, /binding\.get|typeof binding\.get/)
   assert.doesNotMatch(coreConfig, /TELEGRAM_BOT_TOKEN\s*=\s*"[^"\n]+"/)
-  assert.doesNotMatch(authConfig, /TELEGRAM_BOT_TOKEN\s*=\s*"[^"\n]+"/)
+  assert.doesNotMatch(authConfig, /TELEGRAM_MINIAPP_BOT_TOKEN\s*=\s*"[^"\n]+"/)
 })
 
 test('otya-core is the only public Telegram webhook gateway', () => {
