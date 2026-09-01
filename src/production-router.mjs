@@ -1,4 +1,5 @@
-import worker from './telegram-entrypoint.mjs'
+import openNextWorker from '../.open-next/worker.js'
+import backendWorker from './telegram-entrypoint.mjs'
 export { OtyaReleaseWorkflow } from './telegram-entrypoint.mjs'
 
 const APP_HOST = 'petersmartlink.com'
@@ -41,6 +42,13 @@ function isSpaceAppPath(pathname) {
     || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
 }
 
+function isCoreTelegramRoute(pathname) {
+  return pathname === '/api/telegram/webhook'
+    || pathname === '/api/admin/telegram/test'
+    || pathname === '/api/admin/telegram/webhook'
+    || pathname.startsWith('/api/telegram/')
+}
+
 function applyCanonicalBrowserPolicy(response) {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('text/html')) return response
@@ -55,8 +63,8 @@ function applyCanonicalBrowserPolicy(response) {
   })
 }
 
-async function dispatchWorker(request, env, ctx) {
-  return applyCanonicalBrowserPolicy(await worker.fetch(request, env, ctx))
+async function dispatchOpenNext(request, env, ctx) {
+  return applyCanonicalBrowserPolicy(await openNextWorker.fetch(request, env, ctx))
 }
 
 async function dispatchCanonical(request, url, env, ctx) {
@@ -66,32 +74,29 @@ async function dispatchCanonical(request, url, env, ctx) {
   const headers = new Headers(request.headers)
   headers.set('X-Forwarded-Host', url.hostname)
   headers.set('X-Forwarded-Proto', 'https')
-  const init = {
-    method: request.method,
-    headers,
-    redirect: 'manual',
-  }
+  const init = { method: request.method, headers, redirect: 'manual' }
   if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body
-  return dispatchWorker(new Request(target.toString(), init), env, ctx)
+  return dispatchOpenNext(new Request(target.toString(), init), env, ctx)
 }
 
 export default {
-  ...worker,
+  ...backendWorker,
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
+
+    // Telegram Bot API/webhook/admin Telegram routes are intentionally owned by
+    // otya-core and are not Next.js application routes.
+    if (isCoreTelegramRoute(url.pathname)) return backendWorker.fetch(request, env, ctx)
 
     if (url.pathname === '/api/version' || url.pathname === '/api/version/') {
       url.pathname = '/latest'
       const headers = new Headers(request.headers)
       headers.set('X-OTYA-Version-Alias', 'api-version')
-      return dispatchWorker(new Request(url, { method: request.method, headers }), env, ctx)
+      return dispatchOpenNext(new Request(url, { method: request.method, headers }), env, ctx)
     }
 
     if (host === SPACE_HOST) {
-      // Keep the Telegram Mini App, its Next.js assets, and its API calls on the
-      // exact Space origin configured in BotFather. OpenNext still resolves the
-      // compiled application against the canonical apex internally.
       if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return publicSurfaceRedirect(url, '/sign-in')
       return dispatchCanonical(request, url, env, ctx)
@@ -102,6 +107,6 @@ export default {
       if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
     }
 
-    return dispatchWorker(request, env, ctx)
+    return dispatchOpenNext(request, env, ctx)
   },
 }
