@@ -1,5 +1,6 @@
 import { generateRefreshToken, generateUuid, signJwt } from './crypto'
 import { ensureSchema, getUserByEmail, getUserById, insertUser, touchUserProduct, type D1Database, type UserRow } from './db'
+import { PRIVACY_VERSION, recordRegistrationConsent, TERMS_VERSION } from './consent'
 
 interface KVLike {
   get(key: string): Promise<string | null>
@@ -28,7 +29,13 @@ type Claims = {
   phone_number_verified?: boolean
 }
 
-type State = { verifier: string; nonce: string }
+type AuthMode = 'login' | 'register'
+type State = {
+  verifier: string
+  nonce: string
+  mode: AuthMode
+  marketingConsent: boolean
+}
 type JoseWebKey = JsonWebKey & { kid?: string }
 
 const AUTH_URL = 'https://oauth.telegram.org/auth'
@@ -110,6 +117,13 @@ function internalTelegramEmail(subject: string): string {
   return `telegram-${subject}@identity.invalid`
 }
 
+function verifiedPhone(claims: Claims): string | null {
+  if (claims.phone_number_verified !== true || !claims.phone_number) return null
+  const compact = claims.phone_number.replace(/[\s()-]/g, '')
+  const phone = compact.startsWith('+') ? compact : `+${compact}`
+  return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : null
+}
+
 async function getLinkedUser(env: TelegramPrimaryLoginEnv, subject: string): Promise<UserRow | null> {
   const link = await env.AUTH_DB.prepare(
     "SELECT user_id FROM linked_identities WHERE provider = 'telegram' AND provider_subject = ? LIMIT 1",
@@ -117,35 +131,14 @@ async function getLinkedUser(env: TelegramPrimaryLoginEnv, subject: string): Pro
   return link?.user_id ? getUserById(env.AUTH_DB, link.user_id) : null
 }
 
-async function createOrGetTelegramUser(env: TelegramPrimaryLoginEnv, claims: Claims): Promise<UserRow> {
+async function linkTelegramIdentity(env: TelegramPrimaryLoginEnv, user: UserRow, claims: Claims): Promise<UserRow> {
   const subject = claims.sub!
-  const existing = await getLinkedUser(env, subject)
-  if (existing) {
-    await env.AUTH_DB.prepare(
-      "UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?",
-    ).bind(claims.preferred_username ?? null, subject).run()
-    return existing
+  const existingProvider = await env.AUTH_DB.prepare(
+    "SELECT provider_subject FROM linked_identities WHERE user_id = ? AND provider = 'telegram' LIMIT 1",
+  ).bind(user.id).first<{ provider_subject?: string }>()
+  if (existingProvider?.provider_subject && existingProvider.provider_subject !== subject) {
+    throw new Error('TELEGRAM_IDENTITY_CONFLICT')
   }
-
-  const email = internalTelegramEmail(subject)
-  let user = await getUserByEmail(env.AUTH_DB, email)
-  if (!user) {
-    try {
-      await insertUser(env.AUTH_DB, {
-        id: generateUuid(),
-        email,
-        password_hash: null,
-        google_id: null,
-        name: claims.name ?? claims.preferred_username ?? 'Telegram user',
-        avatar_url: null,
-      })
-    } catch {
-      // A concurrent callback for the same Telegram subject may have created
-      // the deterministic internal identity record first.
-    }
-    user = await getUserByEmail(env.AUTH_DB, email)
-  }
-  if (!user) throw new Error('Could not create OTYA Telegram identity')
 
   await env.AUTH_DB.prepare(`
     INSERT INTO linked_identities (user_id, provider, provider_subject, provider_username, provider_email, linked_at, last_used_at)
@@ -156,15 +149,66 @@ async function createOrGetTelegramUser(env: TelegramPrimaryLoginEnv, claims: Cla
   `).bind(user.id, subject, claims.preferred_username ?? null).run()
 
   const owner = await getLinkedUser(env, subject)
-  if (!owner) throw new Error('Could not link Telegram identity')
+  if (!owner || owner.id !== user.id) throw new Error('Could not link Telegram identity')
   return owner
 }
 
+async function resolveTelegramUser(
+  env: TelegramPrimaryLoginEnv,
+  claims: Claims,
+  mode: AuthMode,
+): Promise<{ user: UserRow; created: boolean } | null> {
+  const subject = claims.sub!
+  const existing = await getLinkedUser(env, subject)
+  if (existing) {
+    await env.AUTH_DB.prepare(
+      "UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?",
+    ).bind(claims.preferred_username ?? null, subject).run()
+    return { user: existing, created: false }
+  }
+
+  // A Telegram-verified phone can safely reconnect the provider to the one
+  // existing Otya identity that already owns that phone, avoiding duplicates.
+  const phone = verifiedPhone(claims)
+  if (phone) {
+    const byPhone = await env.AUTH_DB.prepare(
+      'SELECT * FROM users WHERE phone_number = ? LIMIT 1',
+    ).bind(phone).first<UserRow>()
+    if (byPhone) return { user: await linkTelegramIdentity(env, byPhone, claims), created: false }
+  }
+
+  // Preserve Telegram-only accounts created by the earlier create-or-login
+  // implementation. They remain valid identities and are linked if needed.
+  const internalEmail = internalTelegramEmail(subject)
+  const legacy = await getUserByEmail(env.AUTH_DB, internalEmail)
+  if (legacy) return { user: await linkTelegramIdentity(env, legacy, claims), created: false }
+
+  // Sign-in must never create a new account. New identity creation is allowed
+  // only through explicit registration after legal acceptance was validated at
+  // the start of this same OIDC flow and persisted in the one-time KV state.
+  if (mode === 'login') return null
+
+  try {
+    await insertUser(env.AUTH_DB, {
+      id: generateUuid(),
+      email: internalEmail,
+      password_hash: null,
+      google_id: null,
+      name: claims.name ?? claims.preferred_username ?? 'Telegram user',
+      avatar_url: null,
+    })
+  } catch {
+    // A concurrent registration callback for the same Telegram subject may
+    // have created the deterministic internal identity first.
+  }
+  const createdUser = await getUserByEmail(env.AUTH_DB, internalEmail)
+  if (!createdUser) throw new Error('Could not create Otya Telegram identity')
+  return { user: await linkTelegramIdentity(env, createdUser, claims), created: true }
+}
+
 async function applyVerifiedPhone(env: TelegramPrimaryLoginEnv, userId: string, claims: Claims): Promise<void> {
-  if (claims.phone_number_verified !== true || !claims.phone_number) return
-  const compact = claims.phone_number.replace(/[\s()-]/g, '')
-  const phone = compact.startsWith('+') ? compact : `+${compact}`
-  if (!/^\+[1-9]\d{7,14}$/.test(phone)) return
+  const phone = verifiedPhone(claims)
+  if (!phone) return
   const other = await env.AUTH_DB.prepare('SELECT id FROM users WHERE phone_number = ? AND id <> ? LIMIT 1').bind(phone, userId).first<{ id?: string }>()
   if (other?.id) return
   await env.AUTH_DB.prepare(`
@@ -186,17 +230,47 @@ async function issueSession(env: TelegramPrimaryLoginEnv, user: UserRow) {
 
 async function start(request: Request, env: TelegramPrimaryLoginEnv): Promise<Response | null> {
   const url = new URL(request.url)
-  if (url.pathname !== '/auth/telegram/start' || url.searchParams.get('mode') !== 'login') return null
+  if (url.pathname !== '/auth/telegram/start') return null
+  const mode = url.searchParams.get('mode')
+  if (mode !== 'login' && mode !== 'register') return null
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   if (!env.TELEGRAM_LOGIN_CLIENT_ID || !env.TELEGRAM_LOGIN_CLIENT_SECRET) {
     return json({ error: 'Telegram Sign-In is temporarily unavailable', code: 'TELEGRAM_LOGIN_UNAVAILABLE' }, 503)
+  }
+
+  let marketingConsent = false
+  if (mode === 'register') {
+    let body: Record<string, unknown>
+    try { body = await request.json() as Record<string, unknown> }
+    catch { return json({ error: 'Registration consent is required', code: 'LEGAL_ACCEPTANCE_REQUIRED' }, 428) }
+
+    const legalAccepted = body.terms_accepted === true
+      && body.privacy_accepted === true
+      && body.terms_version === TERMS_VERSION
+      && body.privacy_version === PRIVACY_VERSION
+    if (!legalAccepted) {
+      return json({
+        error: 'Accept the current Terms and Privacy Policy before creating your account',
+        code: 'LEGAL_ACCEPTANCE_REQUIRED',
+        terms_version: TERMS_VERSION,
+        privacy_version: PRIVACY_VERSION,
+      }, 428)
+    }
+    if (body.marketing_consent !== undefined && typeof body.marketing_consent !== 'boolean') {
+      return json({ error: 'marketing_consent must be true or false' }, 400)
+    }
+    marketingConsent = body.marketing_consent === true
   }
 
   const state = randomUrlSafe(24)
   const verifier = randomUrlSafe(48)
   const nonce = randomUrlSafe(24)
   const challenge = await sha256Base64Url(verifier)
-  await env.AUTH_KV.put(`${STATE_PREFIX}${state}`, JSON.stringify({ verifier, nonce } satisfies State), { expirationTtl: STATE_TTL })
+  await env.AUTH_KV.put(
+    `${STATE_PREFIX}${state}`,
+    JSON.stringify({ verifier, nonce, mode, marketingConsent } satisfies State),
+    { expirationTtl: STATE_TTL },
+  )
 
   const authorization = new URL(AUTH_URL)
   authorization.searchParams.set('client_id', env.TELEGRAM_LOGIN_CLIENT_ID)
@@ -207,7 +281,7 @@ async function start(request: Request, env: TelegramPrimaryLoginEnv): Promise<Re
   authorization.searchParams.set('nonce', nonce)
   authorization.searchParams.set('code_challenge', challenge)
   authorization.searchParams.set('code_challenge_method', 'S256')
-  return json({ ok: true, mode: 'login', provider_mode: 'oidc', authorization_url: authorization.toString() })
+  return json({ ok: true, mode, provider_mode: 'oidc', authorization_url: authorization.toString() })
 }
 
 async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise<Response | null> {
@@ -225,7 +299,9 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
 
   try {
     const stored = JSON.parse(raw) as State
-    if (!stored.verifier || !stored.nonce) throw new Error('Incomplete Telegram state')
+    if (!stored.verifier || !stored.nonce || (stored.mode !== 'login' && stored.mode !== 'register')) {
+      throw new Error('Incomplete Telegram state')
+    }
     if (!env.TELEGRAM_LOGIN_CLIENT_ID || !env.TELEGRAM_LOGIN_CLIENT_SECRET) throw new Error('Telegram provider unavailable')
     const redirectUri = env.TELEGRAM_LOGIN_REDIRECT_URI || DEFAULT_REDIRECT
     const basic = btoa(`${env.TELEGRAM_LOGIN_CLIENT_ID}:${env.TELEGRAM_LOGIN_CLIENT_SECRET}`)
@@ -250,7 +326,15 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
 
     const claims = await verifyIdToken(token.id_token, env.TELEGRAM_LOGIN_CLIENT_ID, stored.nonce)
     await ensureSchema(env.AUTH_DB)
-    const user = await createOrGetTelegramUser(env, claims)
+    const resolved = await resolveTelegramUser(env, claims, stored.mode)
+    if (!resolved) {
+      return Response.redirect('https://petersmartlink.com/sign-in?telegram=not-linked', 302)
+    }
+
+    const { user, created } = resolved
+    if (created) {
+      await recordRegistrationConsent(env, user.id, stored.marketingConsent === true)
+    }
     await applyVerifiedPhone(env, user.id, claims)
     await touchUserProduct(env.AUTH_DB, user.id, 'otya')
     const session = await issueSession(env, user)
@@ -259,6 +343,7 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
       ok: true,
       telegram_login: true,
       created_or_logged_in: true,
+      created,
       access_token: session.accessToken,
       refresh_token: session.refreshToken,
       expires_in: ACCESS_TTL,
