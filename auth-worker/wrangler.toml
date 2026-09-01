@@ -16,7 +16,7 @@ enabled = true
 head_sampling_rate = 0.05
 
 [[secrets_store_secrets]]
-binding = "TELEGRAM_BOT_TOKEN"
+binding = "TELEGRAM_MINIAPP_BOT_TOKEN"
 store_id = "a1df6b906c6e4c1da6e7687330ea0f9c"
 secret_name = "TELEGRAM_BOT_TOKEN"
 
@@ -42,7 +42,7 @@ TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/api/auth/telegram/call
 TELEGRAM_LOGIN_BOT_USERNAME = "OtyaPlayerBot"
 ADMIN_EMAILS = "petersmartlink@gmail.com"
 
-# OIDC client credentials remain Worker secrets managed by deployment.
-# TELEGRAM_BOT_TOKEN is not duplicated in GitHub; the same centralized Secrets
-# Store credential is bound read-only here only for Telegram Mini App/widget
-# signature verification.
+# Telegram browser sign-in stays OIDC + PKCE. Mini App signature verification
+# reads the same centralized Secrets Store entry through a purpose-specific
+# local binding so the legacy Login Widget path cannot mistake the binding
+# object for a raw token. No secret value is duplicated in GitHub.
