@@ -62,7 +62,7 @@ export default function SignInPage() {
 
     const telegram = new URLSearchParams(window.location.search).get('telegram')
     if (telegram === 'signed-in') void verifySessionAndOpen()
-    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your OTYA account first, then connect Telegram from your account.')
+    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Create an OTYA account or sign in first, then connect Telegram from your account.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
     else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
     else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
@@ -149,9 +149,23 @@ export default function SignInPage() {
 
   async function startTelegram() {
     if (busy) return
+    if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy before creating your account.')
     setBusy(true); setError(''); setNotice('')
     try {
-      const response = await fetch('/api/auth/telegram/start?mode=login', { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+      const telegramMode = registration ? 'register' : 'login'
+      const response = await fetch(`/api/auth/telegram/start?mode=${telegramMode}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: registration ? { 'Content-Type': 'application/json' } : undefined,
+        body: registration ? JSON.stringify({
+          terms_accepted: true,
+          terms_version: TERMS_VERSION,
+          privacy_accepted: true,
+          privacy_version: PRIVACY_VERSION,
+          marketing_consent: marketing,
+        }) : undefined,
+      })
       const data = await response.json().catch(() => ({})) as Json
       if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is temporarily unavailable.')
       window.location.assign(data.authorization_url)
