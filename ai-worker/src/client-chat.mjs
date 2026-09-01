@@ -1,11 +1,12 @@
 import { appendMessage, getOrCreateConversation, hashIdentity, listConversations, newConversation, readConversation } from './conversations.mjs'
+import { publicBetaModels, safeNextFailureResponse } from './next-policy.mjs'
 
 const TELEGRAM_API='https://api.telegram.org'
 const FALLBACK_GUEST_MODEL='llama-fast'
 const FALLBACK_SIGNED_DEFAULT='otya-smart'
 const MODELS={
-  'llama-fast':{name:'OTYA Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast answers for everyday questions.',costClass:'low'},
-  'otya-smart':{name:'OTYA Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Balanced general assistant with strong multilingual ability.',costClass:'low'},
+  'llama-fast':{name:'Otya Fast',provider:'Meta',model:'@cf/meta/llama-3.1-8b-instruct-fast',tier:'fast',description:'Fast answers for everyday questions.',costClass:'low'},
+  'otya-smart':{name:'Otya Smart',provider:'Z.ai',model:'@cf/zai-org/glm-4.7-flash',tier:'balanced',description:'Balanced general assistant with strong multilingual ability.',costClass:'low'},
   'gemma-4':{name:'Gemma 4 26B',provider:'Google',model:'@cf/google/gemma-4-26b-a4b-it',tier:'balanced',description:'Modern multilingual general assistant.',costClass:'medium'},
   'granite':{name:'Granite 4 Micro',provider:'IBM',model:'@cf/ibm-granite/granite-4.0-h-micro',tier:'fast',description:'Compact fallback model for everyday questions.',costClass:'low'},
   'llama-70b':{name:'Llama 3.3 70B',provider:'Meta',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',tier:'large',description:'Large general-purpose model for detailed answers.',costClass:'high'},
@@ -20,13 +21,11 @@ const MODELS={
 const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})
 const aiText=r=>typeof r?.response==='string'?r.response:(typeof r?.choices?.[0]?.message?.content==='string'?r.choices[0].message.content:'')
-const parseIds=v=>String(v??'').split(',').map(x=>clean(x,60)).filter(Boolean)
 const trustedStoreRequest=(request,env)=>Boolean(env.INTERNAL_SECRET)&&request.headers.get('X-OTYA-Internal-Secret')===env.INTERNAL_SECRET
 
 function configuredPolicy(env){
-  const configured=parseIds(env.AI_PUBLIC_MODELS)
-  const allowed=configured.length?configured.filter(id=>MODELS[id]):['llama-fast','otya-smart','gemma-4','granite']
-  const safeAllowed=allowed.length?allowed:['llama-fast','otya-smart','granite']
+  const allowed=publicBetaModels(env.AI_PUBLIC_MODELS).filter(id=>MODELS[id])
+  const safeAllowed=allowed.length?allowed:['llama-fast','otya-smart','gemma-4','granite']
   const requestedGuest=clean(env.AI_GUEST_MODEL,60)
   const requestedDefault=clean(env.AI_DEFAULT_MODEL,60)
   const guest=safeAllowed.includes(requestedGuest)?requestedGuest:(safeAllowed.includes(FALLBACK_GUEST_MODEL)?FALLBACK_GUEST_MODEL:safeAllowed[0])
@@ -67,20 +66,20 @@ async function runAi(env,messages,selection){
 async function publicOtyaContext(env){
   const base=(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')
   const facts=[
-    'OTYA is an offline-first Android music and video player by PeterSmart Link.',
-    'OTYA has three permanent top-level destinations: Video, Music and Me. Advanced utilities should appear contextually or under organized Tools/Settings rather than as duplicate top-level screens.',
-    'Ask OTYA is a friendly general assistant inside OTYA. It can answer ordinary questions and has extra OTYA product context when needed.',
+    'Otya is an offline-first Android music and video product by PeterSmart Link.',
+    'Otya has three permanent top-level destinations: Video, Music and Me. Advanced utilities should appear contextually or under organized Tools/Settings rather than as duplicate top-level screens.',
+    'Next is the friendly general assistant inside Otya. It can answer ordinary questions and has extra Otya product context when needed.',
     `Official website: ${base}.`,
-    `Official Ask OTYA page: ${base}/ask.`,
+    `Official Next page: ${base}/ask.`,
     `Official download page: ${base}/download/otya-player.`,
     `Official support page: ${base}/apps/otya-player/support.`,
     `Official Telegram: ${env.TELEGRAM_CHANNEL_URL||'https://t.me/otyaplayer'}.`,
-    'Local playback, media scanning, local search and supported local transfer must keep working without signing in, Firebase, Jamendo or AI.',
+    'Local playback, media scanning, local search and supported local transfer must keep working without signing in, Firebase, online music or AI.',
     'Online music is an optional enhancement inside Search/Music rather than a separate streaming-first identity. Local search results must appear first; online results may be added only when available.',
-    'OTYA users do not need a Jamendo account to browse or listen to the public online catalog. Optional Jamendo account connection requires explicit user consent.',
-    'For an online track, OTYA shows Download only when the provider explicitly permits downloading and supplies a valid download URL. Non-downloadable tracks should not show a disabled Download button.',
+    'Otya users do not need a provider account to use ordinary local playback. Any optional provider connection requires explicit user consent.',
+    'For an online track, Otya shows Download only when the provider explicitly permits downloading and supplies a valid download URL. Non-downloadable tracks should not show a disabled Download button.',
     'Downloaded provider tracks become ordinary local music on the phone and should appear in the normal Music library after Android media indexing/scanning.',
-    'If online music, Jamendo, Cloudflare, Firebase or Ask OTYA is unavailable, that must not make local music/video playback or local Search look broken.',
+    'If online music, Cloudflare, Firebase or Next is unavailable, that must not make local music/video playback or local Search look broken.',
     'New audio and video received or downloaded on the phone should appear in the normal Music or Video library after scanning.',
   ]
   try{
@@ -91,7 +90,7 @@ async function publicOtyaContext(env){
       const v=await r.json().catch(()=>null)
       if(v&&typeof v==='object'){
         const version=clean(v.version,80),code=Number(v.versionCode||0),date=clean(v.date,80),changelog=clean(v.changelog,700)
-        if(version)facts.push(`Current public OTYA release: version ${version}${code?` (build ${code})`:''}${date?`, release date ${date}`:''}.`)
+        if(version)facts.push(`Current public Otya release: version ${version}${code?` (build ${code})`:''}${date?`, release date ${date}`:''}.`)
         if(changelog)facts.push(`Current release notes: ${changelog}`)
       }
     }
@@ -101,15 +100,15 @@ async function publicOtyaContext(env){
 
 async function system(env){
   const live=await publicOtyaContext(env)
-  return `You are Ask OTYA, a friendly general-purpose AI assistant built into OTYA.
+  return `You are Next, a friendly general-purpose AI assistant built into Otya.
 
-GENERAL BEHAVIOR: Answer the user's question directly, whether it is about OTYA or a general topic. Be conversational, useful and concise by default. Explain more when the question needs it. Do not pretend you have live web access, current news, private account access, device access, or external tools unless the backend has explicitly supplied that information in the conversation or live context. For time-sensitive facts you cannot verify, say that they may have changed instead of inventing an answer.
+GENERAL BEHAVIOR: Answer the user's question directly, whether it is about Otya or a general topic. Be conversational, useful and concise by default. Explain more when the question needs it. Do not pretend you have live web access, current news, private account access, device access, or external tools unless the backend has explicitly supplied that information in the conversation or live context. For time-sensitive facts you cannot verify, say that they may have changed instead of inventing an answer.
 
-OTYA EXPERTISE: When the request concerns OTYA, OTYA Player, music/video playback, local or online music, media library, files, Transfer, Converter, Private/vault, Tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, or release information, use the live OTYA facts below and give product-specific guidance. Preserve OTYA's offline-first hierarchy: local media and local Search are primary; online music and AI are optional enhancements. Never invent an OTYA feature or claim an OTYA/device/provider/account action happened unless the backend confirms it.
+OTYA EXPERTISE: When the request concerns Otya, music/video playback, local or online music, media library, files, Transfer, Converter, Private/vault, Tools, personalization/themes, storage, permissions, updates, downloads, account, security, backup, website, support, or release information, use the live Otya facts below and give product-specific guidance. Preserve Otya's offline-first hierarchy: local media and local Search are primary; online music and AI are optional enhancements. Never invent an Otya feature or claim an Otya/device/provider/account action happened unless the backend confirms it.
 
-HUMAN SUPPORT: Use the exact prefix [HANDOFF] on the first line only when the user explicitly asks for a human/support agent, or when an OTYA account/support problem genuinely requires a human to continue. Do not use [HANDOFF] merely because a question is unrelated to OTYA. Do not claim support has been notified until the backend confirms a handoff request.
+HUMAN SUPPORT: Use the exact prefix [HANDOFF] on the first line only when the user explicitly asks for a human/support agent, or when an Otya account/support problem genuinely requires a human to continue. Do not use [HANDOFF] merely because a question is unrelated to Otya. Do not claim support has been notified until the backend confirms a handoff request.
 
-SAFETY & PRIVACY: Never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, provider refresh tokens, or admin-only data. Public Ask OTYA cannot see the private Admin Assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data. Refuse unsafe requests when necessary and offer a safer direction when useful.
+SAFETY & PRIVACY: Never request or expose passwords, OTPs, JWTs, API keys, private keys, payment credentials, provider refresh tokens, or admin-only data. Public Next cannot see the private owner assistant, admin email, GitHub, Cloudflare, private customer lists, or private support data. Refuse unsafe requests when necessary and offer a safer direction when useful.
 
 LIVE OTYA CONTEXT:\n${live}`
 }
@@ -122,7 +121,7 @@ async function rate(env,key,limit=45,seconds=60){
   return true
 }
 async function modelRate(env,key,selection){return rate(env,`${key}:model:${selection.id}`,['large','reasoning'].includes(selection.tier)?18:45,60)}
-const unlimitedStatus=()=>({unlimited:true,limit:null,used:null,remaining:null})
+const managedQuotaStatus=()=>({unlimited:false,limit:null,used:null,remaining:null,policy:'provider-managed'})
 
 function historyFrom(value){
   if(!Array.isArray(value))return[]
@@ -155,9 +154,9 @@ async function sendAdminHandoff(env,{message,email,name,source,userId}){
   const ticket=`OTYA-${Date.now().toString(36).toUpperCase()}`
   const admin=env.ADMIN_REPORT_EMAIL||'petersmartlink@gmail.com'
   const lines=[
-    `New OTYA support handoff: ${ticket}`,
+    `New Otya support handoff: ${ticket}`,
     '',
-    `Source: ${clean(source,80)||'OTYA'}`,
+    `Source: ${clean(source,80)||'Otya'}`,
     `User: ${clean(name,120)||'Not provided'}`,
     `Email: ${clean(email,180)||'Not provided'}`,
     `Account ID: ${clean(userId,120)||'Guest'}`,
@@ -165,16 +164,16 @@ async function sendAdminHandoff(env,{message,email,name,source,userId}){
     'Question:',
     clean(message,3000),
     '',
-    'Open the private OTYA Admin console to review support and reply through the approved support tools.',
+    'Open the private Otya owner console to review support and reply through the approved support tools.',
   ]
   const r=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},
     body:JSON.stringify({
-      from:'OTYA Support <noreply@petersmartlink.com>',
+      from:'Otya Support <noreply@petersmartlink.com>',
       to:[admin],
       reply_to:clean(email,180)||'support@petersmartlink.com',
-      subject:`OTYA support handoff · ${ticket}`,
+      subject:`Otya support handoff · ${ticket}`,
       text:lines.join('\n'),
     }),
   })
@@ -200,14 +199,14 @@ export async function handleSharedTelegram(request,env){
   if(!(await rate(env,key,45,60))){await telegram(env,'sendMessage',{chat_id:chatId,text:'Too many messages at once. Please wait a moment.'});return json({ok:true,rate_limited:true})}
   const selection=resolveModel(env,null,false)
   let answer
-  if(text==='/start')answer='Welcome to Ask OTYA. Ask me a general question or ask about OTYA Player, playback, local or online music, files, Transfer, account, updates and troubleshooting.'
-  else if(text==='/download')answer=`Official OTYA download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
+  if(text==='/start')answer='Welcome to Next. Ask me a general question or ask about Otya, playback, local or online music, files, Transfer, account, updates and troubleshooting.'
+  else if(text==='/download')answer=`Official Otya download: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/download/otya-player`
   else if(text==='/privacy')answer='Never send passwords, OTPs, payment details or secret keys here.'
   else{
     try{
       const result=await temporaryReply(env,{message:text,selection})
-      answer=result.handoff_available?`${result.answer}\n\nFor human OTYA help, use the official support page: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/apps/otya-player/support`:result.answer
-    }catch(e){console.error('[telegram-shared]',e?.message);answer='Ask OTYA is unavailable right now. Please try again shortly.'}
+      answer=result.handoff_available?`${result.answer}\n\nFor human Otya help, use the official support page: ${(env.WEBSITE_URL||'https://petersmartlink.com').replace(/\/$/,'')}/apps/otya-player/support`:result.answer
+    }catch(e){console.error('[telegram-shared]',e?.message);answer=safeNextFailureResponse(e).message}
   }
   await telegram(env,'sendMessage',{chat_id:chatId,text:clean(answer,3500),disable_web_page_preview:true})
   return json({ok:true})
@@ -222,10 +221,10 @@ export async function handlePublicChat(request,env){
   const policy=configuredPolicy(env)
 
   if(request.method==='GET'){
-    if(url.searchParams.get('quota')==='1')return json({ok:true,signed_in:signedIn,quota:unlimitedStatus()})
+    if(url.searchParams.get('quota')==='1')return json({ok:true,signed_in:signedIn,quota:managedQuotaStatus()})
     if(url.searchParams.get('models')==='1'){
       const models=publicModels(env)
-      return json({ok:true,signed_in:signedIn,guest_model:policy.guest,default_model:policy.signedDefault,models:signedIn?models:models.filter(m=>m.id===policy.guest),quota:unlimitedStatus(),catalog:'managed'})
+      return json({ok:true,signed_in:signedIn,guest_model:policy.guest,default_model:policy.signedDefault,models:signedIn?models:models.filter(m=>m.id===policy.guest),quota:managedQuotaStatus(),catalog:'managed'})
     }
     if(!signedIn)return json({error:'Sign in to load saved conversations'},401)
     if(url.searchParams.get('list')==='1')return json({ok:true,conversations:await listConversations(env,{ownerType:'client',ownerKey,limit:40})})
@@ -262,9 +261,10 @@ export async function handlePublicChat(request,env){
     const result=signedIn
       ?await persistentReply(env,{userId,message,channel:clean(body.channel,20)||'web',conversationId:clean(body.conversation_id,80),selection,forceNew:body.new_chat===true})
       :await temporaryReply(env,{message,history:body.history,selection})
-    return json({ok:true,...result,scope:'general',quota:unlimitedStatus()})
+    return json({ok:true,...result,scope:'general',quota:managedQuotaStatus()})
   }catch(e){
     console.error('[public-ai]',selection.id,e?.message)
-    return json({error:'Ask OTYA is unavailable right now. Please try again shortly.'},503)
+    const failure=safeNextFailureResponse(e)
+    return json({...failure,error:failure.message},503)
   }
 }
