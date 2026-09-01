@@ -20,6 +20,14 @@ test('Telegram browser Sign-In stays OIDC-only while Mini App uses Secrets Store
   assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)
 })
 
+test('Telegram OIDC login-start persists PKCE state in KV without D1 access', () => {
+  assert.match(wrapper, /startTelegramOidcLogin/)
+  assert.match(wrapper, /telegram_oidc:\$\{state\}/)
+  assert.match(wrapper, /code_challenge_method', 'S256'/)
+  assert.match(wrapper, /AUTH_KV\.put/)
+  assert.doesNotMatch(wrapper, /AUTH_DB|ensureSchema/)
+})
+
 test('Mini App auth proxy is constrained to the private AUTH service and secure cookies', () => {
   assert.match(proxy, /AUTH_PREFIX\s*=\s*'\/auth\/telegram\/'/)
   assert.match(proxy, /\.AUTH as AuthService/)
@@ -29,11 +37,12 @@ test('Mini App auth proxy is constrained to the private AUTH service and secure 
   assert.match(proxy, /delete safe\.refresh_token/)
 })
 
-test('Google and Telegram browser origins are enforced at the outer production router', () => {
+test('Google and Telegram browser origins are enforced around the generated OpenNext worker', () => {
   assert.match(config, /https:\/\/accounts\.google\.com/)
   assert.match(config, /https:\/\/telegram\.org/)
   assert.match(config, /frame-ancestors 'none'/)
   assert.match(router, /CANONICAL_CSP/)
+  assert.match(router, /import openNextWorker from '\.\.\/\.open-next\/worker\.js'/)
   assert.match(router, /script-src[^\n]*accounts\.google\.com/)
   assert.match(router, /connect-src[^\n]*accounts\.google\.com/)
   assert.match(router, /https:\/\/telegram\.org/)
