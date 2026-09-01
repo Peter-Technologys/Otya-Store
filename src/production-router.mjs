@@ -1,11 +1,16 @@
 import worker from './entrypoint.mjs'
 export { OtyaReleaseWorkflow } from './entrypoint.mjs'
 
+const APP_HOST = 'petersmartlink.com'
 const DOCS_HOST = 'docs.petersmartlink.com'
 const STATUS_HOST = 'status.petersmartlink.com'
 const SPACE_HOST = 'space.petersmartlink.com'
 
 function routedRequest(request, url, pathname, marker) {
+  // OpenNext routes are compiled for the canonical application origin. Keep the
+  // browser on the custom hostname, but resolve the internal route through the
+  // apex host so /help, /status and /sign-in are matched by the generated app.
+  url.hostname = APP_HOST
   url.pathname = pathname
   const headers = new Headers(request.headers)
   headers.set('X-OTYA-Surface', marker)
@@ -15,9 +20,9 @@ function routedRequest(request, url, pathname, marker) {
 /**
  * Outer production router for compatibility aliases and custom-domain roots.
  *
- * Host routing is intentionally narrow: only the root (and Docs content paths)
- * are rewritten. `/_next`, APIs, images and other asset requests keep their
- * original paths so OpenNext can serve them normally on every custom hostname.
+ * Host routing is intentionally narrow: only user-facing document routes are
+ * rewritten. Framework assets, APIs, images and metadata keep their original
+ * paths so OpenNext can serve them normally on every custom hostname.
  */
 export default {
   ...worker,
