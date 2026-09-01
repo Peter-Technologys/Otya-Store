@@ -1,6 +1,6 @@
 import { generateOtp, verifyJwt } from './crypto'
 import { sendResendEmail } from './resend'
-import { ensureSchema, getUserById, type D1Database } from './db'
+import { assertSchemaReady, getUserById, type D1Database } from './db'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -43,7 +43,7 @@ async function currentUser(request: Request, env: AdminMfaEnv) {
   if (!auth?.startsWith('Bearer ')) return null
   const payload = await verifyJwt(auth.slice(7), env.AUTH_JWT_SECRET)
   if (!payload?.sub) return null
-  await ensureSchema(env.AUTH_DB)
+  await assertSchemaReady(env.AUTH_DB)
   return getUserById(env.AUTH_DB, payload.sub)
 }
 

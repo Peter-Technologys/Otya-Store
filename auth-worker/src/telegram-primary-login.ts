@@ -1,5 +1,5 @@
 import { generateRefreshToken, generateUuid, signJwt } from './crypto'
-import { ensureSchema, getUserByEmail, getUserById, insertUser, touchUserProduct, type D1Database, type UserRow } from './db'
+import { assertSchemaReady, getUserByEmail, getUserById, insertUser, touchUserProduct, type D1Database, type UserRow } from './db'
 
 interface KVLike {
   get(key: string): Promise<string | null>
@@ -249,7 +249,7 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
     if (!tokenResponse.ok || !token.id_token) throw new Error('Telegram token exchange failed')
 
     const claims = await verifyIdToken(token.id_token, env.TELEGRAM_LOGIN_CLIENT_ID, stored.nonce)
-    await ensureSchema(env.AUTH_DB)
+    await assertSchemaReady(env.AUTH_DB)
     const user = await createOrGetTelegramUser(env, claims)
     await applyVerifiedPhone(env, user.id, claims)
     await touchUserProduct(env.AUTH_DB, user.id, 'otya')

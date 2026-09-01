@@ -1,5 +1,5 @@
 import { generateRefreshToken, generateUuid, signJwt } from './crypto'
-import { ensureSchema, getUserByEmail, insertUser, touchUserProduct, type D1Database } from './db'
+import { assertSchemaReady, getUserByEmail, insertUser, touchUserProduct, type D1Database } from './db'
 import { PRIVACY_VERSION, recordRegistrationConsent, TERMS_VERSION } from './consent'
 import { verifySecondFactor } from './two-factor'
 
@@ -181,7 +181,7 @@ export async function handleFirebaseLogin(
     return json(env, { error: 'Firebase account verification failed' }, 401)
   }
 
-  await ensureSchema(env.AUTH_DB)
+  await assertSchemaReady(env.AUTH_DB)
   const email = account.email.toLowerCase().trim()
   let user = await getUserByEmail(env.AUTH_DB, email)
   const isNewUser = !user

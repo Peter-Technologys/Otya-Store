@@ -42,7 +42,7 @@ const USERS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id                         TEXT PRIMARY KEY,
   otya_id                    TEXT,
-  email                      TEXT UNIQUE NOT NULL,
+  email                      TEXT UNIQUE,
   password_hash              TEXT,
   google_id                  TEXT UNIQUE,
   name                       TEXT,
@@ -182,6 +182,23 @@ async function ensureUserColumns(db: D1Database): Promise<void> {
   await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE phone_number IS NOT NULL').run()
 }
 
+const REQUIRED_SCHEMA_READS = [
+  `SELECT id, otya_id, email, password_hash, google_id, name, avatar_url, is_verified,
+          phone_number, phone_verified_at, phone_verification_method, recovery_email,
+          recovery_email_verified_at, country_code, locale, timezone, created_at, updated_at
+   FROM users LIMIT 0`,
+  `SELECT user_id, product_id, status, first_seen_at, last_seen_at
+   FROM user_products LIMIT 0`,
+  `SELECT user_id, provider, provider_subject, provider_username, provider_email, linked_at, last_used_at
+   FROM linked_identities LIMIT 0`,
+] as const
+
+/** Read-only runtime readiness; DDL belongs to deployment repair. */
+export async function assertSchemaReady(db: D1Database): Promise<void> {
+  for (const query of REQUIRED_SCHEMA_READS) {
+    await db.prepare(query).all()
+  }
+}
 export async function ensureSchema(db: D1Database): Promise<void> {
   // Existing v1 D1 databases are intentionally preserved during reset. Create
   // the table if this is a fresh database, then upgrade every required user

@@ -1,5 +1,5 @@
 import authWorker from './entrypoint'
-import { ensureSchema } from './db'
+import { assertSchemaReady } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import {
@@ -58,7 +58,7 @@ function googleError(message: string, status: number): Response {
 async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
   try {
     if (!identitySchemaReady) {
-      identitySchemaReady = ensureSchema(env.AUTH_DB).catch((error) => {
+      identitySchemaReady = assertSchemaReady(env.AUTH_DB).catch((error) => {
         identitySchemaReady = null
         throw error
       })
