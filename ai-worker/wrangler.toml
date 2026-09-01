@@ -17,14 +17,17 @@ head_sampling_rate = 0.05
 
 [vars]
 ENVIRONMENT = "production"
-APP_NAME = "Next by OTYA"
+APP_NAME = "Next by Otya"
 WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 ADMIN_CRASH_ALERT_THRESHOLD = "5"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
 AI_GATEWAY_ID = "otya-next-gateway"
-AI_PUBLIC_MODELS = "llama-fast,otya-smart,gemma-4,granite,llama-70b,gpt-oss-20b,gpt-oss-120b,nemotron,llama-4-scout,qwen3,sea-lion"
+# Public beta defaults stay on the economical pool. Larger/reasoning models remain
+# available in code for future reviewed policy or owner-only use, but are not
+# exposed to normal users by default on the Cloudflare Free plan.
+AI_PUBLIC_MODELS = "llama-fast,otya-smart,gemma-4,granite"
 AI_GUEST_MODEL = "llama-fast"
 AI_DEFAULT_MODEL = "otya-smart"
 OTYA_AI_MODEL = "@cf/zai-org/glm-4.7-flash"
