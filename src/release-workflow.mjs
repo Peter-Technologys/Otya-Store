@@ -37,6 +37,9 @@ function normalizePayload(raw = {}) {
   if (!TAG_RE.test(tag)) throw new Error('tag must match vX.Y.Z')
   if (!VERSION_RE.test(version)) throw new Error('version must match X.Y.Z')
   if (tag !== `v${version}`) throw new Error('tag and version do not match')
+  if (raw.approval !== 'PUBLISH' || raw.confirmTag !== tag) {
+    throw new Error('Explicit admin publication approval is required for this exact release tag')
+  }
 
   const versionCode = Number(raw.versionCode ?? raw.version_code)
   if (!Number.isSafeInteger(versionCode) || versionCode <= 0) {
@@ -100,7 +103,7 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
   async run(event, step) {
     let release
     try {
-      release = await step.do('validate release metadata', async () => normalizePayload(event.payload ?? {}))
+      release = await step.do('validate release metadata and explicit approval', async () => normalizePayload(event.payload ?? {}))
 
       const artifacts = await step.do(
         'verify versioned R2 APK artifacts',
@@ -178,15 +181,13 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
             arm64: 'OtyaPlayer-arm64.apk',
             arm32: 'OtyaPlayer-arm32.apk',
           },
-          changelog: release.changelog || `OTYA Player ${release.version} is now available.`,
+          changelog: release.changelog || `OTYA ${release.version} is now available.`,
           minSdk: release.minSdk,
           targetSdk: release.targetSdk,
           workerUrl: release.workerUrl,
           downloads: {
             arm64: `${release.workerUrl}/apk/arm64`,
             arm32: `${release.workerUrl}/apk/arm32`,
-            // Generic consumers must not be silently routed to ARM64. The app
-            // uses the explicit ABI URLs; everyone else gets the download page.
             auto: `${release.workerUrl}/download/otya-player`,
             page: `${release.workerUrl}/download/otya-player`,
           },
@@ -227,20 +228,20 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
         const markerKey = `release:push:${release.tag}`
         if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
         await this.env.PUSH_QUEUE.send({
+          title: `OTYA ${release.version} is available`,
+          body: metadata.changelog || 'A new OTYA update is available.',
+          url: `${release.workerUrl}/download/otya-player`,
           type: 'release_available',
           tag: release.tag,
           version: release.version,
           versionCode: release.versionCode,
-          changelog: metadata.changelog,
+          release_notes: metadata.changelog,
           dedupeKey: markerKey,
         })
         await this.env.KV.put(markerKey, new Date().toISOString(), { expirationTtl: 90 * 24 * 60 * 60 })
         return { queued: true, duplicate: false }
       })
 
-      // Publication is already committed once metadata is live and the push is
-      // queued. Observability/reporting failures must never turn that completed
-      // release into a misleading "failed" state.
       const analytics = await step.do('record release analytics', async () => {
         try {
           if (!this.env.OTYA_ANALYTICS?.writeDataPoint) return { written: false, reason: 'binding-unavailable' }
