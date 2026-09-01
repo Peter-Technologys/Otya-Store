@@ -4,12 +4,17 @@ import { readFileSync } from 'node:fs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('core deploy reconciles only the fingerprinted obsolete edge CSP rule', () => {
+test('normal core deploy does not mutate unrelated edge CSP rules', () => {
   const pkg = JSON.parse(read('package.json'))
-  const script = read('scripts/remove-legacy-edge-csp.sh')
 
   assert.match(pkg.scripts.deploy, /wrangler deploy src\/production-router\.mjs --config wrangler\.toml/)
-  assert.match(pkg.scripts.deploy, /bash scripts\/remove-legacy-edge-csp\.sh/)
+  assert.doesNotMatch(pkg.scripts.deploy, /remove-legacy-edge-csp/)
+  assert.equal(pkg.scripts['maintenance:edge-csp'], 'bash scripts/remove-legacy-edge-csp.sh')
+})
+
+test('explicit edge CSP maintenance remains narrowly fingerprinted', () => {
+  const script = read('scripts/remove-legacy-edge-csp.sh')
+
   assert.match(script, /http_response_headers_transform/)
   assert.match(script, /content-security-policy/)
   assert.match(script, /unsafe-eval/)
