@@ -38,7 +38,7 @@ export interface UserRow {
   updated_at:                 string
 }
 
-export const SCHEMA_SQL = `
+const USERS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id                         TEXT PRIMARY KEY,
   otya_id                    TEXT,
@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS users (
   created_at                 TEXT DEFAULT (datetime('now')),
   updated_at                 TEXT DEFAULT (datetime('now'))
 );
+`.trim()
+
+export const SCHEMA_SQL = `
+${USERS_TABLE_SQL}
 CREATE INDEX IF NOT EXISTS idx_users_email  ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
 
@@ -90,6 +94,11 @@ CREATE INDEX IF NOT EXISTS idx_linked_identities_user ON linked_identities(user_
 
 const USER_COLUMN_DEFS: Record<string, string> = {
   otya_id: 'TEXT',
+  password_hash: 'TEXT',
+  google_id: 'TEXT',
+  name: 'TEXT',
+  avatar_url: 'TEXT',
+  is_verified: 'INTEGER DEFAULT 0',
   phone_number: 'TEXT',
   phone_verified_at: 'TEXT',
   phone_verification_method: 'TEXT',
@@ -98,6 +107,8 @@ const USER_COLUMN_DEFS: Record<string, string> = {
   country_code: 'TEXT',
   locale: 'TEXT',
   timezone: 'TEXT',
+  created_at: 'TEXT',
+  updated_at: 'TEXT',
 }
 
 function randomBelow(maxExclusive: number): number {
@@ -172,8 +183,13 @@ async function ensureUserColumns(db: D1Database): Promise<void> {
 }
 
 export async function ensureSchema(db: D1Database): Promise<void> {
-  await db.exec(SCHEMA_SQL)
+  // Existing v1 D1 databases are intentionally preserved during reset. Create
+  // the table if this is a fresh database, then upgrade every required user
+  // column before SCHEMA_SQL attempts indexes that depend on those columns.
+  // This makes startup safe for both fresh and older preserved schemas.
+  await db.exec(USERS_TABLE_SQL)
   await ensureUserColumns(db)
+  await db.exec(SCHEMA_SQL)
 }
 
 export async function getUserByEmail(db: D1Database, email: string): Promise<UserRow | null> {
