@@ -75,7 +75,8 @@ requireMatch('Next live analytics dataset', next, /^dataset\s*=\s*"otya-next-ana
 requireMatch('Next Browser Run binding', next, /^\[browser\]\s*\nbinding\s*=\s*"BROWSER"$/m)
 requireMatch('Next AI Search binding', next, /\[\[ai_search\]\][\s\S]*?binding\s*=\s*"AI_SEARCH"[\s\S]*?instance_name\s*=\s*"otya-knowledge"/m)
 requireMatch('Next gateway id must use canonical name', next, /^AI_GATEWAY_ID\s*=\s*"otya-next-gateway"$/m)
-requireMatch('Next product name must be canonical', next, /^APP_NAME\s*=\s*"Next by OTYA"$/m)
+requireMatch('Next product name must be canonical', next, /^APP_NAME\s*=\s*"Next by Otya"$/m)
+requireMatch('Next public beta model pool must stay economical by default', next, /^AI_PUBLIC_MODELS\s*=\s*"llama-fast,otya-smart,gemma-4,granite"$/m)
 requireMatch('Next guest model remains low-cost default', next, /^AI_GUEST_MODEL\s*=\s*"llama-fast"$/m)
 requireMatch('Next physical v1 D1 name must remain unchanged during cutover', next, /^database_name\s*=\s*"otya-store-db"$/m)
 
@@ -92,8 +93,8 @@ forbidMatch('Firebase Admin private key material must not be committed', scanned
 forbidMatch('Resend API key values must not be committed', scanned, /\bre_[A-Za-z0-9_-]{20,}\b/)
 
 if (failures.length) {
-  console.error('OTYA production configuration validation failed:')
+  console.error('Otya production configuration validation failed:')
   for (const failure of failures) console.error(`- ${failure}`)
   process.exit(1)
 }
-console.log('OTYA production configuration validation passed.')
+console.log('Otya production configuration validation passed.')

@@ -118,7 +118,7 @@ test('Production auth responses normalize the immutable public Otya ID', () => {
   assert.match(source, /return normalizeAccountResponse\(response, env\)/)
 })
 
-test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
+test('Next keeps a low-cost guest model and economical public beta catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
 
@@ -128,27 +128,14 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
   const catalogLine = config.match(/^AI_PUBLIC_MODELS\s*=\s*"([^"]+)"$/m)
   assert.ok(catalogLine, 'AI_PUBLIC_MODELS must be present in ai-worker/wrangler.toml')
   const configuredModels = catalogLine[1].split(',').map(value => value.trim()).filter(Boolean)
-  const expected = [
-    'llama-fast',
-    'otya-smart',
-    'gemma-4',
-    'granite',
-    'llama-70b',
-    'gpt-oss-20b',
-    'gpt-oss-120b',
-    'nemotron',
-    'llama-4-scout',
-    'qwen3',
-    'sea-lion',
-  ]
-  for (const id of expected) assert.ok(configuredModels.includes(id), `${id} must remain in AI_PUBLIC_MODELS`)
+  assert.deepEqual(configuredModels, ['llama-fast', 'otya-smart', 'gemma-4', 'granite'])
 
   assert.match(chat, /if\(!signedIn\).*policy\.guest/)
-  assert.match(chat, /friendly general-purpose AI assistant built into OTYA/)
-  assert.match(chat, /Public Ask OTYA cannot see the private Admin Assistant/)
+  assert.match(chat, /friendly general-purpose AI assistant built into Otya/)
+  assert.match(chat, /Public Next cannot see the private owner assistant/)
 })
 
-test('Free-plan OTYA catalog does not advertise paid-only GLM 5.3', () => {
+test('Free-plan Otya catalog does not advertise paid-only GLM 5.3', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
   assert.doesNotMatch(config, /glm-5\.3/i)
@@ -160,7 +147,7 @@ test('Cloudflare remains the public release and AI control plane', () => {
   assert.match(chat, /Official website:/)
   assert.match(chat, /\/latest/)
   assert.match(chat, /Local playback, media scanning, local search and supported local transfer must keep working/)
-  assert.match(chat, /without signing in, Firebase, Jamendo or AI/)
+  assert.match(chat, /without signing in, Firebase, online music or AI/)
   assert.match(chat, /local Search are primary; online music and AI are optional enhancements/)
 })
 
