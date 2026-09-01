@@ -1,4 +1,9 @@
-const OTYA_KNOWLEDGE_HINT = /\b(otya|next|playback|music|video|library|playlist|history|files?|transfer|private|vault|converter|equalizer|account|sign[ -]?in|login|password|verification|otp|backup|notification|update|download|permission|privacy|terms|support|help|storage|theme|appearance)\b/i
+const OTYA_BRAND_HINT = /\b(otya|next)\b/i
+const OTYA_NAMED_FEATURE_HINT = /\b(transfer|private|vault)\b/i
+const ACCOUNT_FLOW_HINT = /(?:\b(reset|forgot|change|verify|verification|otp|sign[ -]?in|login)\b[\s\S]{0,40}\b(password|account|email|phone)\b)|(?:\b(password|account|email|phone)\b[\s\S]{0,40}\b(reset|forgot|change|verify|verification|otp|sign[ -]?in|login)\b)/i
+const LOCAL_MEDIA_HINT = /(?:\b(my|local|device|library|playlist|history)\b[\s\S]{0,40}\b(music|video|media|files?|songs?|tracks?|playlist|library|history|playback)\b)|(?:\b(music|video|media|files?|songs?|tracks?|playlist|library|history|playback)\b[\s\S]{0,40}\b(my|local|device|library|playlist|history)\b)/i
+const APP_TASK_HINT = /\b(app|player|screen|settings?|permissions?|notifications?|update|download|backup|storage)\b/i
+const APP_SUBJECT_HINT = /\b(playback|library|playlist|media|files?|account|sign[ -]?in|login|password|theme|appearance|storage|permission|notification|update|download|backup)\b/i
 
 const clean = (value, max = 7000) => String(value ?? '')
   .replace(/[\u0000-\u001f]/g, ' ')
@@ -6,7 +11,11 @@ const clean = (value, max = 7000) => String(value ?? '')
   .slice(0, max)
 
 export function shouldRetrieveOtyaKnowledge(message) {
-  return OTYA_KNOWLEDGE_HINT.test(String(message ?? ''))
+  const text = String(message ?? '').trim()
+  if (!text) return false
+  if (OTYA_BRAND_HINT.test(text) || OTYA_NAMED_FEATURE_HINT.test(text)) return true
+  if (ACCOUNT_FLOW_HINT.test(text) || LOCAL_MEDIA_HINT.test(text)) return true
+  return APP_TASK_HINT.test(text) && APP_SUBJECT_HINT.test(text)
 }
 
 export async function retrieveOtyaKnowledge(env, message) {
