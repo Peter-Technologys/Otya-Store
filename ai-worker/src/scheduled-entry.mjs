@@ -2,6 +2,7 @@ import aiWorker from './index.mjs'
 import { handleSupportEmailAdmin } from './support-email.mjs'
 import { handleGmailConnector } from './gmail-connector.mjs'
 import { handlePublicChat, handleSharedTelegram } from './client-chat.mjs'
+import { handlePublicChatStream } from './client-chat-stream.mjs'
 import { handleOwnerActions } from './owner-actions.mjs'
 import { handleOwnerConsole } from './owner-console.mjs'
 
@@ -11,12 +12,10 @@ const parse=s=>{try{const m=String(s||'').match(/\{[\s\S]*\}/);return m?JSON.par
 const clean=(v,max=2000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 
 /**
- * Every Workers AI request from the otya-ai Worker is routed through the
- * single production AI Gateway. Call sites keep using env.AI.run(), while this
- * wrapper injects the private gateway ID and disables response caching so
- * conversational/support content is never served from an inference cache.
- * Prompt/response logging remains a gateway-side privacy setting and stays off
- * unless the owner explicitly changes that policy in Cloudflare.
+ * Every Workers AI request from the Next Worker is routed through the single
+ * production AI Gateway. Call sites keep using env.AI.run(), while this wrapper
+ * injects the private gateway ID and disables response caching so conversational
+ * and support content is never served from an inference cache.
  */
 function withAiGateway(env){
   const ai=env.AI
@@ -39,7 +38,7 @@ function withAiGateway(env){
 }
 
 async function email(env,subject,text){
-  if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY missing on otya-ai')
+  if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY missing on otya-next')
   const r=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},
@@ -175,7 +174,11 @@ export default {
     if(url.pathname.startsWith('/api/admin/ai/support/')) return handleSupportEmailAdmin(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/console/')) return handleOwnerConsole(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,runtimeEnv)
-    if(url.pathname==='/api/ai/chat') return handlePublicChat(request,runtimeEnv)
+    if(url.pathname==='/api/ai/chat'){
+      const streamed=await handlePublicChatStream(request,runtimeEnv)
+      if(streamed)return streamed
+      return handlePublicChat(request,runtimeEnv)
+    }
     if(url.pathname.startsWith('/api/telegram/')){const shared=await handleSharedTelegram(request,runtimeEnv);if(shared)return shared}
     return aiWorker.fetch(request,runtimeEnv,ctx)
   },
