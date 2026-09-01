@@ -34,6 +34,7 @@ GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleuser
 GOOGLE_WEB_CLIENT_ID = "82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com"
 FIREBASE_PROJECT_ID = "otya-player"
 TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/api/auth/telegram/callback"
+TELEGRAM_LOGIN_BOT_USERNAME = "OtyaPlayerBot"
 ADMIN_EMAILS = "petersmartlink@gmail.com"
 
 # Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
@@ -45,8 +46,11 @@ ADMIN_EMAILS = "petersmartlink@gmail.com"
 # Secrets are configured through GitHub Actions / Cloudflare, never committed.
 # Required: AUTH_JWT_SECRET, RESEND_API_KEY
 # Firebase identity setting: FIREBASE_API_KEY
-# Optional account verification: TELEGRAM_LOGIN_CLIENT_ID,
-# TELEGRAM_LOGIN_CLIENT_SECRET, TELEGRAM_GATEWAY_TOKEN
+# Telegram prefers OIDC via TELEGRAM_LOGIN_CLIENT_ID +
+# TELEGRAM_LOGIN_CLIENT_SECRET. If those are not provisioned, the auth Worker
+# can use the official Telegram Login Widget with TELEGRAM_BOT_TOKEN. Both
+# flows bind Telegram to the same OTYA Account and use server-side validation.
+# TELEGRAM_GATEWAY_TOKEN remains separate and is only for Telegram Gateway.
 # Optional internal service settings should use canonical OTYA_CORE_* aliases;
 # legacy OTYA_STORE_* names may remain only as temporary runtime fallback until
 # the cutover is verified.
