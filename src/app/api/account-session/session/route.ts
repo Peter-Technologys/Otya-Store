@@ -3,8 +3,9 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export const dynamic = 'force-dynamic'
 
-const ACCESS_COOKIE = '__Host-otya_access'
-const REFRESH_COOKIE = '__Host-otya_refresh'
+const ACCESS_COOKIE = '__Secure-otya_access'
+const REFRESH_COOKIE = '__Secure-otya_refresh'
+const COOKIE_DOMAIN = '.petersmartlink.com'
 const ACCESS_MAX_AGE = 15 * 60
 const REFRESH_MAX_AGE = 30 * 24 * 60 * 60
 
@@ -16,6 +17,7 @@ function cookieOptions(maxAge: number) {
     httpOnly: true,
     secure: true,
     sameSite: 'lax' as const,
+    domain: COOKIE_DOMAIN,
     path: '/',
     maxAge,
   }
@@ -65,8 +67,6 @@ async function refreshBrowserSession(auth: AuthBinding, request: NextRequest) {
 }
 
 async function validateAccessToken(auth: AuthBinding, accessToken: string) {
-  // Session validation must not depend on D1 profile/schema reads. /auth/sessions
-  // verifies the JWT and returns 200 even when the user has no recorded session rows.
   return auth.fetch(new Request('https://auth/auth/sessions', {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
@@ -74,9 +74,6 @@ async function validateAccessToken(auth: AuthBinding, accessToken: string) {
 }
 
 async function verifiedIdentityFallback(auth: AuthBinding, accessToken: string): Promise<JsonRecord> {
-  // /auth/verify is JWT-only. It gives Space a stable minimal identity even when
-  // a profile migration/read is temporarily unavailable. This prevents a valid
-  // signed-in browser from being rendered as the old sign-in screen.
   try {
     const verified = await auth.fetch(new Request('https://auth/auth/verify', {
       method: 'GET',
@@ -143,14 +140,11 @@ export async function GET(request: NextRequest) {
   if (!validation.ok) {
     const data = await decode(validation)
     return NextResponse.json(
-      { ok: false, authenticated: false, error: data.error || 'Could not verify Otya session' },
+      { ok: false, authenticated: false, error: data.error || 'Could not verify OTYA session' },
       { status: validation.status, headers: { 'Cache-Control': 'no-store' } },
     )
   }
 
-  // Full account data is preferred. If it is temporarily unavailable, use the
-  // JWT-verified minimal identity rather than presenting an authenticated user
-  // with a second login form.
   let profile: JsonRecord = {}
   try {
     const account = await auth.fetch(new Request('https://auth/auth/account', {

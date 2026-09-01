@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export const dynamic = 'force-dynamic'
 
-const ACCESS_COOKIE = '__Host-otya_access'
+const ACCESS_COOKIE = '__Secure-otya_access'
 const STATE_COOKIE = '__Host-otya_jamendo_state'
 const REDIRECT_URI = 'https://petersmartlink.com/api/music/jamendo/oauth/callback'
 const STATE_TTL_SECONDS = 10 * 60

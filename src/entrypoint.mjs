@@ -5,7 +5,7 @@ const HEALTH_CHECK_CRON = '*/5 * * * *'
 const HEALTH_INCIDENT_KEY = 'monitor:health:incident:v2'
 const HEALTH_PATHS = ['/', '/download/otya-player', '/api/version', '/latest']
 const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
-const ACCESS_COOKIE = '__Host-otya_access'
+const ACCESS_COOKIE = '__Secure-otya_access'
 const ADMIN_COOKIE = 'otya_admin_session'
 
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})}
@@ -53,7 +53,7 @@ async function hasElevatedAdminSession(request,env){
   }catch{return false}
 }
 
-function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`}`)}}}
+function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`)}}}
 function withProductionAdapters(env){return{...env,EMAIL:createResendEmailAdapter(env)}}
 function analyticsPath(pathname){if(pathname.startsWith('/auth/'))return'/auth/*';if(pathname.startsWith('/apk/'))return'/apk/*';if(pathname.startsWith('/api/admin/'))return'/api/admin/*';if(pathname.startsWith('/api/telegram/'))return'/api/telegram/*';if(pathname.startsWith('/api/ai/'))return'/api/ai/*';if(pathname.startsWith('/api/'))return'/api/*';return pathname==='/'?'/':'/other'}
 function writeRequestAnalytics(env,request,response,startedAt){if(!env.OTYA_ANALYTICS?.writeDataPoint)return;try{const url=new URL(request.url);env.OTYA_ANALYTICS.writeDataPoint({blobs:['request',request.method,analyticsPath(url.pathname),request.cf?.colo??'unknown'],doubles:[response.status,Date.now()-startedAt],indexes:[analyticsPath(url.pathname)]})}catch{}}

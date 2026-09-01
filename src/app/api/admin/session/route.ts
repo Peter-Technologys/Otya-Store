@@ -10,7 +10,7 @@ import {
   verifyAdminSession,
 } from '@/lib/admin_auth'
 
-const ACCESS_COOKIE = '__Host-otya_access'
+const ACCESS_COOKIE = '__Secure-otya_access'
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
 
@@ -23,7 +23,7 @@ async function authStep(
   const auth = recordEnv.AUTH as AuthBinding | undefined
   const accessToken = cookieValue(request, ACCESS_COOKIE)
   if (!auth?.fetch || !accessToken) {
-    return NextResponse.json({ error: 'Sign in to your Otya account first.' }, { status: 401 })
+    return NextResponse.json({ error: 'Sign in to your OTYA account first.' }, { status: 401 })
   }
 
   return auth.fetch(new Request(`https://auth${path}`, {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   const accountEmail = await getOtyaAccountAdminEmail(request, recordEnv)
   if (!accountEmail) {
-    return NextResponse.json({ error: 'Sign in with the Otya owner account first.' }, { status: 401 })
+    return NextResponse.json({ error: 'Sign in with the OTYA owner account first.' }, { status: 401 })
   }
 
   const body = await request.json().catch(() => ({})) as { action?: string; otp?: string }

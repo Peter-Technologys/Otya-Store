@@ -8,6 +8,7 @@ const API = '/api/account-session'
 const GOOGLE_WEB_CLIENT_ID = '82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com'
 const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
+const DEFAULT_AFTER_AUTH = 'https://space.petersmartlink.com/'
 
 type Mode = 'signin' | 'register' | 'forgot' | 'reset' | 'twofactor'
 type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
@@ -23,6 +24,13 @@ async function authFetch(path: string, init: RequestInit = {}) {
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function afterAuthDestination(): string {
+  if (typeof window === 'undefined') return DEFAULT_AFTER_AUTH
+  const requested = new URLSearchParams(window.location.search).get('next')?.trim() ?? ''
+  if (requested.startsWith('/') && !requested.startsWith('//') && !requested.includes('\\')) return requested
+  return DEFAULT_AFTER_AUTH
 }
 
 export default function SignInPage() {
@@ -49,12 +57,12 @@ export default function SignInPage() {
   useEffect(() => {
     void authFetch('session').then(async response => {
       const data = await response.json().catch(() => ({})) as Json
-      if (response.ok && data.authenticated) window.location.replace('/account')
+      if (response.ok && data.authenticated) window.location.replace(afterAuthDestination())
     }).catch(() => undefined)
 
     const telegram = new URLSearchParams(window.location.search).get('telegram')
     if (telegram === 'signed-in') void verifySessionAndOpen()
-    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then connect Telegram from your account.')
+    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your OTYA account first, then connect Telegram from your account.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
     else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
     else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
@@ -110,13 +118,13 @@ export default function SignInPage() {
       if (response?.ok) {
         const data = await response.json().catch(() => ({})) as Json
         if (data.authenticated === true) {
-          window.location.replace('/account')
+          window.location.replace(afterAuthDestination())
           return true
         }
       }
       if (attempt < 2) await sleep(180 * (attempt + 1))
     }
-    throw new Error('Your details were accepted, but Otya could not open a secure session. Please try again.')
+    throw new Error('Your details were accepted, but OTYA could not open a secure session. Please try again.')
   }
 
   async function completeGoogle(response: GoogleCredentialResponse) {
@@ -130,7 +138,7 @@ export default function SignInPage() {
       if (!result.ok) {
         if (result.status === 428 || data.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
           setMode('register')
-          throw new Error('This Google account is new to Otya. Accept the Terms and Privacy Policy, then use Google again.')
+          throw new Error('This Google account is new to OTYA. Accept the Terms and Privacy Policy, then use Google again.')
         }
         throw new Error(data.error || 'Google Sign-In failed.')
       }
@@ -145,7 +153,7 @@ export default function SignInPage() {
     try {
       const response = await fetch('/api/auth/telegram/start?mode=login', { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
       const data = await response.json().catch(() => ({})) as Json
-      if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is not available yet.')
+      if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is temporarily unavailable.')
       window.location.assign(data.authorization_url)
     } catch (cause) {
       setError((cause as Error).message)
@@ -199,12 +207,12 @@ export default function SignInPage() {
     finally { setBusy(false) }
   }
 
-  const title = mode === 'register' ? 'Create your Otya account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to Otya'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use your Otya account.'
+  const title = mode === 'register' ? 'Create your OTYA account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to OTYA'
+  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for OTYA.' : 'Use your OTYA account.'
 
   return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
-      <Link href="/" aria-label="Otya home" className="inline-flex items-center gap-1.5 mb-8">
+      <Link href="/" aria-label="OTYA home" className="inline-flex items-center gap-1.5 mb-8">
         <OtyaBrandMark size={42} />
         <span className="font-black text-[22px] tracking-[-.05em]">tya</span>
       </Link>
@@ -226,7 +234,7 @@ export default function SignInPage() {
           {registration && <div className="space-y-3 py-2 text-sm otya-muted">
             <Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check>
             <Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check>
-            <Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check>
+            <Check checked={marketing} onChange={setMarketing}>Send me optional OTYA product news.</Check>
           </div>}
 
           <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
@@ -242,7 +250,7 @@ export default function SignInPage() {
           <p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p>
           <div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
             <div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" />
-            <button type="button" onClick={()=>void startTelegram()} disabled={busy || registration} aria-label="Continue with Telegram" title={registration ? 'Telegram account creation will be available after Telegram is linked' : 'Continue with Telegram'} className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
+            <button type="button" onClick={()=>void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg>
             </button>
           </div>
