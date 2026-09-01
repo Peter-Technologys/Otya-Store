@@ -40,7 +40,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
 // ── JWT (HS256) ───────────────────────────────────────────────────────────────
 export interface JwtPayload {
   sub: string
-  email: string
+  email: string | null
   iat: number
   exp: number
 }

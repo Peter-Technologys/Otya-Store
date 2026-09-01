@@ -48,7 +48,7 @@ test('Telegram bot command surface matches the approved package', () => {
   assert.match(core, /Elevated administrator verification required/)
 })
 
-test('Telegram Mini App validates raw initData server-side', () => {
+test('Telegram Mini App validates raw initData server-side and creates or logs in the verified identity', () => {
   assert.match(miniAuth, /verifyTelegramInitData/)
   assert.match(miniAuth, /params\.delete\('hash'\)/)
   assert.match(miniAuth, /join\('\\n'\)/)
@@ -56,7 +56,9 @@ test('Telegram Mini App validates raw initData server-side', () => {
   assert.match(miniAuth, /constantTimeHexEqual/)
   assert.match(miniAuth, /MAX_AGE_SECONDS/)
   assert.match(miniAuth, /Number\.isSafeInteger\(user\.id\)/)
-  assert.match(miniAuth, /OTYA_ACCOUNT_REQUIRED/)
+  assert.match(miniAuth, /createOrGetTelegramUser/)
+  assert.match(miniAuth, /created_or_logged_in/)
+  assert.doesNotMatch(miniAuth, /OTYA_ACCOUNT_REQUIRED/)
   assert.doesNotMatch(miniAuth, /initDataUnsafe/)
 })
 

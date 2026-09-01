@@ -169,7 +169,7 @@ function jsonErr(message: string, env: Env, status = 400, req?: Request): Respon
 
 // ── JWT helpers ───────────────────────────────────────────────────────────────
 
-async function issueAccessToken(userId: string, email: string, secret: string): Promise<string> {
+async function issueAccessToken(userId: string, email: string | null, secret: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   return signJwt({ sub: userId, email, iat: now, exp: now + ACCESS_TOKEN_TTL_SECS }, secret)
 }
@@ -531,7 +531,7 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
   const refreshToken = await issueRefreshToken(env.AUTH_KV, user.id)
 
   // New device login alert (Task 4) — fire-and-forget
-  checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
+  if (user.email) checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
 
   return jsonOk({
     ok:            true,
@@ -626,7 +626,7 @@ async function handleGoogle(req: Request, env: Env): Promise<Response> {
   const refreshToken = await issueRefreshToken(env.AUTH_KV, user.id)
 
   // New device login alert (Task 4) — fire-and-forget
-  checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
+  if (user.email) checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})
 
   return jsonOk({
     ok:            true,
@@ -806,6 +806,7 @@ async function handleSendVerification(req: Request, env: Env): Promise<Response>
 
   const user = await getUserById(env.AUTH_DB, payload.sub)
   if (!user) return jsonErr('User not found', env, 404)
+  if (!user.email) return jsonErr('Add an email address to your OTYA Account before verifying email.', env, 400)
 
   if (user.is_verified) {
     return jsonOk({ ok: true, message: 'Email already verified.' }, env)

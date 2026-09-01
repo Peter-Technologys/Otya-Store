@@ -20,7 +20,7 @@ export interface D1Database {
 export interface UserRow {
   id:                         string
   otya_id:                    string
-  email:                      string
+  email:                      string | null
   password_hash:              string | null
   google_id:                  string | null
   name:                       string | null
@@ -227,7 +227,7 @@ export async function getUserByGoogleId(db: D1Database, googleId: string): Promi
 
 export async function insertUser(
   db: D1Database,
-  user: Pick<UserRow, 'id' | 'email' | 'password_hash' | 'google_id' | 'name' | 'avatar_url'>,
+  user: { id: string; email: string; password_hash: string | null; google_id: string | null; name: string | null; avatar_url: string | null },
 ): Promise<void> {
   for (let attempt = 0; attempt < 16; attempt++) {
     const otyaId = await generateOtyaId(db)
@@ -278,7 +278,7 @@ function assertGoogleIdentityCanLink(existing: UserRow, googleId: string): void 
 
 export async function upsertGoogleUser(
   db: D1Database,
-  user: Pick<UserRow, 'id' | 'email' | 'google_id' | 'name' | 'avatar_url'>,
+  user: { id: string; email: string; google_id: string | null; name: string | null; avatar_url: string | null },
 ): Promise<UserRow | null> {
   const googleId = user.google_id?.trim()
   if (!googleId) throw new Error('GOOGLE_IDENTITY_MISSING')
