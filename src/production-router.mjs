@@ -16,6 +16,32 @@ function publicSurfaceRedirect(url, pathname) {
   return Response.redirect(target.toString(), 302)
 }
 
+function isSpaceAppPath(pathname) {
+  return pathname === '/telegram'
+    || pathname === '/telegram/'
+    || pathname.startsWith('/_next/')
+    || pathname.startsWith('/api/')
+    || pathname === '/favicon.ico'
+    || pathname === '/robots.txt'
+    || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
+}
+
+function dispatchCanonical(request, url, env, ctx) {
+  const target = new URL(url)
+  target.protocol = 'https:'
+  target.hostname = APP_HOST
+  const headers = new Headers(request.headers)
+  headers.set('X-Forwarded-Host', url.hostname)
+  headers.set('X-Forwarded-Proto', 'https')
+  const init = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+  }
+  if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body
+  return worker.fetch(new Request(target.toString(), init), env, ctx)
+}
+
 export default {
   ...worker,
   async fetch(request, env, ctx) {
@@ -29,21 +55,18 @@ export default {
       return worker.fetch(new Request(url, { method: request.method, headers }), env, ctx)
     }
 
+    if (host === SPACE_HOST) {
+      // Keep the Telegram Mini App, its Next.js assets, and its API calls on the
+      // exact Space origin configured in BotFather. OpenNext still resolves the
+      // compiled application against the canonical apex internally.
+      if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
+      if (request.method === 'GET' || request.method === 'HEAD') return publicSurfaceRedirect(url, '/sign-in')
+      return dispatchCanonical(request, url, env, ctx)
+    }
+
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (host === DOCS_HOST) return publicSurfaceRedirect(url, '/help')
       if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
-      if (host === SPACE_HOST) {
-        // Telegram Mini App must remain on the exact space.petersmartlink.com
-        // origin configured in BotFather. Everything else keeps the temporary
-        // Space -> canonical account redirect until Space is fully native.
-        if (url.pathname === '/telegram' || url.pathname === '/telegram/') {
-          const target = new URL(url)
-          target.hostname = APP_HOST
-          target.protocol = 'https:'
-          return worker.fetch(new Request(target, request), env, ctx)
-        }
-        return publicSurfaceRedirect(url, '/sign-in')
-      }
     }
 
     return worker.fetch(request, env, ctx)
