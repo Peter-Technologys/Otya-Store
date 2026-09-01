@@ -1,5 +1,5 @@
 name = "otya-auth"
-main = "src/production-entrypoint.ts"
+main = "src/production-entrypoint-miniapp.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
@@ -14,6 +14,11 @@ head_sampling_rate = 0.5
 [observability.traces]
 enabled = true
 head_sampling_rate = 0.05
+
+[[secrets_store_secrets]]
+binding = "TELEGRAM_BOT_TOKEN"
+store_id = "a1df6b906c6e4c1da6e7687330ea0f9c"
+secret_name = "TELEGRAM_BOT_TOKEN"
 
 [[d1_databases]]
 binding       = "AUTH_DB"
@@ -37,20 +42,7 @@ TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/api/auth/telegram/call
 TELEGRAM_LOGIN_BOT_USERNAME = "OtyaPlayerBot"
 ADMIN_EMAILS = "petersmartlink@gmail.com"
 
-# Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
-# session authority and email/password + OTP remain in this Worker.
-# FCM service-account credentials belong only on the server-side push path;
-# never put a service-account private key in the Flutter app.
-# keep_vars=true preserves currently configured live values during deploys.
-
-# Secrets are configured through GitHub Actions / Cloudflare, never committed.
-# Required: AUTH_JWT_SECRET, RESEND_API_KEY
-# Firebase identity setting: FIREBASE_API_KEY
-# Telegram prefers OIDC via TELEGRAM_LOGIN_CLIENT_ID +
-# TELEGRAM_LOGIN_CLIENT_SECRET. If those are not provisioned, the auth Worker
-# can use the official Telegram Login Widget with TELEGRAM_BOT_TOKEN. Both
-# flows bind Telegram to the same OTYA Account and use server-side validation.
-# TELEGRAM_GATEWAY_TOKEN remains separate and is only for Telegram Gateway.
-# Optional internal service settings should use canonical OTYA_CORE_* aliases;
-# legacy OTYA_STORE_* names may remain only as temporary runtime fallback until
-# the cutover is verified.
+# OIDC client credentials remain Worker secrets managed by deployment.
+# TELEGRAM_BOT_TOKEN is not duplicated in GitHub; the same centralized Secrets
+# Store credential is bound read-only here only for Telegram Mini App/widget
+# signature verification.
