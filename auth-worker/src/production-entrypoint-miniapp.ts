@@ -14,14 +14,10 @@ export default {
       if (response) return response
     }
 
-    // Browser Telegram Sign-In is OIDC + PKCE only. The centralized bot token
-    // is exposed to this Worker only through TELEGRAM_MINIAPP_BOT_TOKEN and is
-    // mapped into the verifier above; it never enters the legacy widget path.
-    if (url.pathname.startsWith('/auth/telegram/')) {
-      const oidcEnv = { ...env, TELEGRAM_BOT_TOKEN: undefined }
-      return worker.fetch(request, oidcEnv as Parameters<typeof worker.fetch>[1])
-    }
-
+    // All browser Telegram Sign-In routes continue through the original
+    // production auth Worker unchanged. The bot credential is not exposed
+    // under TELEGRAM_BOT_TOKEN in Wrangler, so the legacy widget fallback
+    // remains unconfigured while OIDC + PKCE keeps the real runtime bindings.
     return worker.fetch(request, env)
   },
 }
