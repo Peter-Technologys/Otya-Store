@@ -1,0 +1,30 @@
+name: Diagnose Telegram Space surface
+
+on:
+  push:
+    branches: ['diag/telegram-space-2026-09-01']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture Space Telegram response
+        shell: bash
+        run: |
+          set -u
+          url='https://space.petersmartlink.com/telegram?smoke=1'
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl -sS --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' "$url" || true)"
+          echo "HTTP $status"
+          echo '--- headers ---'
+          cat "$headers"
+          echo '--- body prefix ---'
+          head -c 2000 "$body" || true
+          echo
+          echo '--- follow redirects ---'
+          curl -sSIL --max-time 20 "$url" || true
+          test -n "$status"
