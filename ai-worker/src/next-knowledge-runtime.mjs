@@ -7,8 +7,11 @@ const clean = (value, max = 7000) => String(value ?? '')
 
 function isPublicNextConversation(messages) {
   if (!Array.isArray(messages) || !messages.length) return false
-  const system = messages.find((message) => message?.role === 'system')?.content || ''
-  return /\bYou are Next\b/i.test(String(system)) && /\bOtya\b/i.test(String(system))
+  const system = String(messages.find((message) => message?.role === 'system')?.content || '')
+  const publicBoundary =
+    system.includes('Public Next has no owner/admin tools.') ||
+    system.includes('Public Next cannot see the private owner assistant')
+  return publicBoundary && /\bYou are Next\b/i.test(system) && /\bOtya\b/i.test(system)
 }
 
 function latestUserMessage(messages) {
