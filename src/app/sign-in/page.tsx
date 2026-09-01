@@ -250,7 +250,7 @@ export default function SignInPage() {
           <p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p>
           <div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
             <div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" />
-            <button type="button" onClick={()=>void startTelegram()} disabled={busy || registration} aria-label="Continue with Telegram" title={registration ? 'Use Telegram from Sign in; Telegram can create or open your OTYA account.' : 'Continue with Telegram'} className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
+            <button type="button" onClick={()=>void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg>
             </button>
           </div>
