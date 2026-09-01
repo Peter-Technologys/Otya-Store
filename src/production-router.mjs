@@ -6,23 +6,25 @@ const DOCS_HOST = 'docs.petersmartlink.com'
 const STATUS_HOST = 'status.petersmartlink.com'
 const SPACE_HOST = 'space.petersmartlink.com'
 
-function routedRequest(request, url, pathname, marker) {
-  // OpenNext routes are compiled for the canonical application origin. Keep the
-  // browser on the custom hostname, but resolve the internal route through the
-  // apex host so /help, /status and /sign-in are matched by the generated app.
-  url.hostname = APP_HOST
-  url.pathname = pathname
-  const headers = new Headers(request.headers)
-  headers.set('X-OTYA-Surface', marker)
-  return new Request(url, { method: request.method, headers })
+function publicSurfaceRedirect(url, pathname) {
+  const target = new URL(url)
+  target.protocol = 'https:'
+  target.hostname = APP_HOST
+  target.pathname = pathname
+  target.search = ''
+  target.hash = ''
+  // Temporary during v1 so the dedicated host can later become a fully native
+  // surface without browsers caching a permanent redirect.
+  return Response.redirect(target.toString(), 302)
 }
 
 /**
- * Outer production router for compatibility aliases and custom-domain roots.
+ * Outer production router for compatibility aliases and public custom domains.
  *
- * Host routing is intentionally narrow: only user-facing document routes are
- * rewritten. Framework assets, APIs, images and metadata keep their original
- * paths so OpenNext can serve them normally on every custom hostname.
+ * The OpenNext build is canonicalized to petersmartlink.com. Cloudflare custom
+ * domains still provide memorable entry points, but their roots redirect to a
+ * real compiled page instead of attempting an internal host rewrite that can
+ * fall through to OpenNext's 404 route.
  */
 export default {
   ...worker,
@@ -39,31 +41,13 @@ export default {
 
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (host === DOCS_HOST) {
-        if (url.pathname === '/' || url.pathname === '') {
-          return worker.fetch(routedRequest(request, url, '/help', 'docs'), env, ctx)
-        }
-        if (
-          !url.pathname.startsWith('/_next/') &&
-          !url.pathname.startsWith('/api/') &&
-          !url.pathname.startsWith('/docs/') &&
-          url.pathname !== '/favicon.ico' &&
-          url.pathname !== '/robots.txt' &&
-          url.pathname !== '/sitemap.xml'
-        ) {
-          return worker.fetch(
-            routedRequest(request, url, `/docs${url.pathname}`, 'docs'),
-            env,
-            ctx,
-          )
-        }
+        return publicSurfaceRedirect(url, '/help')
       }
-
-      if (host === STATUS_HOST && (url.pathname === '/' || url.pathname === '')) {
-        return worker.fetch(routedRequest(request, url, '/status', 'status'), env, ctx)
+      if (host === STATUS_HOST) {
+        return publicSurfaceRedirect(url, '/status')
       }
-
-      if (host === SPACE_HOST && (url.pathname === '/' || url.pathname === '')) {
-        return worker.fetch(routedRequest(request, url, '/sign-in', 'space'), env, ctx)
+      if (host === SPACE_HOST) {
+        return publicSurfaceRedirect(url, '/sign-in')
       }
     }
 

@@ -5,25 +5,21 @@ import { readFileSync } from 'node:fs'
 const router = readFileSync(new URL('../src/production-router.mjs', import.meta.url), 'utf8')
 const status = readFileSync(new URL('../src/app/status/page.tsx', import.meta.url), 'utf8')
 
-test('custom domains have dedicated root surfaces', () => {
+test('custom domains are canonical public entry points', () => {
   assert.ok(router.includes("const APP_HOST = 'petersmartlink.com'"))
   assert.ok(router.includes("const DOCS_HOST = 'docs.petersmartlink.com'"))
   assert.ok(router.includes("const STATUS_HOST = 'status.petersmartlink.com'"))
   assert.ok(router.includes("const SPACE_HOST = 'space.petersmartlink.com'"))
-  assert.ok(router.includes("'/help', 'docs'"))
-  assert.ok(router.includes("'/status', 'status'"))
-  assert.ok(router.includes("'/sign-in', 'space'"))
+  assert.ok(router.includes("publicSurfaceRedirect(url, '/help')"))
+  assert.ok(router.includes("publicSurfaceRedirect(url, '/status')"))
+  assert.ok(router.includes("publicSurfaceRedirect(url, '/sign-in')"))
 })
 
-test('custom surfaces resolve through the canonical OpenNext origin', () => {
-  assert.ok(router.includes('url.hostname = APP_HOST'))
-  assert.ok(router.includes("headers.set('X-OTYA-Surface', marker)"))
-})
-
-test('Docs host preserves framework assets and API paths', () => {
-  assert.ok(router.includes("!url.pathname.startsWith('/_next/')"))
-  assert.ok(router.includes("!url.pathname.startsWith('/api/')"))
-  assert.ok(router.includes('`/docs${url.pathname}`'))
+test('custom surfaces use temporary HTTPS redirects to compiled apex pages', () => {
+  assert.ok(router.includes("target.protocol = 'https:'"))
+  assert.ok(router.includes('target.hostname = APP_HOST'))
+  assert.ok(router.includes('Response.redirect(target.toString(), 302)'))
+  assert.ok(!router.includes('url.hostname = APP_HOST'))
 })
 
 test('public status page avoids exposing internal monitoring details', () => {
