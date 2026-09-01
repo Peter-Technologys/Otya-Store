@@ -1,5 +1,5 @@
-import worker from './entrypoint.mjs'
-export { OtyaReleaseWorkflow } from './entrypoint.mjs'
+import worker from './telegram-entrypoint.mjs'
+export { OtyaReleaseWorkflow } from './telegram-entrypoint.mjs'
 
 const APP_HOST = 'petersmartlink.com'
 const DOCS_HOST = 'docs.petersmartlink.com'
@@ -13,19 +13,9 @@ function publicSurfaceRedirect(url, pathname) {
   target.pathname = pathname
   target.search = ''
   target.hash = ''
-  // Temporary during v1 so the dedicated host can later become a fully native
-  // surface without browsers caching a permanent redirect.
   return Response.redirect(target.toString(), 302)
 }
 
-/**
- * Outer production router for compatibility aliases and public custom domains.
- *
- * The OpenNext build is canonicalized to petersmartlink.com. Cloudflare custom
- * domains still provide memorable entry points, but their roots redirect to a
- * real compiled page instead of attempting an internal host rewrite that can
- * fall through to OpenNext's 404 route.
- */
 export default {
   ...worker,
   async fetch(request, env, ctx) {
@@ -40,13 +30,18 @@ export default {
     }
 
     if (request.method === 'GET' || request.method === 'HEAD') {
-      if (host === DOCS_HOST) {
-        return publicSurfaceRedirect(url, '/help')
-      }
-      if (host === STATUS_HOST) {
-        return publicSurfaceRedirect(url, '/status')
-      }
+      if (host === DOCS_HOST) return publicSurfaceRedirect(url, '/help')
+      if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
       if (host === SPACE_HOST) {
+        // Telegram Mini App must remain on the exact space.petersmartlink.com
+        // origin configured in BotFather. Everything else keeps the temporary
+        // Space -> canonical account redirect until Space is fully native.
+        if (url.pathname === '/telegram' || url.pathname === '/telegram/') {
+          const target = new URL(url)
+          target.hostname = APP_HOST
+          target.protocol = 'https:'
+          return worker.fetch(new Request(target, request), env, ctx)
+        }
         return publicSurfaceRedirect(url, '/sign-in')
       }
     }
