@@ -15,7 +15,10 @@ test('runtime changes are classified by owner instead of redeploying everything'
   assert.match(workflow, /auth-worker\/\*\)[\s\S]*auth=true/)
   assert.match(workflow, /ai-worker\/\*\)[\s\S]*next=true/)
   assert.match(workflow, /\*\)[\s\S]*core=true/)
-  assert.match(workflow, /\.github\/workflows\/\*\|docs\/\*\|test\/\*\|\*\.md/)
+  assert.match(
+    workflow,
+    /\.github\/workflows\/\*\|docs\/\*\|test\/\*\|validate-config\.mjs\|\*\.md/,
+  )
   assert.match(workflow, /No usable previous commit; conservatively deploying all runtime components/)
 })
 
