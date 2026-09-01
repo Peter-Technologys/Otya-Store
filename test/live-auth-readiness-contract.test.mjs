@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('Account and Google smoke is independent of Telegram credential sync', () => {
+test('Account and Google smoke is independent of Telegram credentials', () => {
   const smoke = read('.github/workflows/auth-smoke.yml')
   assert.match(smoke, /workflows: \['Deploy OTYA to Cloudflare'\]/)
   assert.doesNotMatch(smoke, /Sync Telegram Auth Credential/)
@@ -13,9 +13,10 @@ test('Account and Google smoke is independent of Telegram credential sync', () =
   assert.match(smoke, /AUTH_SCHEMA_UNAVAILABLE/)
 })
 
-test('Telegram provider verification is isolated in its own smoke workflow', () => {
+test('Telegram provider verification follows canonical production deploy directly', () => {
   const smoke = read('.github/workflows/telegram-provider-smoke.yml')
-  assert.match(smoke, /workflows: \['Sync Telegram Auth Credential'\]/)
+  assert.match(smoke, /workflows: \['Deploy OTYA to Cloudflare'\]/)
+  assert.doesNotMatch(smoke, /Sync Telegram Auth Credential/)
   assert.match(smoke, /Require Telegram Sign-In provider/)
 })
 
