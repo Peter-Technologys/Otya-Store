@@ -5,13 +5,6 @@ const DOCS_HOST = 'docs.petersmartlink.com'
 const STATUS_HOST = 'status.petersmartlink.com'
 const SPACE_HOST = 'space.petersmartlink.com'
 
-function rewrite(request, url, pathname, marker) {
-  url.pathname = pathname
-  const headers = new Headers(request.headers)
-  headers.set('X-OTYA-Surface', marker)
-  return worker.fetch(new Request(url, { method: request.method, headers }), arguments[4], arguments[5])
-}
-
 function routedRequest(request, url, pathname, marker) {
   url.pathname = pathname
   const headers = new Headers(request.headers)
