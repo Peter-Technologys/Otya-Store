@@ -125,7 +125,7 @@ jobs:
             assert.ok(adminIndex >= 0 && adminIndex < schemaIndex)
             assert.ok(telegramIndex >= 0 && telegramIndex < schemaIndex)
           })
-          ''').replace(/^          /gm, '')
+          ''').replace('          ', '')
 
           Path('test/auth-runtime-schema-contract.test.mjs').write_text(r'''import test from 'node:test'
           import assert from 'node:assert/strict'
@@ -162,9 +162,8 @@ jobs:
             assert.doesNotMatch(repair, /email TEXT UNIQUE NOT NULL/)
             assert.match(repair, /CREATE TABLE IF NOT EXISTS users/)
           })
-          ''').replace(/^          /gm, '')
+          ''').replace('          ', '')
 
-          # This workflow is a guarded patch vehicle only; do not leave it in the PR.
           Path('.github/workflows/one-shot-auth-runtime-schema.yml').unlink()
           print('Updated runtime callers:', ', '.join(runtime_files))
           PY
