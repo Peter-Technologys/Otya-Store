@@ -42,8 +42,15 @@ function isSpaceAppPath(pathname) {
     || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
 }
 
-function isCoreTelegramRoute(pathname) {
-  return pathname === '/api/telegram/webhook'
+function isCoreBackendRoute(pathname) {
+  return pathname === '/auth'
+    || pathname.startsWith('/auth/')
+    || pathname === '/api/ai'
+    || pathname.startsWith('/api/ai/')
+    || pathname.startsWith('/api/admin/ai/')
+    || pathname === '/api/admin/release-workflow'
+    || pathname === '/api/admin/release-workflow/status'
+    || pathname === '/api/telegram/webhook'
     || pathname === '/api/admin/telegram/test'
     || pathname === '/api/admin/telegram/webhook'
     || pathname.startsWith('/api/telegram/')
@@ -86,7 +93,11 @@ export default {
     const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
 
-    if (isCoreTelegramRoute(url.pathname)) return backendWorker.fetch(request, env, ctx)
+    // These routes are implemented by the OTYA backend worker/service bindings,
+    // not by the generated Next.js application. Dispatch them before OpenNext so
+    // Android auth/Next and protected owner operations cannot fall through to a
+    // website 404 page.
+    if (isCoreBackendRoute(url.pathname)) return backendWorker.fetch(request, env, ctx)
 
     if (url.pathname === '/api/version' || url.pathname === '/api/version/') {
       url.pathname = '/latest'
