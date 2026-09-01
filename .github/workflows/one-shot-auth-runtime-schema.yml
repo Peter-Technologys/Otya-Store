@@ -60,20 +60,24 @@ jobs:
 
           schema_path = Path('auth-worker/schema.sql')
           schema = schema_path.read_text()
-          schema = schema.replace('  id                         TEXT PRIMARY KEY,\n  email                      TEXT UNIQUE NOT NULL,',
-                                  '  id                         TEXT PRIMARY KEY,\n  otya_id                    TEXT,\n  email                      TEXT UNIQUE,', 1)
-          if 'otya_id                    TEXT' not in schema or 'email                      TEXT UNIQUE NOT NULL' in schema:
-              raise SystemExit('canonical auth schema update failed')
+          expected = '  id                         TEXT PRIMARY KEY,\n  email                      TEXT UNIQUE NOT NULL,'
+          replacement = '  id                         TEXT PRIMARY KEY,\n  otya_id                    TEXT,\n  email                      TEXT UNIQUE,'
+          if expected not in schema:
+              raise SystemExit('expected canonical users schema not found')
+          schema = schema.replace(expected, replacement, 1)
           if 'idx_users_otya_id' not in schema:
-              schema = schema.replace('CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);',
-                                      "CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);\nCREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL;", 1)
+              schema = schema.replace(
+                  'CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);',
+                  'CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);\nCREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL;',
+                  1,
+              )
           schema_path.write_text(schema)
 
           repair_path = Path('auth-worker/scripts/repair-remote-schema.sh')
           repair = repair_path.read_text()
+          if 'email TEXT UNIQUE NOT NULL' not in repair:
+              raise SystemExit('expected fresh remote users definition not found')
           repair = repair.replace('email TEXT UNIQUE NOT NULL', 'email TEXT UNIQUE', 1)
-          if 'email TEXT UNIQUE NOT NULL' in repair:
-              raise SystemExit('fresh auth repair schema still requires email')
           repair_path.write_text(repair)
 
           runtime_files = []
@@ -92,18 +96,75 @@ jobs:
           if not runtime_files:
               raise SystemExit('no runtime ensureSchema callers were replaced')
 
-          contract_path = Path('test/auth-readiness-contract.test.mjs')
-          contract = contract_path.read_text()
-          contract = contract.replace("assert.match(source, /import \\\{ ensureSchema \\\} from '\\\.\\\/db'/)",
-                                      "assert.match(source, /import \\\{ assertSchemaReady \\\} from '\\\.\\\/db'/)")
-          contract = contract.replace('identitySchemaReady = ensureSchema\\(env\\.AUTH_DB\\)\\.catch',
-                                      'identitySchemaReady = assertSchemaReady\\(env\\.AUTH_DB\\)\\.catch')
-          contract_path.write_text(contract)
+          Path('test/auth-readiness-contract.test.mjs').write_text(r'''import test from 'node:test'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
 
-          runtime_contract = Path('test/auth-runtime-schema-contract.test.mjs')
-          runtime_contract.write_text('''import test from 'node:test'\nimport assert from 'node:assert/strict'\nimport { readFileSync, readdirSync } from 'node:fs'\n\nconst read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n\ntest('production auth request paths use read-only schema readiness', () => {\n  const files = readdirSync(new URL('../auth-worker/src/', import.meta.url))\n    .filter(name => name.endsWith('.ts') && name !== 'db.ts')\n  for (const name of files) {\n    const source = read(`auth-worker/src/${name}`)\n    assert.doesNotMatch(source, /\\bensureSchema\\s*\\(/, `${name} must not run schema DDL at request time`)\n  }\n  const db = read('auth-worker/src/db.ts')\n  assert.match(db, /export async function assertSchemaReady/)\n  const readiness = db.slice(db.indexOf('export async function assertSchemaReady'), db.indexOf('export async function ensureSchema'))\n  assert.doesNotMatch(readiness, /CREATE TABLE|ALTER TABLE|CREATE INDEX/i)\n  assert.match(readiness, /FROM users LIMIT 0/)\n  assert.match(readiness, /FROM user_products LIMIT 0/)\n  assert.match(readiness, /FROM linked_identities LIMIT 0/)\n})\n\ntest('fresh auth schema supports provider-only identities and public Otya IDs', () => {\n  const schema = read('auth-worker/schema.sql')\n  const repair = read('auth-worker/scripts/repair-remote-schema.sh')\n  assert.match(schema, /otya_id\\s+TEXT/)\n  assert.match(schema, /email\\s+TEXT UNIQUE,/)\n  assert.doesNotMatch(schema, /email\\s+TEXT UNIQUE NOT NULL/)\n  assert.doesNotMatch(repair, /email TEXT UNIQUE NOT NULL/)\n  assert.match(repair, /bash|run_sql|CREATE TABLE IF NOT EXISTS users/)\n})\n''')
+          const source = readFileSync(new URL('../auth-worker/src/production-entrypoint.ts', import.meta.url), 'utf8')
 
-          # This workflow is only a guarded patch vehicle; do not leave it in the PR.
+          test('production auth fails closed when identity schema is unavailable', () => {
+            assert.match(source, /import \{ assertSchemaReady \} from '\.\/db'/)
+            assert.match(source, /let identitySchemaReady: Promise<void> \| null = null/)
+            assert.match(source, /identitySchemaReady = assertSchemaReady\(env\.AUTH_DB\)\.catch/)
+            assert.match(source, /identitySchemaReady = null/)
+            assert.match(source, /AUTH_SCHEMA_UNAVAILABLE/)
+            assert.match(source, /OTYA Account is temporarily unavailable/)
+            assert.match(source, /503/)
+          })
+
+          test('schema readiness guards only session-creating identity writes', () => {
+            assert.match(source, /function createsIdentitySession\(request: Request, url: URL\)/)
+            assert.match(source, /\['\/auth\/register', '\/auth\/login', '\/auth\/google'\]/)
+            assert.match(source, /if \(createsIdentitySession\(request, url\)\) \{/)
+          })
+
+          test('security and provider handlers run before schema readiness', () => {
+            const adminIndex = source.indexOf("url.pathname.startsWith('/auth/admin/')")
+            const telegramIndex = source.indexOf("url.pathname.startsWith('/auth/telegram/')")
+            const schemaIndex = source.indexOf('if (createsIdentitySession(request, url))')
+            assert.ok(adminIndex >= 0 && adminIndex < schemaIndex)
+            assert.ok(telegramIndex >= 0 && telegramIndex < schemaIndex)
+          })
+          ''').replace(/^          /gm, '')
+
+          Path('test/auth-runtime-schema-contract.test.mjs').write_text(r'''import test from 'node:test'
+          import assert from 'node:assert/strict'
+          import { readFileSync, readdirSync } from 'node:fs'
+
+          const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+
+          test('production auth request paths use read-only schema readiness', () => {
+            const files = readdirSync(new URL('../auth-worker/src/', import.meta.url))
+              .filter(name => name.endsWith('.ts') && name !== 'db.ts')
+            for (const name of files) {
+              const source = read(`auth-worker/src/${name}`)
+              assert.doesNotMatch(source, /\bensureSchema\s*\(/, `${name} must not run schema DDL at request time`)
+            }
+            const db = read('auth-worker/src/db.ts')
+            assert.match(db, /export async function assertSchemaReady/)
+            assert.match(db, /FROM users LIMIT 0/)
+            assert.match(db, /FROM user_products LIMIT 0/)
+            assert.match(db, /FROM linked_identities LIMIT 0/)
+            const start = db.indexOf('export async function assertSchemaReady')
+            const end = db.indexOf('export async function ensureSchema')
+            assert.ok(start >= 0 && end > start)
+            const readiness = db.slice(start, end)
+            assert.doesNotMatch(readiness, /CREATE TABLE|ALTER TABLE|CREATE INDEX/i)
+          })
+
+          test('fresh auth schema supports provider-only identities and public Otya IDs', () => {
+            const schema = read('auth-worker/schema.sql')
+            const repair = read('auth-worker/scripts/repair-remote-schema.sh')
+            assert.match(schema, /otya_id\s+TEXT/)
+            assert.match(schema, /email\s+TEXT UNIQUE,/)
+            assert.doesNotMatch(schema, /email\s+TEXT UNIQUE NOT NULL/)
+            assert.match(schema, /idx_users_otya_id/)
+            assert.doesNotMatch(repair, /email TEXT UNIQUE NOT NULL/)
+            assert.match(repair, /CREATE TABLE IF NOT EXISTS users/)
+          })
+          ''').replace(/^          /gm, '')
+
+          # This workflow is a guarded patch vehicle only; do not leave it in the PR.
           Path('.github/workflows/one-shot-auth-runtime-schema.yml').unlink()
           print('Updated runtime callers:', ', '.join(runtime_files))
           PY
