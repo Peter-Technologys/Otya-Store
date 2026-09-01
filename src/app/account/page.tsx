@@ -8,7 +8,7 @@ const API = '/api/account-session'
 type User = {
   id?: string
   otya_id?: string | null
-  email: string
+  email: string | null
   name?: string | null
   avatar_url?: string | null
   is_verified?: boolean | number
@@ -80,7 +80,7 @@ export default function AccountPage() {
 
   function hydrate(data: Json) {
     const next = data.user as User | undefined
-    if (!next?.email) return
+    if (!next?.id) return
     setUser(next)
     setIdentities(Array.isArray(data.identities) ? data.identities as Identity[] : [])
     setName(next.name || '')
@@ -263,8 +263,8 @@ export default function AccountPage() {
     <section id="overview" className="scroll-mt-24">
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         <DashboardCard title="Otya identity" action={<Link href="#personal" className="text-xs font-bold otya-muted">Manage</Link>}>
-          <div className="text-lg font-black break-words">{user.name || user.email.split('@')[0]}</div>
-          <div className="mt-1 text-sm otya-muted break-words">{user.email}</div>
+          <div className="text-lg font-black break-words">{user.name || user.email?.split('@')[0] || user.otya_id || 'OTYA user'}</div>
+          <div className="mt-1 text-sm otya-muted break-words">{user.email || 'No email added'}</div>
           <div className="mt-5"><Label>Otya ID</Label><div className="font-mono text-sm font-bold">{user.otya_id || 'Being assigned'}</div></div>
         </DashboardCard>
         <DashboardCard title="Security health" action={<Link href="#security" className="text-xs font-bold otya-muted">Review</Link>}>
@@ -291,7 +291,7 @@ export default function AccountPage() {
     <ConsoleSection id="personal" title="My Otya" subtitle="Public identity and personal account settings.">
       <div className="grid sm:grid-cols-2 gap-3">
         <ReadOnly label="Otya ID" value={user.otya_id || 'Being assigned'} mono />
-        <ReadOnly label="Primary email" value={user.email} />
+        <ReadOnly label="Primary email" value={user.email || 'No email added'} />
         <Field label="Name" value={name} onChange={setName} />
         <Field label="Recovery email" value={recoveryEmail} onChange={setRecoveryEmail} type="email" />
         <Field label="Country / region" value={country} onChange={setCountry} placeholder="UG" />
@@ -302,8 +302,9 @@ export default function AccountPage() {
     </ConsoleSection>
 
     <ConsoleSection id="security" title="Security" subtitle="Verification and recovery controls for the same Otya account.">
-      <Row title="Primary email" detail={user.is_verified ? 'Verified' : 'Verification required'}>
-        {!user.is_verified && <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void sendEmailCode()} disabled={busy} className="otya-quiet-button rounded-xl px-3 min-h-10 text-sm font-bold">Send code</button><input value={emailCode} onChange={e => setEmailCode(e.target.value)} placeholder="A1234" className="space-input max-w-[160px]"/><button onClick={() => void verifyEmail()} disabled={busy} className="cosmos-button rounded-xl px-3 min-h-10 text-sm font-bold">Verify</button></div>}
+      <Row title="Primary email" detail={!user.email ? 'No email added' : user.is_verified ? 'Verified' : 'Verification required'}>
+        {user.email && !user.is_verified && <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void sendEmailCode()} disabled={busy} className="otya-quiet-button rounded-xl px-3 min-h-10 text-sm font-bold">Send code</button><input value={emailCode} onChange={e => setEmailCode(e.target.value)} placeholder="A1234" className="space-input max-w-[160px]"/><button onClick={() => void verifyEmail()} disabled={busy} className="cosmos-button rounded-xl px-3 min-h-10 text-sm font-bold">Verify</button></div>}
+        {!user.email && <p className="mt-3 text-sm otya-muted">This account currently uses a connected identity such as Telegram. You can still use Otya Space and two-step verification without a primary email.</p>}
       </Row>
       <Row title="Two-step verification" detail={twoFactor?.enabled ? `On · ${twoFactor.recovery_codes_remaining} recovery codes remaining` : twoFactor?.available === false ? 'Unavailable on this deployment' : 'Off'}>
         {twoFactor?.available !== false && !twoFactor?.enabled && !twoFactorSetup && <button onClick={() => void startTwoFactor()} disabled={busy} className="mt-3 cosmos-button rounded-xl px-4 min-h-10 text-sm font-bold">Set up authenticator</button>}
