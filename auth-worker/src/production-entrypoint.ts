@@ -1,4 +1,5 @@
 import authWorker from './entrypoint'
+import { ensureSchema } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import {
@@ -24,6 +25,8 @@ type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & 
   GOOGLE_WEB_CLIENT_ID?: string
 }
 
+let identitySchemaReady: Promise<void> | null = null
+
 function configuredGoogleAudiences(env: ProductionEnv): Set<string> {
   return new Set(
     [env.GOOGLE_CLIENT_ID, env.GOOGLE_WEB_CLIENT_ID]
@@ -37,8 +40,8 @@ export function isAllowedGoogleAudience(audience: string | undefined, env: Produ
   return configuredGoogleAudiences(env).has(audience)
 }
 
-function googleError(message: string, status: number): Response {
-  return new Response(JSON.stringify({ error: message }), {
+function authError(message: string, status: number, code?: string): Response {
+  return new Response(JSON.stringify({ error: message, ...(code ? { code } : {}) }), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
@@ -46,6 +49,20 @@ function googleError(message: string, status: number): Response {
       'X-Content-Type-Options': 'nosniff',
     },
   })
+}
+
+function googleError(message: string, status: number): Response {
+  return authError(message, status)
+}
+
+async function ensureIdentitySchema(env: ProductionEnv): Promise<void> {
+  if (!identitySchemaReady) {
+    identitySchemaReady = ensureSchema(env.AUTH_DB).catch((error) => {
+      identitySchemaReady = null
+      throw error
+    })
+  }
+  await identitySchemaReady
 }
 
 async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Promise<string | Response> {
@@ -138,6 +155,20 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
 export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
+
+    // OPTIONS never needs D1 and should remain cheap for browser preflight.
+    if (request.method !== 'OPTIONS') {
+      try {
+        await ensureIdentitySchema(env)
+      } catch (error) {
+        console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
+        return authError(
+          'OTYA Account is temporarily unavailable. Please try again shortly.',
+          503,
+          'AUTH_SCHEMA_UNAVAILABLE',
+        )
+      }
+    }
 
     if (url.pathname.startsWith('/auth/admin/')) {
       const response = await handleAdminMfa(request, env)
