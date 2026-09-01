@@ -1,8 +1,19 @@
-name: Otya Auth Smoke
+name: OTYA Auth Smoke
 
 on:
   push:
-    branches: [design/otya-web-professional-20260830]
+    branches: [main]
+    paths:
+      - 'auth-worker/**'
+      - 'src/app/sign-in/**'
+      - 'src/app/account/**'
+      - 'src/app/admin/**'
+      - 'src/app/telegram-login/**'
+      - 'src/app/api/auth/**'
+      - 'next.config.mjs'
+      - 'public/_headers'
+      - '.github/workflows/auth-smoke.yml'
+      - '.github/workflows/telegram-auth-secret.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Check live website and Google CSP
+      - name: Check live sign-in CSP
         shell: bash
         run: |
           set -euo pipefail
@@ -23,9 +34,13 @@ jobs:
           test -n "$csp"
           script_src="$(printf '%s' "$csp" | sed -n "s/.*script-src \([^;]*\).*/\1/p")"
           connect_src="$(printf '%s' "$csp" | sed -n "s/.*connect-src \([^;]*\).*/\1/p")"
-          printf 'script-src: %s\nconnect-src: %s\n' "$script_src" "$connect_src"
+          frame_src="$(printf '%s' "$csp" | sed -n "s/.*frame-src \([^;]*\).*/\1/p")"
+          printf 'script-src: %s\nconnect-src: %s\nframe-src: %s\n' "$script_src" "$connect_src" "$frame_src"
           printf '%s' "$script_src" | grep -F 'https://accounts.google.com' >/dev/null
+          printf '%s' "$script_src" | grep -F 'https://telegram.org' >/dev/null
           printf '%s' "$connect_src" | grep -F 'https://accounts.google.com' >/dev/null
+          printf '%s' "$connect_src" | grep -F 'https://oauth.telegram.org' >/dev/null
+          printf '%s' "$frame_src" | grep -F 'https://oauth.telegram.org' >/dev/null
 
       - name: Check browser account session route
         shell: bash
@@ -35,7 +50,7 @@ jobs:
           printf '%s\n' "$body"
           printf '%s\n' "$body" | grep -E '"authenticated"|"error"' >/dev/null
 
-      - name: Report Telegram configuration
+      - name: Require Telegram Sign-In provider
         shell: bash
         run: |
           set -euo pipefail
@@ -44,8 +59,12 @@ jobs:
           cat "$response"
           echo
           echo "HTTP $status"
-          if [ "$status" = "200" ] && grep -q 'authorization_url' "$response"; then
-            echo 'Telegram configured'
-          else
-            echo 'Telegram unavailable; sign-in UI must not present it as working.'
-          fi
+          test "$status" = "200"
+          grep -q 'authorization_url' "$response"
+
+      - name: Check Telegram handoff page
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://petersmartlink.com/telegram-login/)"
+          test "$status" = "200"
