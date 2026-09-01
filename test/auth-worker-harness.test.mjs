@@ -45,5 +45,6 @@ test('Telegram login fails closed when provider credentials are unavailable', as
   })
   assert.equal(response.status, 503)
   const body = await response.json()
-  assert.match(String(body.error ?? ''), /not configured/i)
+  assert.equal(body.code, 'TELEGRAM_LOGIN_UNAVAILABLE')
+  assert.match(String(body.error ?? ''), /unavailable/i)
 })

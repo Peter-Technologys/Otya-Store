@@ -10,16 +10,21 @@ test('custom domains are canonical public entry points', () => {
   assert.ok(router.includes("const DOCS_HOST = 'docs.petersmartlink.com'"))
   assert.ok(router.includes("const STATUS_HOST = 'status.petersmartlink.com'"))
   assert.ok(router.includes("const SPACE_HOST = 'space.petersmartlink.com'"))
-  assert.ok(router.includes("publicSurfaceRedirect(url, '/help')"))
-  assert.ok(router.includes("publicSurfaceRedirect(url, '/status')"))
-  assert.ok(router.includes("publicSurfaceRedirect(url, '/sign-in')"))
+  assert.ok(router.includes("redirectToHost(url, APP_HOST, '/help')"))
+  assert.ok(router.includes("redirectToHost(url, APP_HOST, '/status')"))
 })
 
-test('custom surfaces use temporary HTTPS redirects to compiled apex pages', () => {
+test('Space serves the account surface and apex account links converge to Space', () => {
+  assert.ok(router.includes("url.pathname === '/' || url.pathname === '/account'"))
+  assert.ok(router.includes("dispatchCanonical(request, url, env, ctx, '/account')"))
+  assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/')"))
+})
+
+test('custom surfaces keep HTTPS and generated OpenNext routing explicit', () => {
   assert.ok(router.includes("target.protocol = 'https:'"))
   assert.ok(router.includes('target.hostname = APP_HOST'))
+  assert.ok(router.includes("import openNextWorker from '../.open-next/worker.js'"))
   assert.ok(router.includes('Response.redirect(target.toString(), 302)'))
-  assert.ok(!router.includes('url.hostname = APP_HOST'))
 })
 
 test('public status page avoids exposing internal monitoring details', () => {

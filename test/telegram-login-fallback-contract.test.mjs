@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
 
 const wrapper = readFileSync(new URL('../auth-worker/src/production-entrypoint-miniapp.ts', import.meta.url), 'utf8')
+const primaryLogin = readFileSync(new URL('../auth-worker/src/telegram-primary-login.ts', import.meta.url), 'utf8')
 const miniAuth = readFileSync(new URL('../auth-worker/src/telegram-miniapp.ts', import.meta.url), 'utf8')
 const proxy = readFileSync(new URL('../src/app/api/auth/telegram/[...path]/route.ts', import.meta.url), 'utf8')
 const config = readFileSync(new URL('../next.config.mjs', import.meta.url), 'utf8')
@@ -10,33 +11,50 @@ const router = readFileSync(new URL('../src/production-router.mjs', import.meta.
 const wrangler = readFileSync(new URL('../auth-worker/wrangler.toml', import.meta.url), 'utf8')
 const secretWorkflowUrl = new URL('../.github/workflows/telegram-auth-secret.yml', import.meta.url)
 
-test('Telegram browser Sign-In stays OIDC-only while Mini App uses Secrets Store HMAC', () => {
+test('Telegram browser Sign-In is first-class OIDC while Mini App uses Secrets Store HMAC', () => {
   assert.match(wrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
+  assert.match(wrapper, /handleTelegramPrimaryLogin/)
   assert.match(wrapper, /return worker\.fetch\(request, env\)/)
-  assert.doesNotMatch(wrapper, /oidcEnv|TELEGRAM_BOT_TOKEN: undefined/)
+  assert.match(primaryLogin, /STATE_PREFIX = 'telegram_primary_oidc:'/)
+  assert.match(primaryLogin, /code_challenge_method', 'S256'/)
+  assert.match(primaryLogin, /claims\.nonce !== nonce/)
+  assert.match(primaryLogin, /provider_subject = \?/)
+  assert.match(primaryLogin, /createOrGetTelegramUser/)
+  assert.match(primaryLogin, /INSERT INTO linked_identities/)
+  assert.match(primaryLogin, /touchUserProduct/)
   assert.match(miniAuth, /WebAppData/)
   assert.match(miniAuth, /TELEGRAM_BOT_TOKEN\?\.get/)
   assert.match(miniAuth, /constantTimeHexEqual/)
   assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)
 })
 
-test('Mini App auth proxy is constrained to the private AUTH service and secure cookies', () => {
+test('Telegram OIDC login-start persists PKCE state in KV without D1 access', () => {
+  const startBlock = primaryLogin.slice(primaryLogin.indexOf('async function start'), primaryLogin.indexOf('async function callback'))
+  assert.match(startBlock, /AUTH_KV\.put/)
+  assert.match(startBlock, /code_challenge_method', 'S256'/)
+  assert.doesNotMatch(startBlock, /AUTH_DB|ensureSchema/)
+})
+
+test('Telegram web session is shared securely with Space and tokens stay out of JSON', () => {
   assert.match(proxy, /AUTH_PREFIX\s*=\s*'\/auth\/telegram\/'/)
   assert.match(proxy, /\.AUTH as AuthService/)
-  assert.match(proxy, /__Host-otya_access/)
-  assert.match(proxy, /__Host-otya_refresh/)
+  assert.match(proxy, /__Secure-otya_access/)
+  assert.match(proxy, /__Secure-otya_refresh/)
+  assert.match(proxy, /COOKIE_DOMAIN = '\.petersmartlink\.com'/)
+  assert.match(proxy, /SPACE_URL = 'https:\/\/space\.petersmartlink\.com\/'/)
   assert.match(proxy, /delete safe\.access_token/)
   assert.match(proxy, /delete safe\.refresh_token/)
 })
 
-test('Google and Telegram browser origins are enforced at the outer production router', () => {
+test('Google and Telegram browser origins are enforced around the generated OpenNext worker', () => {
   assert.match(config, /https:\/\/accounts\.google\.com/)
   assert.match(config, /https:\/\/telegram\.org/)
   assert.match(config, /frame-ancestors 'none'/)
   assert.match(router, /CANONICAL_CSP/)
+  assert.match(router, /import openNextWorker from '\.\.\/\.open-next\/worker\.js'/)
   assert.match(router, /script-src[^\n]*accounts\.google\.com/)
   assert.match(router, /connect-src[^\n]*accounts\.google\.com/)
-  assert.match(router, /https:\/\/telegram\.org/)
+  assert.match(router, /space\.petersmartlink\.com/)
   assert.match(router, /headers\.set\('Content-Security-Policy', CANONICAL_CSP\)/)
   assert.doesNotMatch(router, /unsafe-eval/)
 })

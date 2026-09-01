@@ -3,8 +3,9 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export const dynamic = 'force-dynamic'
 
-const ACCESS_COOKIE = '__Host-otya_access'
-const REFRESH_COOKIE = '__Host-otya_refresh'
+const ACCESS_COOKIE = '__Secure-otya_access'
+const REFRESH_COOKIE = '__Secure-otya_refresh'
+const COOKIE_DOMAIN = '.petersmartlink.com'
 const ACCESS_MAX_AGE = 15 * 60
 const REFRESH_MAX_AGE = 30 * 24 * 60 * 60
 
@@ -23,9 +24,8 @@ function cookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     secure: true,
-    // Keep the session protected from cross-site subrequests while allowing
-    // top-level OAuth/OIDC returns from providers such as Google/Telegram.
     sameSite: 'lax' as const,
+    domain: COOKIE_DOMAIN,
     path: '/',
     maxAge,
   }
@@ -99,7 +99,7 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
   if (!suffix) return NextResponse.json({ error: 'Account route is required' }, { status: 400 })
 
   const first = parts[0] ?? ''
-  const sessionCreatingEntry = ['login', 'register', 'google', 'firebase'].includes(first)
+  const sessionCreatingEntry = ['login', 'register', 'google'].includes(first)
   const publicAction = ['forgot-password', 'reset-password'].includes(first)
   const isLogout = first === 'logout'
   const isSessionProbe = first === 'session'
@@ -129,7 +129,7 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
     }
     if (!upstream.ok) {
       const data = await decode(upstream)
-      return NextResponse.json({ ok: false, error: data.error || 'Could not verify Otya account session' }, { status: upstream.status })
+      return NextResponse.json({ ok: false, error: data.error || 'Could not verify OTYA account session' }, { status: upstream.status })
     }
     const data = await decode(upstream)
     const response = NextResponse.json({ ok: true, authenticated: true, ...data })

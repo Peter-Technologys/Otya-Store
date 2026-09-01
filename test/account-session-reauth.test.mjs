@@ -4,9 +4,13 @@ import { readFileSync } from 'node:fs'
 
 const source = readFileSync(new URL('../src/app/api/account-session/[...path]/route.ts', import.meta.url), 'utf8')
 
-test('browser account proxy clears cookies when a protected factor change requires reauthentication', () => {
+test('browser account proxy clears shared secure cookies when reauthentication is required', () => {
   assert.match(source, /data\.sign_in_again === true/)
   assert.match(source, /clearSessionCookies\(response\)/)
-  assert.match(source, /__Host-otya_access/)
-  assert.match(source, /__Host-otya_refresh/)
+  assert.match(source, /__Secure-otya_access/)
+  assert.match(source, /__Secure-otya_refresh/)
+  assert.match(source, /COOKIE_DOMAIN = '\.petersmartlink\.com'/)
+  assert.match(source, /httpOnly: true/)
+  assert.match(source, /secure: true/)
+  assert.match(source, /sameSite: 'lax'/)
 })
