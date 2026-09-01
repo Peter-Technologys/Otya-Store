@@ -179,7 +179,7 @@ export async function handleTelegramMiniApp(request: Request, env: TelegramMiniA
       code: 'OTYA_ACCOUNT_REQUIRED',
       authenticated: false,
       telegram_user_id: providerSubject,
-      account_url: 'https://space.petersmartlink.com/telegram?complete=account',
+      account_url: 'https://space.petersmartlink.com/telegram/?complete=account',
     }, 409)
   }
 

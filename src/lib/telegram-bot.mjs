@@ -1,5 +1,5 @@
 const TELEGRAM_API = 'https://api.telegram.org'
-const MINI_APP_URL = 'https://space.petersmartlink.com/telegram'
+const MINI_APP_URL = 'https://space.petersmartlink.com/telegram/'
 const CHANNEL = '@otyaplayer'
 const UPDATE_TTL = 24 * 60 * 60
 const MAX_TEXT = 3900
