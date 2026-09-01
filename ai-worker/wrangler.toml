@@ -1,5 +1,5 @@
 name = "otya-next"
-main = "src/scheduled-entry.mjs"
+main = "src/production-entry.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
