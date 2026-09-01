@@ -1,0 +1,92 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const coreConfig = read('wrangler.toml')
+const authConfig = read('auth-worker/wrangler.toml')
+const authWrapper = read('auth-worker/src/production-entrypoint-miniapp.ts')
+const core = read('src/telegram-entrypoint.mjs')
+const bot = read('src/lib/telegram-bot.mjs')
+const miniAuth = read('auth-worker/src/telegram-miniapp.ts')
+const proxy = read('src/app/api/auth/telegram/[...path]/route.ts')
+const page = read('src/app/telegram/page.tsx')
+const router = read('src/production-router.mjs')
+
+test('Telegram credentials stay in the centralized Cloudflare Secrets Store', () => {
+  assert.match(coreConfig, /\[\[secrets_store_secrets\]\]/)
+  assert.match(coreConfig, /binding\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.match(coreConfig, /binding\s*=\s*"TELEGRAM_WEBHOOK_SECRET"/)
+  assert.match(coreConfig, /store_id\s*=\s*"a1df6b906c6e4c1da6e7687330ea0f9c"/)
+  assert.match(authConfig, /binding\s*=\s*"TELEGRAM_MINIAPP_BOT_TOKEN"/)
+  assert.match(authConfig, /secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.match(authConfig, /store_id\s*=\s*"a1df6b906c6e4c1da6e7687330ea0f9c"/)
+  assert.match(authWrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
+  assert.match(bot, /binding\.get|typeof binding\.get/)
+  assert.doesNotMatch(coreConfig, /TELEGRAM_BOT_TOKEN\s*=\s*"[^"\n]+"/)
+  assert.doesNotMatch(authConfig, /TELEGRAM_MINIAPP_BOT_TOKEN\s*=\s*"[^"\n]+"/)
+})
+
+test('otya-core is the only public Telegram webhook gateway', () => {
+  assert.match(core, /url\.pathname === '\/api\/telegram\/webhook'/)
+  assert.match(core, /url\.pathname\.startsWith\('\/api\/telegram\/'\).*404/s)
+  assert.match(bot, /X-Telegram-Bot-Api-Secret-Token/)
+  assert.match(bot, /constantTimeEqual/)
+  assert.match(bot, /telegram:update:\$\{updateId\}/)
+  assert.match(bot, /ctx\?\.waitUntil/)
+  assert.match(bot, /https:\/\/api\.telegram\.org/)
+  assert.match(bot, /https:\/\/space\.petersmartlink\.com\/telegram/)
+  assert.match(bot, /text: 'Open OTYA'/)
+})
+
+test('Telegram bot command surface matches the approved package', () => {
+  for (const command of ['/start', '/help', '/music ', '/account', '/updates', '/privacy']) assert.match(bot, new RegExp(command.replace('/', '\\/')))
+  assert.match(bot, /CHANNEL = '@otyaplayer'/)
+  assert.match(bot, /destination !== 'channel'/)
+  assert.match(core, /\/api\/admin\/telegram\/test/)
+  assert.match(core, /X-OTYA-Admin-Action/)
+  assert.match(core, /Elevated administrator verification required/)
+})
+
+test('Telegram Mini App validates raw initData server-side', () => {
+  assert.match(miniAuth, /verifyTelegramInitData/)
+  assert.match(miniAuth, /params\.delete\('hash'\)/)
+  assert.match(miniAuth, /join\('\\n'\)/)
+  assert.match(miniAuth, /WebAppData/)
+  assert.match(miniAuth, /constantTimeHexEqual/)
+  assert.match(miniAuth, /MAX_AGE_SECONDS/)
+  assert.match(miniAuth, /Number\.isSafeInteger\(user\.id\)/)
+  assert.match(miniAuth, /OTYA_ACCOUNT_REQUIRED/)
+  assert.doesNotMatch(miniAuth, /initDataUnsafe/)
+})
+
+test('Mini App auth establishes normal OTYA browser cookies without exposing tokens', () => {
+  assert.match(proxy, /endsWith\('\/miniapp'\)/)
+  assert.match(proxy, /__Host-otya_access/)
+  assert.match(proxy, /__Host-otya_refresh/)
+  assert.match(proxy, /delete safe\.access_token/)
+  assert.match(proxy, /delete safe\.refresh_token/)
+  assert.match(proxy, /sameSite: 'lax'/)
+})
+
+test('Mini App exposes all approved product surfaces and keeps identity server verified', () => {
+  assert.match(page, /telegram\.org\/js\/telegram-web-app\.js/)
+  assert.match(page, /tg\.initData/)
+  assert.doesNotMatch(page, /initDataUnsafe\?\.[^\n]*(?:id|user)/)
+  for (const tab of ['home', 'next', 'music', 'library', 'account', 'updates']) assert.match(page, new RegExp(`'${tab}'`))
+  assert.match(page, /\/api\/ai\/chat/)
+  assert.match(page, /\/api\/music\/search/)
+  assert.match(page, /\/api\/library/)
+  assert.match(page, /\/api\/bootstrap/)
+  assert.match(page, /release_\\d\+/)
+  assert.match(page, /track_\[A-Za-z0-9_-/)
+  assert.doesNotMatch(page, /R2|r2_buckets|bucket_name/)
+})
+
+test('Space keeps Telegram page, assets and APIs on the BotFather origin', () => {
+  assert.match(router, /pathname\.startsWith\('\/_next\/'\)/)
+  assert.match(router, /pathname\.startsWith\('\/api\/'\)/)
+  assert.match(router, /pathname === '\/telegram'/)
+  assert.match(router, /X-Forwarded-Host/)
+  assert.match(router, /host === SPACE_HOST/)
+})

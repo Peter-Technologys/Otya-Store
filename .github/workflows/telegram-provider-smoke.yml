@@ -1,0 +1,41 @@
+name: OTYA Telegram Provider Smoke
+
+on:
+  workflow_run:
+    workflows: ['Deploy OTYA to Cloudflare']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: otya-telegram-provider-smoke-production
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Require Telegram Sign-In provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' -X POST -H 'Accept: application/json' 'https://petersmartlink.com/api/auth/telegram/start?mode=login')"
+          cat "$response"
+          echo
+          echo "HTTP $status"
+          test "$status" = "200"
+          grep -q 'authorization_url' "$response"
+
+      - name: Check Telegram handoff page
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' 'https://petersmartlink.com/telegram-login/?telegram_smoke=1')"
+          test "$status" = "200"

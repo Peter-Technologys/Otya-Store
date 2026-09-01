@@ -2,14 +2,8 @@ import { readFileSync } from 'node:fs'
 
 const read = (path) => readFileSync(new URL(`./${path}`, import.meta.url), 'utf8')
 const failures = []
-
-function requireMatch(label, source, pattern) {
-  if (!pattern.test(source)) failures.push(label)
-}
-
-function forbidMatch(label, source, pattern) {
-  if (pattern.test(source)) failures.push(label)
-}
+function requireMatch(label, source, pattern) { if (!pattern.test(source)) failures.push(label) }
+function forbidMatch(label, source, pattern) { if (pattern.test(source)) failures.push(label) }
 
 const core = read('wrangler.toml')
 const auth = read('auth-worker/wrangler.toml')
@@ -19,16 +13,14 @@ const appCheck = read('src/lib/firebase_app_check.ts')
 const googleWrapper = read('auth-worker/src/production-entrypoint.ts')
 const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
 const telegramProxy = read('src/app/api/auth/telegram/[...path]/route.ts')
+const telegramCore = read('src/lib/telegram-bot.mjs')
+const telegramMini = read('auth-worker/src/telegram-miniapp.ts')
 
 requireMatch('public Worker must be otya-core', core, /^name\s*=\s*"otya-core"$/m)
 requireMatch('otya-core workers.dev must be disabled', core, /^workers_dev\s*=\s*false$/m)
 requireMatch('otya-core must redact query strings', core, /^redact_query_string\s*=\s*true$/m)
-for (const hostname of ['petersmartlink.com', 'www.petersmartlink.com', 'docs.petersmartlink.com', 'status.petersmartlink.com', 'space.petersmartlink.com']) {
-  requireMatch(`otya-core public hostname ${hostname}`, core, new RegExp(`pattern\\s*=\\s*"${hostname.replaceAll('.', '\\.') }"`))
-}
-for (const binding of ['R2', 'KV', 'DB', 'ANALYTICS', 'OTYA_ANALYTICS', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) {
-  requireMatch(`otya-core binding ${binding}`, core, new RegExp(`(?:binding|name)\\s*=\\s*"${binding}"`))
-}
+for (const hostname of ['petersmartlink.com', 'www.petersmartlink.com', 'docs.petersmartlink.com', 'status.petersmartlink.com', 'space.petersmartlink.com']) requireMatch(`otya-core public hostname ${hostname}`, core, new RegExp(`pattern\\s*=\\s*"${hostname.replaceAll('.', '\\.') }"`))
+for (const binding of ['R2', 'KV', 'DB', 'ANALYTICS', 'OTYA_ANALYTICS', 'RATE_LIMITER', 'PUSH_QUEUE', 'AI_QUEUE', 'AUTH', 'AI_SUPPORT', 'OTYA_RELEASE_WORKFLOW']) requireMatch(`otya-core binding ${binding}`, core, new RegExp(`(?:binding|name)\\s*=\\s*"${binding}"`))
 requireMatch('otya-core Analytics Engine dataset', core, /^dataset\s*=\s*"otya-core-analytics"$/m)
 requireMatch('compatibility OTYA Analytics Engine dataset remains bound during migration', core, /^dataset\s*=\s*"otya_system_analytics"$/m)
 requireMatch('otya-core AI service must target otya-next', core, /binding\s*=\s*"AI_SUPPORT"[\s\S]*?service\s*=\s*"otya-next"/m)
@@ -44,8 +36,15 @@ requireMatch('Android package must be verified', core, /^ANDROID_PACKAGE_NAME\s*
 requireMatch('App Check production mode must remain monitor', core, /^FIREBASE_APP_CHECK_MODE\s*=\s*"monitor"$/m)
 forbidMatch('App Check must not be pinned to enforce in Wrangler', core, /^FIREBASE_APP_CHECK_MODE\s*=\s*"enforce"$/m)
 
+requireMatch('Telegram bot token uses Secrets Store on core', core, /\[\[secrets_store_secrets\]\][\s\S]*?binding\s*=\s*"TELEGRAM_BOT_TOKEN"[\s\S]*?secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/m)
+requireMatch('Telegram webhook secret uses Secrets Store on core', core, /binding\s*=\s*"TELEGRAM_WEBHOOK_SECRET"[\s\S]*?secret_name\s*=\s*"TELEGRAM_WEBHOOK_SECRET"/m)
+requireMatch('Telegram core reads Secrets Store values with get()', telegramCore, /TELEGRAM_BOT_TOKEN[\s\S]*?\.get/)
+requireMatch('Telegram webhook validates secret header', telegramCore, /X-Telegram-Bot-Api-Secret-Token/)
+requireMatch('Telegram webhook deduplicates update_id', telegramCore, /telegram:update:/)
+forbidMatch('Telegram bot token must not be treated as a raw committed string', telegramCore, /env\.TELEGRAM_BOT_TOKEN\s*\)/)
+
 requireMatch('otya-auth Worker name', auth, /^name\s*=\s*"otya-auth"$/m)
-requireMatch('otya-auth must use production wrapper', auth, /^main\s*=\s*"src\/production-entrypoint\.ts"$/m)
+requireMatch('otya-auth must use Mini App production wrapper', auth, /^main\s*=\s*"src\/production-entrypoint-miniapp\.ts"$/m)
 requireMatch('otya-auth workers.dev must be disabled', auth, /^workers_dev\s*=\s*false$/m)
 requireMatch('otya-auth must redact query strings', auth, /^redact_query_string\s*=\s*true$/m)
 requireMatch('otya-auth live analytics binding', auth, /^binding\s*=\s*"ANALYTICS"$/m)
@@ -54,6 +53,10 @@ requireMatch('Android Google client id must be verified', auth, /^GOOGLE_CLIENT_
 requireMatch('Web Google client id must be verified', auth, /^GOOGLE_WEB_CLIENT_ID\s*=\s*"82776565585-obr8k53b8n6djsggissv8qne81cm3u5u\.apps\.googleusercontent\.com"$/m)
 requireMatch('otya-auth Firebase project id', auth, /^FIREBASE_PROJECT_ID\s*=\s*"otya-player"$/m)
 requireMatch('Telegram redirect must match live canonical API callback', auth, /^TELEGRAM_LOGIN_REDIRECT_URI\s*=\s*"https:\/\/petersmartlink\.com\/api\/auth\/telegram\/callback"$/m)
+requireMatch('Telegram Mini App auth uses purpose-specific Secrets Store alias', auth, /binding\s*=\s*"TELEGRAM_MINIAPP_BOT_TOKEN"[\s\S]*?secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/m)
+requireMatch('Telegram Mini App derives WebAppData HMAC', telegramMini, /WebAppData/)
+requireMatch('Telegram Mini App validates auth_date freshness', telegramMini, /MAX_AGE_SECONDS/)
+requireMatch('Telegram Mini App uses numeric Telegram ID', telegramMini, /Number\.isSafeInteger\(user\.id\)/)
 requireMatch('Telegram public callback must proxy to private auth service', telegramProxy, /PUBLIC_PREFIX\s*=\s*'\/api\/auth\/telegram\/'/)
 requireMatch('Telegram public callback must preserve private auth route', telegramProxy, /AUTH_PREFIX\s*=\s*'\/auth\/telegram\/'/)
 requireMatch('Telegram public callback must use AUTH binding', telegramProxy, /\.AUTH as AuthService/)
@@ -79,13 +82,12 @@ requireMatch('Next physical v1 D1 name must remain unchanged during cutover', ne
 requireMatch('FCM must use HTTP v1', fcm, /https:\/\/fcm\.googleapis\.com\/v1\/projects\/\$\{projectId\}\/messages:send/)
 forbidMatch('Legacy FCM endpoint is forbidden', fcm, /fcm\.googleapis\.com\/fcm\/send/)
 requireMatch('App Check implementation must support monitor/enforce switch', appCheck, /FIREBASE_APP_CHECK_MODE/)
-
 requireMatch('Jamendo catalog must use Cloudflare runtime context', jamendoCatalog, /getCloudflareContext/)
 requireMatch('Jamendo catalog must read JAMENDO_CLIENT_ID', jamendoCatalog, /JAMENDO_CLIENT_ID/)
 forbidMatch('Jamendo Client Secret must never enter public catalog code', jamendoCatalog, /JAMENDO_CLIENT_SECRET/)
 forbidMatch('Jamendo credentials must not be hard-coded in public catalog code', jamendoCatalog, /3bb1fe8d|606b6f72bdd754bcbacaddd50c8b2e19/)
 
-const scanned = [core, auth, next, fcm, appCheck, googleWrapper, jamendoCatalog, telegramProxy].join('\n')
+const scanned = [core, auth, next, fcm, appCheck, googleWrapper, jamendoCatalog, telegramProxy, telegramCore, telegramMini].join('\n')
 forbidMatch('Firebase Admin private key material must not be committed', scanned, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/)
 forbidMatch('Resend API key values must not be committed', scanned, /\bre_[A-Za-z0-9_-]{20,}\b/)
 
@@ -94,5 +96,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`)
   process.exit(1)
 }
-
 console.log('OTYA production configuration validation passed.')

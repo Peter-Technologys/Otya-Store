@@ -1,8 +1,8 @@
-name: OTYA Auth Smoke
+name: OTYA Account and Google Smoke
 
 on:
   workflow_run:
-    workflows: ['Sync Telegram Auth Credential']
+    workflows: ['Deploy OTYA to Cloudflare']
     types: [completed]
   workflow_dispatch:
 
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: otya-auth-smoke-production
+  group: otya-account-google-smoke-production
   cancel-in-progress: true
 
 jobs:
@@ -21,23 +21,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Check live sign-in CSP
+      - name: Check live sign-in is fresh and Google-compatible
         shell: bash
         run: |
           set -euo pipefail
-          headers="$(curl -fsSIL --max-time 20 https://petersmartlink.com/sign-in)"
+          headers="$(curl -fsSIL --max-time 20 'https://petersmartlink.com/sign-in/?auth_smoke=1')"
           printf '%s\n' "$headers"
           csp="$(printf '%s\n' "$headers" | grep -i '^content-security-policy:' | tail -n1)"
+          cache="$(printf '%s\n' "$headers" | grep -i '^cache-control:' | tail -n1)"
           test -n "$csp"
           script_src="$(printf '%s' "$csp" | sed -n "s/.*script-src \([^;]*\).*/\1/p")"
           connect_src="$(printf '%s' "$csp" | sed -n "s/.*connect-src \([^;]*\).*/\1/p")"
           frame_src="$(printf '%s' "$csp" | sed -n "s/.*frame-src \([^;]*\).*/\1/p")"
-          printf 'script-src: %s\nconnect-src: %s\nframe-src: %s\n' "$script_src" "$connect_src" "$frame_src"
+          printf 'script-src: %s\nconnect-src: %s\nframe-src: %s\ncache-control: %s\n' "$script_src" "$connect_src" "$frame_src" "$cache"
           printf '%s' "$script_src" | grep -F 'https://accounts.google.com' >/dev/null
-          printf '%s' "$script_src" | grep -F 'https://telegram.org' >/dev/null
           printf '%s' "$connect_src" | grep -F 'https://accounts.google.com' >/dev/null
-          printf '%s' "$connect_src" | grep -F 'https://oauth.telegram.org' >/dev/null
-          printf '%s' "$frame_src" | grep -F 'https://oauth.telegram.org' >/dev/null
+          printf '%s' "$frame_src" | grep -F 'https://accounts.google.com' >/dev/null
+          ! printf '%s' "$cache" | grep -F 's-maxage=31536000' >/dev/null
+
+      - name: Check Google Identity Services library is reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 -o /dev/null https://accounts.google.com/gsi/client
 
       - name: Check browser account session route
         shell: bash
@@ -53,33 +59,60 @@ jobs:
           set -euo pipefail
           response="$(mktemp)"
           status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' \
-            -X POST \
-            -H 'Content-Type: application/json' \
+            -X POST -H 'Content-Type: application/json' \
             --data '{"email":"not-an-email","password":"x"}' \
             https://petersmartlink.com/api/account-session/register)"
-          cat "$response"
-          echo
-          echo "HTTP $status"
+          cat "$response"; echo; echo "HTTP $status"
           test "$status" -ge 400
           test "$status" -lt 500
           ! grep -q 'AUTH_SCHEMA_UNAVAILABLE' "$response"
-          ! grep -q 'temporarily unavailable' "$response"
+          ! grep -qi 'temporarily unavailable' "$response"
 
-      - name: Require Telegram Sign-In provider
+      - name: Prove Google auth reaches provider verification, not schema failure
         shell: bash
         run: |
           set -euo pipefail
           response="$(mktemp)"
-          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' -X POST -H 'Accept: application/json' 'https://petersmartlink.com/api/auth/telegram/start?mode=login')"
-          cat "$response"
-          echo
-          echo "HTTP $status"
-          test "$status" = "200"
-          grep -q 'authorization_url' "$response"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"id_token":"invalid-smoke-token"}' \
+            https://petersmartlink.com/api/account-session/google)"
+          cat "$response"; echo; echo "HTTP $status"
+          test "$status" -ge 400
+          test "$status" -lt 500
+          ! grep -q 'AUTH_SCHEMA_UNAVAILABLE' "$response"
+          ! grep -qi 'temporarily unavailable' "$response"
 
-      - name: Check Telegram handoff page
+      - name: Check Telegram Mini App surface on exact Space origin
         shell: bash
         run: |
           set -euo pipefail
-          status="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://petersmartlink.com/telegram-login/)"
-          test "$status" = "200"
+          code="$(curl -sS --max-time 20 -o /tmp/miniapp -w '%{http_code}' 'https://space.petersmartlink.com/telegram?smoke=1')"
+          test "$code" = "200"
+          grep -E 'OTYA|telegram' /tmp/miniapp >/dev/null
+
+      - name: Telegram Mini App auth fails closed for invalid initData
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"initData":"auth_date=1&user=%7B%22id%22%3A1%7D&hash=0000000000000000000000000000000000000000000000000000000000000000"}' \
+            https://space.petersmartlink.com/api/auth/telegram/miniapp)"
+          cat "$response"; echo; echo "HTTP $status"
+          test "$status" -ge 400
+          test "$status" -lt 500
+          grep -q 'TELEGRAM_MINIAPP_INVALID' "$response"
+
+      - name: Telegram webhook rejects a bogus secret before processing
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --max-time 20 -o /tmp/tg-webhook -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            -H 'X-Telegram-Bot-Api-Secret-Token: definitely-wrong' \
+            --data '{"update_id":1}' \
+            https://petersmartlink.com/api/telegram/webhook)"
+          cat /tmp/tg-webhook; echo; echo "HTTP $status"
+          test "$status" = "401"

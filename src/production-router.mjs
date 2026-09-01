@@ -1,5 +1,5 @@
-import worker from './entrypoint.mjs'
-export { OtyaReleaseWorkflow } from './entrypoint.mjs'
+import worker from './telegram-entrypoint.mjs'
+export { OtyaReleaseWorkflow } from './telegram-entrypoint.mjs'
 
 const APP_HOST = 'petersmartlink.com'
 const DOCS_HOST = 'docs.petersmartlink.com'
@@ -13,19 +13,35 @@ function publicSurfaceRedirect(url, pathname) {
   target.pathname = pathname
   target.search = ''
   target.hash = ''
-  // Temporary during v1 so the dedicated host can later become a fully native
-  // surface without browsers caching a permanent redirect.
   return Response.redirect(target.toString(), 302)
 }
 
-/**
- * Outer production router for compatibility aliases and public custom domains.
- *
- * The OpenNext build is canonicalized to petersmartlink.com. Cloudflare custom
- * domains still provide memorable entry points, but their roots redirect to a
- * real compiled page instead of attempting an internal host rewrite that can
- * fall through to OpenNext's 404 route.
- */
+function isSpaceAppPath(pathname) {
+  return pathname === '/telegram'
+    || pathname === '/telegram/'
+    || pathname.startsWith('/_next/')
+    || pathname.startsWith('/api/')
+    || pathname === '/favicon.ico'
+    || pathname === '/robots.txt'
+    || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
+}
+
+function dispatchCanonical(request, url, env, ctx) {
+  const target = new URL(url)
+  target.protocol = 'https:'
+  target.hostname = APP_HOST
+  const headers = new Headers(request.headers)
+  headers.set('X-Forwarded-Host', url.hostname)
+  headers.set('X-Forwarded-Proto', 'https')
+  const init = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+  }
+  if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body
+  return worker.fetch(new Request(target.toString(), init), env, ctx)
+}
+
 export default {
   ...worker,
   async fetch(request, env, ctx) {
@@ -39,16 +55,18 @@ export default {
       return worker.fetch(new Request(url, { method: request.method, headers }), env, ctx)
     }
 
+    if (host === SPACE_HOST) {
+      // Keep the Telegram Mini App, its Next.js assets, and its API calls on the
+      // exact Space origin configured in BotFather. OpenNext still resolves the
+      // compiled application against the canonical apex internally.
+      if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
+      if (request.method === 'GET' || request.method === 'HEAD') return publicSurfaceRedirect(url, '/sign-in')
+      return dispatchCanonical(request, url, env, ctx)
+    }
+
     if (request.method === 'GET' || request.method === 'HEAD') {
-      if (host === DOCS_HOST) {
-        return publicSurfaceRedirect(url, '/help')
-      }
-      if (host === STATUS_HOST) {
-        return publicSurfaceRedirect(url, '/status')
-      }
-      if (host === SPACE_HOST) {
-        return publicSurfaceRedirect(url, '/sign-in')
-      }
+      if (host === DOCS_HOST) return publicSurfaceRedirect(url, '/help')
+      if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
     }
 
     return worker.fetch(request, env, ctx)
