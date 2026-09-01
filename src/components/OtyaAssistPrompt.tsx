@@ -4,6 +4,7 @@ import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from '
 import { OtyaBrandMark } from './OtyaBrandMark'
 
 type ChatMessage = { role:'user'|'assistant'; content:string; handoff?:boolean; failed?:boolean }
+type StreamEvent = { type?:string; delta?:string; error?:string; handoff_available?:boolean }
 const prompts=['Find music for tonight','Help with my Otya account','Why has my video got no sound?','Explain something simply']
 const thinkingStages=['Understanding your request…','Checking what I need…','Working on it…','Preparing the answer…']
 
@@ -16,7 +17,57 @@ export function OtyaAssistPrompt({compact=false}:{compact?:boolean}){
   const lastUserMessage=useMemo(()=>[...messages].reverse().find(m=>m.role==='user')?.content||'',[messages])
   const handoffAvailable=Boolean([...messages].reverse().find(m=>m.role==='assistant')?.handoff)
 
-  async function ask(question:string){const q=question.trim(); if(!q||!guestId||loading)return; const history=messages.slice(-20).map(m=>({role:m.role,content:m.content})); setQuery('');setLoading(true);setThinkingStage(0);setShowHandoff(false);setHandoffStatus('');setMessages(c=>[...c,{role:'user',content:q}]);try{const response=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q,history,guest_id:guestId,surface:'website-chat'})});const data=await response.json().catch(()=>({})) as {answer?:string;error?:string;handoff_available?:boolean};if(!response.ok)throw new Error(data.error||'unavailable');setMessages(c=>[...c,{role:'assistant',content:data.answer||'I could not answer that yet. Try asking another way.',handoff:Boolean(data.handoff_available)}])}catch{setMessages(c=>[...c,{role:'assistant',content:'I cannot reach the online service right now. Try again in a moment.',failed:true}])}finally{setLoading(false)}}
+  function patchLastAssistant(patch:(message:ChatMessage)=>ChatMessage){
+    setMessages(current=>{const copy=[...current];const index=copy.length-1;if(index>=0&&copy[index]?.role==='assistant')copy[index]=patch(copy[index]);return copy})
+  }
+
+  async function ask(question:string){
+    const q=question.trim(); if(!q||!guestId||loading)return
+    const history=messages.slice(-20).map(m=>({role:m.role,content:m.content}))
+    setQuery('');setLoading(true);setThinkingStage(0);setShowHandoff(false);setHandoffStatus('')
+    setMessages(c=>[...c,{role:'user',content:q},{role:'assistant',content:''}])
+    try{
+      const response=await fetch('/api/ai/chat',{
+        method:'POST',
+        headers:{'content-type':'application/json','accept':'text/event-stream'},
+        body:JSON.stringify({message:q,history,guest_id:guestId,surface:'website-chat'}),
+      })
+      const type=(response.headers.get('content-type')||'').toLowerCase()
+      if(!response.ok){
+        const data=await response.json().catch(()=>({})) as {error?:string}
+        throw new Error(data.error||'unavailable')
+      }
+
+      if(type.includes('text/event-stream')&&response.body){
+        const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';let received=false
+        while(true){
+          const {done,value}=await reader.read();if(done)break
+          buffer+=decoder.decode(value,{stream:true})
+          const blocks=buffer.split(/\r?\n\r?\n/);buffer=blocks.pop()||''
+          for(const block of blocks){
+            for(const line of block.split(/\r?\n/)){
+              if(!line.startsWith('data:'))continue
+              const raw=line.slice(5).trim();if(!raw||raw==='[DONE]')continue
+              const event=JSON.parse(raw) as StreamEvent
+              if(event.type==='delta'&&event.delta){received=true;patchLastAssistant(message=>({...message,content:message.content+event.delta}))}
+              if(event.type==='error')throw new Error(event.error||'Next stopped responding.')
+              if(event.handoff_available)patchLastAssistant(message=>({...message,handoff:true}))
+            }
+          }
+        }
+        if(buffer.trim()){
+          for(const line of buffer.split(/\r?\n/))if(line.startsWith('data:')){const raw=line.slice(5).trim();if(raw&&raw!=='[DONE]'){const event=JSON.parse(raw) as StreamEvent;if(event.type==='delta'&&event.delta){received=true;patchLastAssistant(message=>({...message,content:message.content+event.delta}))}}}
+        }
+        if(!received)patchLastAssistant(message=>({...message,content:'I could not answer that yet. Try asking another way.'}))
+      }else{
+        const data=await response.json().catch(()=>({})) as {answer?:string;error?:string;handoff_available?:boolean}
+        if(data.error)throw new Error(data.error)
+        patchLastAssistant(message=>({...message,content:data.answer||'I could not answer that yet. Try asking another way.',handoff:Boolean(data.handoff_available)}))
+      }
+    }catch{
+      patchLastAssistant(message=>({...message,content:'I cannot reach the online service right now. Try again in a moment.',failed:true}))
+    }finally{setLoading(false)}
+  }
   async function submit(event:FormEvent){event.preventDefault();await ask(query)}
   function onComposerKeyDown(event:KeyboardEvent<HTMLTextAreaElement>){if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void ask(query)}}
   function newChat(){if(loading)return;setMessages([]);setQuery('');setShowHandoff(false);setHandoffStatus('')}
@@ -36,7 +87,7 @@ export function OtyaAssistPrompt({compact=false}:{compact?:boolean}){
         <p className="mt-2 text-sm leading-6 otya-muted">Music, Otya, your account or an everyday question.</p>
         <div className="mt-7 grid gap-2.5 sm:grid-cols-2">{prompts.map(prompt=><button key={prompt} type="button" onClick={()=>void ask(prompt)} className="min-h-[58px] rounded-2xl border border-black/[.06] dark:border-white/[.08] bg-black/[.018] dark:bg-white/[.018] p-4 text-left text-sm font-bold hover:bg-black/[.03] dark:hover:bg-white/[.035]">{prompt}<span className="float-right opacity-35">→</span></button>)}</div>
       </div>
-      :<div className="mx-auto max-w-3xl space-y-6">{messages.map((message,index)=>message.role==='user'?<div key={index} className="ml-auto max-w-[86%] rounded-[22px] rounded-br-md px-4 py-3 text-sm leading-6 bg-black/[.055] dark:bg-white/[.08]">{message.content}</div>:<div key={index} className="max-w-[96%]"><div className="mb-2.5 flex items-center gap-2"><OtyaBrandMark size={28}/><span className="text-xs font-black">Next</span></div><div className="whitespace-pre-wrap text-sm leading-7">{message.content}</div><div className="mt-2.5 flex flex-wrap gap-2"><button type="button" onClick={()=>void navigator.clipboard.writeText(message.content)} className="min-h-9 rounded-full px-3 text-[11px] font-black otya-muted">Copy</button>{message.failed&&<button type="button" onClick={()=>void retryLast()} disabled={loading} className="min-h-9 rounded-full px-3 text-[11px] font-black">Retry</button>}{message.handoff&&<button type="button" onClick={()=>setShowHandoff(true)} className="min-h-9 rounded-full px-3 text-[11px] font-black">Contact support</button>}</div></div>)}{loading&&<div className="flex items-center gap-3 py-2" role="status" aria-live="polite"><OtyaBrandMark size={34} thinking label="Next is working"/><div><div className="text-sm font-semibold">{thinkingStages[thinkingStage]}</div><div className="text-[11px] otya-muted">Next may inspect connected information when needed.</div></div></div>}</div>}
+      :<div className="mx-auto max-w-3xl space-y-6">{messages.map((message,index)=>message.role==='user'?<div key={index} className="ml-auto max-w-[86%] rounded-[22px] rounded-br-md px-4 py-3 text-sm leading-6 bg-black/[.055] dark:bg-white/[.08]">{message.content}</div>:<div key={index} className="max-w-[96%]"><div className="mb-2.5 flex items-center gap-2"><OtyaBrandMark size={28} thinking={loading&&index===messages.length-1}/><span className="text-xs font-black">Next</span></div><div className="whitespace-pre-wrap text-sm leading-7">{message.content||((loading&&index===messages.length-1)?'Thinking…':'')}</div>{message.content&&<div className="mt-2.5 flex flex-wrap gap-2"><button type="button" onClick={()=>void navigator.clipboard.writeText(message.content)} className="min-h-9 rounded-full px-3 text-[11px] font-black otya-muted">Copy</button>{message.failed&&<button type="button" onClick={()=>void retryLast()} disabled={loading} className="min-h-9 rounded-full px-3 text-[11px] font-black">Retry</button>}{message.handoff&&<button type="button" onClick={()=>setShowHandoff(true)} className="min-h-9 rounded-full px-3 text-[11px] font-black">Contact support</button>}</div>}</div>)}</div>}
     </div>
 
     {showHandoff&&handoffAvailable&&<div className="shrink-0 mx-3 mb-2 rounded-2xl border border-black/[.06] dark:border-white/[.08] p-3 bg-black/[.018] dark:bg-white/[.018]"><div className="flex flex-col gap-2 sm:flex-row"><input value={email} onChange={e=>setEmail(e.target.value)} type="email" autoComplete="email" placeholder="Your email" className="min-h-11 min-w-0 flex-1 rounded-xl border border-black/[.08] dark:border-white/[.10] px-3 text-sm outline-none bg-transparent"/><button type="button" disabled={loading||!email.trim()} onClick={()=>void requestHandoff()} className="cosmos-button min-h-11 rounded-xl px-4 text-sm font-black disabled:opacity-50">Send</button></div></div>}
