@@ -6,12 +6,18 @@ const router = readFileSync(new URL('../src/production-router.mjs', import.meta.
 const status = readFileSync(new URL('../src/app/status/page.tsx', import.meta.url), 'utf8')
 
 test('custom domains have dedicated root surfaces', () => {
+  assert.ok(router.includes("const APP_HOST = 'petersmartlink.com'"))
   assert.ok(router.includes("const DOCS_HOST = 'docs.petersmartlink.com'"))
   assert.ok(router.includes("const STATUS_HOST = 'status.petersmartlink.com'"))
   assert.ok(router.includes("const SPACE_HOST = 'space.petersmartlink.com'"))
   assert.ok(router.includes("'/help', 'docs'"))
   assert.ok(router.includes("'/status', 'status'"))
   assert.ok(router.includes("'/sign-in', 'space'"))
+})
+
+test('custom surfaces resolve through the canonical OpenNext origin', () => {
+  assert.ok(router.includes('url.hostname = APP_HOST'))
+  assert.ok(router.includes("headers.set('X-OTYA-Surface', marker)"))
 })
 
 test('Docs host preserves framework assets and API paths', () => {
