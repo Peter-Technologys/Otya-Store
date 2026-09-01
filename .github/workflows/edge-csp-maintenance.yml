@@ -1,0 +1,48 @@
+name: OTYA Edge CSP Maintenance
+
+on:
+  push:
+    branches: [maintenance/edge-csp-2026-09-01]
+    paths:
+      - '.github/workflows/edge-csp-maintenance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: otya-edge-csp-maintenance
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: Remove only the fingerprinted obsolete CSP transform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          bash scripts/remove-legacy-edge-csp.sh
+      - name: Verify live sign-in now uses canonical Google-compatible CSP
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          headers="$(curl -fsSIL --max-time 20 'https://petersmartlink.com/sign-in/?edge_csp_maintenance=1')"
+          csp="$(printf '%s\n' "$headers" | grep -i '^content-security-policy:' | tail -n1)"
+          test -n "$csp"
+          printf '%s\n' "$csp"
+          script_src="$(printf '%s' "$csp" | sed -n "s/.*script-src \([^;]*\).*/\1/p")"
+          connect_src="$(printf '%s' "$csp" | sed -n "s/.*connect-src \([^;]*\).*/\1/p")"
+          frame_src="$(printf '%s' "$csp" | sed -n "s/.*frame-src \([^;]*\).*/\1/p")"
+          printf '%s' "$script_src" | grep -F 'https://accounts.google.com' >/dev/null
+          printf '%s' "$connect_src" | grep -F 'https://accounts.google.com' >/dev/null
+          printf '%s' "$frame_src" | grep -F 'https://accounts.google.com' >/dev/null
+          ! printf '%s' "$csp" | grep -F "'unsafe-eval'" >/dev/null
+          ! printf '%s' "$csp" | grep -F 'https://www.googletagmanager.com' >/dev/null
+          ! printf '%s' "$csp" | grep -F 'https://static.cloudflareinsights.com' >/dev/null
