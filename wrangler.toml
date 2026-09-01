@@ -38,6 +38,16 @@ ADMIN_EMAILS = "petersmartlink@gmail.com"
 directory = ".open-next/assets"
 binding = "ASSETS"
 
+[[secrets_store_secrets]]
+binding = "TELEGRAM_BOT_TOKEN"
+store_id = "a1df6b906c6e4c1da6e7687330ea0f9c"
+secret_name = "TELEGRAM_BOT_TOKEN"
+
+[[secrets_store_secrets]]
+binding = "TELEGRAM_WEBHOOK_SECRET"
+store_id = "a1df6b906c6e4c1da6e7687330ea0f9c"
+secret_name = "TELEGRAM_WEBHOOK_SECRET"
+
 [[r2_buckets]]
 binding     = "R2"
 bucket_name = "otya-player-releases"
@@ -46,8 +56,6 @@ bucket_name = "otya-player-releases"
 binding = "KV"
 id      = "3f179286e0fc4dbfa2332884cdf81312"
 
-# Keep the physical D1 name during the v1 cutover. Renaming the database is not
-# part of the product/Worker identity migration.
 [[d1_databases]]
 binding       = "DB"
 database_name = "otya-store-db"
@@ -56,8 +64,6 @@ database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 [[analytics_engine_datasets]]
 binding = "ANALYTICS"
 dataset = "otya-core-analytics"
-
-# Compatibility dataset remains until every legacy writer is migrated.
 [[analytics_engine_datasets]]
 binding = "OTYA_ANALYTICS"
 dataset = "otya_system_analytics"
@@ -84,8 +90,7 @@ binding = "AI_QUEUE"
 queue   = "otya-next-jobs"
 
 # Do not attach otya-release-events here yet. The dedicated idempotent release
-# intake handler must land and pass tests before the R2 event queue gets a
-# consumer.
+# intake handler must land and pass tests before the R2 event queue gets a consumer.
 
 [[services]]
 binding = "AUTH"
