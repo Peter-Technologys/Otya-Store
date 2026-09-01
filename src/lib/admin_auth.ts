@@ -1,5 +1,5 @@
 const COOKIE_NAME = 'otya_admin_session'
-const ACCOUNT_ACCESS_COOKIE = '__Host-otya_access'
+const ACCOUNT_ACCESS_COOKIE = '__Secure-otya_access'
 const SESSION_TTL_SECONDS = 60 * 60
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
@@ -115,7 +115,6 @@ export async function getOtyaAccountAdminEmail(request: Request, env: AdminEnv):
   }
 }
 
-/** Admin console access requires a signed session created only after MFA. */
 export async function verifyAdminSession(request: Request, env: AdminEnv): Promise<boolean> {
   return verifySignedAdminCookie(request, env)
 }
@@ -127,10 +126,6 @@ function legacyAdminTokenAuthorized(request: Request, env: AdminEnv): boolean {
   return Boolean(actual) && timingSafeEqual(actual, expected)
 }
 
-/**
- * Compatibility authorization for non-interactive operational endpoints.
- * Privileged Otya Admin UI/API routes should use verifyAdminSession directly.
- */
 export async function isAdminAuthorized(request: Request, env: AdminEnv): Promise<boolean> {
   if (await verifyAdminSession(request, env)) return true
   return legacyAdminTokenAuthorized(request, env)
