@@ -81,7 +81,7 @@ jobs:
                 ai-worker/*)
                   next=true
                   ;;
-                .github/workflows/*|docs/*|test/*|*.md|.github/ISSUE_TEMPLATE/*)
+                .github/workflows/*|docs/*|test/*|validate-config.mjs|*.md|.github/ISSUE_TEMPLATE/*)
                   ;;
                 *)
                   core=true
