@@ -10,6 +10,7 @@ const wrangler = readFileSync(new URL('../auth-worker/wrangler.toml', import.met
 const secretWorkflowUrl = new URL('../.github/workflows/telegram-auth-secret.yml', import.meta.url)
 
 test('Telegram browser Sign-In stays OIDC-only while Mini App uses Secrets Store HMAC', () => {
+  assert.match(wrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
   assert.match(wrapper, /TELEGRAM_BOT_TOKEN: undefined/)
   assert.match(wrapper, /url\.pathname\.startsWith\('\/auth\/telegram\/'\)/)
   assert.match(miniAuth, /WebAppData/)
@@ -35,7 +36,7 @@ test('Telegram browser origins remain allowed without weakening frame ancestors'
 
 test('auth reads Telegram bot credential from Cloudflare Secrets Store without GitHub duplication', () => {
   assert.match(wrangler, /\[\[secrets_store_secrets\]\]/)
-  assert.match(wrangler, /binding\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.match(wrangler, /binding\s*=\s*"TELEGRAM_MINIAPP_BOT_TOKEN"/)
   assert.match(wrangler, /secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/)
   assert.equal(existsSync(secretWorkflowUrl), false)
 })
