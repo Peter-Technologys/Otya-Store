@@ -1,42 +1,41 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 
-const auth = readFileSync(new URL('../auth-worker/src/telegram-login.ts', import.meta.url), 'utf8')
+const wrapper = readFileSync(new URL('../auth-worker/src/production-entrypoint-miniapp.ts', import.meta.url), 'utf8')
+const miniAuth = readFileSync(new URL('../auth-worker/src/telegram-miniapp.ts', import.meta.url), 'utf8')
 const proxy = readFileSync(new URL('../src/app/api/auth/telegram/[...path]/route.ts', import.meta.url), 'utf8')
-const page = readFileSync(new URL('../src/app/telegram-login/page.tsx', import.meta.url), 'utf8')
 const config = readFileSync(new URL('../next.config.mjs', import.meta.url), 'utf8')
 const wrangler = readFileSync(new URL('../auth-worker/wrangler.toml', import.meta.url), 'utf8')
-const secretWorkflow = readFileSync(new URL('../.github/workflows/telegram-auth-secret.yml', import.meta.url), 'utf8')
+const secretWorkflowUrl = new URL('../.github/workflows/telegram-auth-secret.yml', import.meta.url)
 
-test('Telegram login prefers OIDC but has a signed widget fallback', () => {
-  assert.match(auth, /oidcConfigured = Boolean\(env\.TELEGRAM_LOGIN_CLIENT_ID && env\.TELEGRAM_LOGIN_CLIENT_SECRET\)/)
-  assert.match(auth, /widgetConfigured = Boolean\(env\.TELEGRAM_BOT_TOKEN && env\.TELEGRAM_LOGIN_BOT_USERNAME\)/)
-  assert.match(auth, /provider_mode: 'widget'/)
-  assert.match(auth, /crypto\.subtle\.digest\('SHA-256'.*botToken/s)
-  assert.match(auth, /crypto\.subtle\.verify\(\s*'HMAC'/s)
-  assert.match(auth, /telegram_widget:\$\{state\}/)
-  assert.match(auth, /timestamp < now - STATE_TTL/)
+test('Telegram browser Sign-In stays OIDC-only while Mini App uses Secrets Store HMAC', () => {
+  assert.match(wrapper, /TELEGRAM_BOT_TOKEN: undefined/)
+  assert.match(wrapper, /url\.pathname\.startsWith\('\/auth\/telegram\/'\)/)
+  assert.match(miniAuth, /WebAppData/)
+  assert.match(miniAuth, /TELEGRAM_BOT_TOKEN\?\.get/)
+  assert.match(miniAuth, /constantTimeHexEqual/)
+  assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)
 })
 
-test('widget handoff is constrained to the canonical OTYA callback', () => {
-  assert.match(proxy, /callback\.hostname !== 'petersmartlink\.com'/)
-  assert.match(proxy, /callback\.pathname !== '\/api\/auth\/telegram\/widget\/callback'/)
-  assert.match(proxy, /!callback\.searchParams\.get\('state'\)/)
-  assert.match(page, /url\.hostname !== 'petersmartlink\.com'/)
-  assert.match(page, /data-auth-url/)
-  assert.match(page, /https:\/\/telegram\.org\/js\/telegram-widget\.js\?22/)
+test('Mini App auth proxy is constrained to the private AUTH service and secure cookies', () => {
+  assert.match(proxy, /AUTH_PREFIX\s*=\s*'\/auth\/telegram\/'/)
+  assert.match(proxy, /\.AUTH as AuthService/)
+  assert.match(proxy, /__Host-otya_access/)
+  assert.match(proxy, /__Host-otya_refresh/)
+  assert.match(proxy, /delete safe\.access_token/)
+  assert.match(proxy, /delete safe\.refresh_token/)
 })
 
-test('Telegram browser origins are explicitly allowed without weakening frame ancestors', () => {
+test('Telegram browser origins remain allowed without weakening frame ancestors', () => {
   assert.match(config, /https:\/\/telegram\.org/)
   assert.match(config, /https:\/\/oauth\.telegram\.org/)
   assert.match(config, /frame-ancestors 'none'/)
 })
 
-test('auth worker receives only the secret needed to verify widget responses', () => {
-  assert.match(wrangler, /TELEGRAM_LOGIN_BOT_USERNAME = "OtyaPlayerBot"/)
-  assert.match(secretWorkflow, /secrets\.TELEGRAM_BOT_TOKEN/)
-  assert.match(secretWorkflow, /wrangler secret put TELEGRAM_BOT_TOKEN/)
-  assert.doesNotMatch(wrangler, /TELEGRAM_BOT_TOKEN\s*=/)
+test('auth reads Telegram bot credential from Cloudflare Secrets Store without GitHub duplication', () => {
+  assert.match(wrangler, /\[\[secrets_store_secrets\]\]/)
+  assert.match(wrangler, /binding\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.match(wrangler, /secret_name\s*=\s*"TELEGRAM_BOT_TOKEN"/)
+  assert.equal(existsSync(secretWorkflowUrl), false)
 })
