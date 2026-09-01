@@ -82,7 +82,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 async function requireAllowedAdmin(request: Request, env: AdminMfaEnv) {
   const user = await currentUser(request, env)
-  if (!user || !allowlist(env).has(user.email.toLowerCase())) return null
+  if (!user?.email || !allowlist(env).has(user.email!.toLowerCase())) return null
   return user
 }
 
@@ -92,7 +92,7 @@ export async function consumeAdminMfaCompletion(request: Request, env: AdminMfaE
   const marker = await env.AUTH_KV.get(`admin_mfa_complete:${user.id}`)
   if (!marker) return { ok: false }
   await env.AUTH_KV.delete(`admin_mfa_complete:${user.id}`)
-  return { ok: true, email: user.email.toLowerCase() }
+  return { ok: true, email: user.email!.toLowerCase() }
 }
 
 export async function markAdminTelegramComplete(env: AdminMfaEnv, userId: string): Promise<void> {
@@ -124,7 +124,7 @@ export async function handleAdminMfa(request: Request, env: AdminMfaEnv): Promis
     await env.AUTH_KV.put(`admin_mfa_otp:${user.id}`, await otpDigest(user.id, otp), { expirationTtl: OTP_TTL })
     await sendResendEmail(env.RESEND_API_KEY, {
       from: 'OTYA <noreply@petersmartlink.com>',
-      to: [user.email],
+      to: [user.email!],
       subject: 'Your Otya Admin verification code',
       text: [
         'A request was made to open Otya Admin.',
@@ -163,7 +163,7 @@ export async function handleAdminMfa(request: Request, env: AdminMfaEnv): Promis
     const marker = await env.AUTH_KV.get(`admin_mfa_complete:${user.id}`)
     if (!marker) return json({ error: 'Complete Telegram verification first.' }, 401)
     await env.AUTH_KV.delete(`admin_mfa_complete:${user.id}`)
-    return json({ ok: true, email: user.email.toLowerCase() })
+    return json({ ok: true, email: user.email!.toLowerCase() })
   }
 
   return json({ error: 'Not found' }, 404)

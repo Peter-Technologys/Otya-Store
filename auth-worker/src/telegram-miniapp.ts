@@ -1,5 +1,6 @@
 import { generateRefreshToken, signJwt, verifyJwt } from './crypto'
 import { assertSchemaReady, getUserById, type D1Database, type UserRow } from './db'
+import { createOrGetTelegramUser } from './telegram-account'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -171,16 +172,18 @@ export async function handleTelegramMiniApp(request: Request, env: TelegramMiniA
 
   const userId = await currentUserId(request, env)
   if (!userId) {
-    // Product policy keeps one OTYA Account and does not silently invent an
-    // email account from Telegram profile fields. The Mini App keeps initData
-    // locally, opens OTYA sign-in, then retries this endpoint to link explicitly.
+    const name = [verified.user.first_name, verified.user.last_name].filter(Boolean).join(' ').trim()
+    const user = await createOrGetTelegramUser(env, providerSubject, providerUsername(verified.user), name)
+    const session = await issueSession(user, env)
     return json({
-      error: 'Sign in to your OTYA Account to connect Telegram.',
-      code: 'OTYA_ACCOUNT_REQUIRED',
-      authenticated: false,
+      ok: true,
+      authenticated: true,
+      created_or_logged_in: true,
       telegram_user_id: providerSubject,
-      account_url: 'https://space.petersmartlink.com/telegram/?complete=account',
-    }, 409)
+      access_token: session.accessToken,
+      refresh_token: session.refreshToken,
+      user: { id: user.id, otya_id: user.otya_id, email: user.email, name: user.name, avatar_url: user.avatar_url },
+    })
   }
 
   const conflicting = await env.AUTH_DB.prepare(

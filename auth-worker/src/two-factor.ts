@@ -329,14 +329,14 @@ export async function handleTwoFactorRoute(
       return json({ error: 'Two-step verification is already enabled' }, 409)
     }
     const user = await env.AUTH_DB.prepare(
-      'SELECT email FROM users WHERE id = ? LIMIT 1',
-    ).bind(userId).first<{ email?: string }>()
-    if (!user?.email) return json({ error: 'Account not found' }, 404)
+      'SELECT email, otya_id FROM users WHERE id = ? LIMIT 1',
+    ).bind(userId).first<{ email?: string | null; otya_id?: string | null }>()
+    if (!user) return json({ error: 'Account not found' }, 404)
 
     const secret = bytesToBase32(randomBytes(20))
     const encrypted = await encryptSecret(secret, env.ACCOUNT_ENCRYPTION_KEY)
     await env.AUTH_KV.put(`2fa_pending:${userId}`, encrypted, { expirationTtl: PENDING_TTL })
-    const label = encodeURIComponent(`OTYA:${user.email}`)
+    const label = encodeURIComponent(`OTYA:${user.email ?? user.otya_id ?? userId}`)
     const issuer = encodeURIComponent('OTYA')
     const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`
     return json({ ok: true, secret, otpauth_uri: uri, expires_in: PENDING_TTL })

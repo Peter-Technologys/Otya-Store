@@ -22,11 +22,15 @@ test('Telegram browser Sign-In is first-class OIDC while Mini App uses Secrets S
   assert.match(telegramAccount, /provider_subject = \?/)
   assert.match(primaryLogin, /createOrGetTelegramUser/)
   assert.match(telegramAccount, /INSERT INTO linked_identities/)
-  assert.match(primaryLogin, /touchUserProduct/)
+  assert.match(primaryLogin, /createOrGetTelegramUser/)
+  assert.doesNotMatch(primaryLogin, /identity\.invalid/)
   assert.match(miniAuth, /WebAppData/)
   assert.match(miniAuth, /TELEGRAM_BOT_TOKEN\?\.get/)
   assert.match(miniAuth, /constantTimeHexEqual/)
   assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)
+  assert.match(miniAuth, /createOrGetTelegramUser/)
+  assert.match(miniAuth, /created_or_logged_in/)
+  assert.doesNotMatch(miniAuth, /OTYA_ACCOUNT_REQUIRED/)
 })
 
 test('Telegram OIDC login-start persists PKCE state in KV without D1 access', () => {

@@ -1,5 +1,6 @@
-import { generateRefreshToken, generateUuid, signJwt } from './crypto'
-import { assertSchemaReady, getUserByEmail, getUserById, insertUser, touchUserProduct, type D1Database, type UserRow } from './db'
+import { generateRefreshToken, signJwt } from './crypto'
+import { assertSchemaReady, type D1Database, type UserRow } from './db'
+import { createOrGetTelegramUser } from './telegram-account'
 
 interface KVLike {
   get(key: string): Promise<string | null>
@@ -106,60 +107,6 @@ async function verifyIdToken(idToken: string, clientId: string, nonce: string): 
   return claims
 }
 
-function internalTelegramEmail(subject: string): string {
-  return `telegram-${subject}@identity.invalid`
-}
-
-async function getLinkedUser(env: TelegramPrimaryLoginEnv, subject: string): Promise<UserRow | null> {
-  const link = await env.AUTH_DB.prepare(
-    "SELECT user_id FROM linked_identities WHERE provider = 'telegram' AND provider_subject = ? LIMIT 1",
-  ).bind(subject).first<{ user_id?: string }>()
-  return link?.user_id ? getUserById(env.AUTH_DB, link.user_id) : null
-}
-
-async function createOrGetTelegramUser(env: TelegramPrimaryLoginEnv, claims: Claims): Promise<UserRow> {
-  const subject = claims.sub!
-  const existing = await getLinkedUser(env, subject)
-  if (existing) {
-    await env.AUTH_DB.prepare(
-      "UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?",
-    ).bind(claims.preferred_username ?? null, subject).run()
-    return existing
-  }
-
-  const email = internalTelegramEmail(subject)
-  let user = await getUserByEmail(env.AUTH_DB, email)
-  if (!user) {
-    try {
-      await insertUser(env.AUTH_DB, {
-        id: generateUuid(),
-        email,
-        password_hash: null,
-        google_id: null,
-        name: claims.name ?? claims.preferred_username ?? 'Telegram user',
-        avatar_url: null,
-      })
-    } catch {
-      // A concurrent callback for the same Telegram subject may have created
-      // the deterministic internal identity record first.
-    }
-    user = await getUserByEmail(env.AUTH_DB, email)
-  }
-  if (!user) throw new Error('Could not create OTYA Telegram identity')
-
-  await env.AUTH_DB.prepare(`
-    INSERT INTO linked_identities (user_id, provider, provider_subject, provider_username, provider_email, linked_at, last_used_at)
-    VALUES (?, 'telegram', ?, ?, NULL, datetime('now'), datetime('now'))
-    ON CONFLICT(provider, provider_subject) DO UPDATE SET
-      provider_username = excluded.provider_username,
-      last_used_at = datetime('now')
-  `).bind(user.id, subject, claims.preferred_username ?? null).run()
-
-  const owner = await getLinkedUser(env, subject)
-  if (!owner) throw new Error('Could not link Telegram identity')
-  return owner
-}
-
 async function applyVerifiedPhone(env: TelegramPrimaryLoginEnv, userId: string, claims: Claims): Promise<void> {
   if (claims.phone_number_verified !== true || !claims.phone_number) return
   const compact = claims.phone_number.replace(/[\s()-]/g, '')
@@ -250,9 +197,8 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
 
     const claims = await verifyIdToken(token.id_token, env.TELEGRAM_LOGIN_CLIENT_ID, stored.nonce)
     await assertSchemaReady(env.AUTH_DB)
-    const user = await createOrGetTelegramUser(env, claims)
+    const user = await createOrGetTelegramUser(env, claims.sub!, claims.preferred_username, claims.name)
     await applyVerifiedPhone(env, user.id, claims)
-    await touchUserProduct(env.AUTH_DB, user.id, 'otya')
     const session = await issueSession(env, user)
 
     return json({
@@ -266,7 +212,7 @@ async function callback(request: Request, env: TelegramPrimaryLoginEnv): Promise
       user: {
         id: user.id,
         otya_id: user.otya_id,
-        email: user.email.endsWith('@identity.invalid') ? null : user.email,
+        email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
         is_verified: user.is_verified,

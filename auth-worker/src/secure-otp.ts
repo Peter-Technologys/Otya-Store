@@ -233,6 +233,7 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
   if (!user) return json({ error: 'Sign in to Otya first.' }, 401)
 
   if (path === '/auth/send-verification') {
+    if (!user.email) return json({ error: 'Add an email address to your OTYA Account before verifying email.', code: 'EMAIL_REQUIRED' }, 400)
     if (user.is_verified) return json({ ok: true, message: 'Email already verified.' })
     if (!env.RESEND_API_KEY) return json({ error: 'Verification email is temporarily unavailable.' }, 503)
     if (!(await bump(env.AUTH_KV, `secure_otp_send:verify:${user.id}`, MAX_SENDS, SEND_WINDOW_TTL))) {
