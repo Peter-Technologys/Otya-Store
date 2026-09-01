@@ -1,28 +1,49 @@
 const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
 const now=()=>new Date().toISOString()
 
+// Cloudflare can reuse one module instance for many requests. Keep schema
+// readiness scoped to the actual D1 binding so concurrent chat/history calls
+// share one initialization instead of issuing four DDL statements each.
+const schemaReadyByDb=new WeakMap()
+
 export async function ensureConversationSchema(env){
-  if(!env.DB?.prepare)throw new Error('Conversation database unavailable')
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ai_conversations (
-    id TEXT PRIMARY KEY,
-    owner_type TEXT NOT NULL,
-    owner_key TEXT NOT NULL,
-    title TEXT NOT NULL DEFAULT 'New chat',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    archived INTEGER NOT NULL DEFAULT 0
-  )`).run()
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ai_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    channel TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
-  )`).run()
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ai_conv_owner ON ai_conversations(owner_type,owner_key,updated_at DESC)').run()
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ai_msg_conv ON ai_messages(conversation_id,id)').run()
+  const db=env.DB
+  if(!db?.prepare)throw new Error('Conversation database unavailable')
+
+  const existing=schemaReadyByDb.get(db)
+  if(existing)return existing
+
+  const readiness=(async()=>{
+    await db.prepare(`CREATE TABLE IF NOT EXISTS ai_conversations (
+      id TEXT PRIMARY KEY,
+      owner_type TEXT NOT NULL,
+      owner_key TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT 'New chat',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0
+    )`).run()
+    await db.prepare(`CREATE TABLE IF NOT EXISTS ai_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+    )`).run()
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_ai_conv_owner ON ai_conversations(owner_type,owner_key,updated_at DESC)').run()
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_ai_msg_conv ON ai_messages(conversation_id,id)').run()
+  })()
+
+  schemaReadyByDb.set(db,readiness)
+  try{
+    await readiness
+  }catch(error){
+    // A transient D1 failure must remain retryable for the next request.
+    schemaReadyByDb.delete(db)
+    throw error
+  }
 }
 
 export async function hashIdentity(env,value){
