@@ -1,4 +1,5 @@
 import authWorker from './entrypoint'
+import { ensureSchema } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import {
@@ -24,6 +25,8 @@ type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & 
   GOOGLE_WEB_CLIENT_ID?: string
 }
 
+let identitySchemaReady: Promise<void> | null = null
+
 function configuredGoogleAudiences(env: ProductionEnv): Set<string> {
   return new Set(
     [env.GOOGLE_CLIENT_ID, env.GOOGLE_WEB_CLIENT_ID]
@@ -37,8 +40,8 @@ export function isAllowedGoogleAudience(audience: string | undefined, env: Produ
   return configuredGoogleAudiences(env).has(audience)
 }
 
-function googleError(message: string, status: number): Response {
-  return new Response(JSON.stringify({ error: message }), {
+function authError(message: string, status: number, code?: string): Response {
+  return new Response(JSON.stringify({ error: message, ...(code ? { code } : {}) }), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
@@ -46,6 +49,35 @@ function googleError(message: string, status: number): Response {
       'X-Content-Type-Options': 'nosniff',
     },
   })
+}
+
+function googleError(message: string, status: number): Response {
+  return authError(message, status)
+}
+
+async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
+  try {
+    if (!identitySchemaReady) {
+      identitySchemaReady = ensureSchema(env.AUTH_DB).catch((error) => {
+        identitySchemaReady = null
+        throw error
+      })
+    }
+    await identitySchemaReady
+    return null
+  } catch (error) {
+    console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
+    return authError(
+      'OTYA Account is temporarily unavailable. Please try again shortly.',
+      503,
+      'AUTH_SCHEMA_UNAVAILABLE',
+    )
+  }
+}
+
+function createsIdentitySession(request: Request, url: URL): boolean {
+  return request.method === 'POST'
+    && ['/auth/register', '/auth/login', '/auth/google'].includes(url.pathname)
 }
 
 async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Promise<string | Response> {
@@ -139,35 +171,39 @@ export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
 
+    // Security and provider-specific wrapper routes run before storage readiness.
+    // This preserves correct 401/403/configuration responses and avoids leaking
+    // D1 health to callers that are not authorized to reach identity storage.
     if (url.pathname.startsWith('/auth/admin/')) {
       const response = await handleAdminMfa(request, env)
       if (response) return response
     }
 
-    // Keep Telegram on the production wrapper so admin step-up and normal
-    // account linking share the exact same OIDC verifier and AUTH_KV state.
     if (url.pathname.startsWith('/auth/telegram/')) {
       const response = await handleTelegramLogin(request, env)
       if (response) return response
     }
 
-    // Account deletion must revoke every refresh token and recorded device
-    // session with correct KV pagination before the D1 identity is removed.
     const secureAccountResponse = await handleSecureAccountRoute(request, env)
     if (secureAccountResponse) return secureAccountResponse
 
-    // Password-reset and email-verification codes are purpose-bound, HMAC
-    // protected in KV, rate-limited, expiring and single-use.
     const secureOtpResponse = await handleSecureOtpRoute(request, env)
     if (secureOtpResponse) return secureOtpResponse
+
+    // Registration, password login and Google sign-in are the compatibility
+    // paths that create a complete identity session and depend on the legacy
+    // users schema. Fail those writes clearly if D1 schema preparation fails,
+    // while leaving token verification, MFA and provider-security responses
+    // independent of schema health.
+    if (createsIdentitySession(request, url)) {
+      const schemaError = await ensureIdentitySchema(env)
+      if (schemaError) return schemaError
+    }
 
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
 
-      // The legacy core performs its own issuer/expiry/audience validation.
-      // Override only GOOGLE_CLIENT_ID for this single request with the audience
-      // we already verified is one of the two explicitly configured clients.
       const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience }
       const response = await authWorker.fetch(
         request,
@@ -181,9 +217,6 @@ export default {
       env as Parameters<typeof authWorker.fetch>[1],
     )
 
-    // Registration remains on the compatibility core because it also owns
-    // consent/session orchestration. Immediately replace its short-lived
-    // plaintext verification code with a purpose-bound HMAC record.
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
       await hardenRegistrationVerification(response, env)
     }

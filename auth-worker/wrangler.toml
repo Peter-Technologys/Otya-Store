@@ -3,9 +3,11 @@ main = "src/production-entrypoint.ts"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
+workers_dev = false
 
 [observability]
 enabled = true
+redact_query_string = true
 [observability.logs]
 enabled = true
 head_sampling_rate = 0.5
@@ -16,7 +18,6 @@ head_sampling_rate = 0.05
 [[d1_databases]]
 binding       = "AUTH_DB"
 database_name = "otya-auth-db"
-# Confirmed live production D1 binding. Do not replace without Cloudflare audit.
 database_id   = "b05595f6-260a-4720-acca-4f8b13f5c43e"
 
 [[kv_namespaces]]
@@ -33,17 +34,12 @@ GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleuser
 GOOGLE_WEB_CLIENT_ID = "82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com"
 FIREBASE_PROJECT_ID = "otya-player"
 TELEGRAM_LOGIN_REDIRECT_URI = "https://petersmartlink.com/api/auth/telegram/callback"
-# Otya account emails that are eligible to perform the stronger Admin MFA flow.
-# This is an eligibility gate only; OTP + linked Telegram are still required.
 ADMIN_EMAILS = "petersmartlink@gmail.com"
 
-# Firebase bridge (free-tier safe):
-# - FIREBASE_PROJECT_ID is safe public configuration and is pinned above to the
-#   verified production project. FIREBASE_API_KEY remains deployment-managed.
-# - Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
-#   session authority and email/password + OTP remain in this Worker.
-# - FCM service-account credentials belong only on the server-side push path;
-#   never put a service-account private key in the Flutter app.
+# Firebase is an identity provider only; AUTH_JWT_SECRET remains the OTYA
+# session authority and email/password + OTP remain in this Worker.
+# FCM service-account credentials belong only on the server-side push path;
+# never put a service-account private key in the Flutter app.
 # keep_vars=true preserves currently configured live values during deploys.
 
 # Secrets are configured through GitHub Actions / Cloudflare, never committed.
@@ -51,4 +47,6 @@ ADMIN_EMAILS = "petersmartlink@gmail.com"
 # Firebase identity setting: FIREBASE_API_KEY
 # Optional account verification: TELEGRAM_LOGIN_CLIENT_ID,
 # TELEGRAM_LOGIN_CLIENT_SECRET, TELEGRAM_GATEWAY_TOKEN
-# Optional internal service settings: OTYA_STORE_INTERNAL_URL, INTERNAL_SECRET
+# Optional internal service settings should use canonical OTYA_CORE_* aliases;
+# legacy OTYA_STORE_* names may remain only as temporary runtime fallback until
+# the cutover is verified.

@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('otya-ai routes every runtime surface through the named AI Gateway wrapper', () => {
+test('Next routes every runtime surface through the named AI Gateway wrapper', () => {
   const wrangler = read('ai-worker/wrangler.toml')
   const entry = read('ai-worker/src/scheduled-entry.mjs')
 
+  assert.match(wrangler, /^name\s*=\s*"otya-next"$/m)
   assert.match(wrangler, /^main\s*=\s*"src\/scheduled-entry\.mjs"$/m)
-  assert.match(wrangler, /^AI_GATEWAY_ID\s*=\s*"otya-ai-gateway"$/m)
+  assert.match(wrangler, /^AI_GATEWAY_ID\s*=\s*"otya-next-gateway"$/m)
 
   assert.match(entry, /function withAiGateway\(env\)/)
   assert.match(entry, /gatewayId=String\(env\.AI_GATEWAY_ID/)

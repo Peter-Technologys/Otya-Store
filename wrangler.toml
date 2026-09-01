@@ -1,15 +1,20 @@
-name = "otya-store"
+name = "otya-core"
 main = "src/production-router.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
+workers_dev = false
 routes = [
   { pattern = "petersmartlink.com", custom_domain = true },
-  { pattern = "www.petersmartlink.com", custom_domain = true }
+  { pattern = "www.petersmartlink.com", custom_domain = true },
+  { pattern = "docs.petersmartlink.com", custom_domain = true },
+  { pattern = "status.petersmartlink.com", custom_domain = true },
+  { pattern = "space.petersmartlink.com", custom_domain = true }
 ]
 
 [observability]
 enabled = true
+redact_query_string = true
 [observability.logs]
 enabled = true
 head_sampling_rate = 0.25
@@ -19,7 +24,7 @@ head_sampling_rate = 0.05
 
 [vars]
 ENVIRONMENT = "production"
-APP_NAME    = "OTYA Backend"
+APP_NAME    = "OTYA"
 WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 FIREBASE_PROJECT_ID = "otya-player"
@@ -27,9 +32,6 @@ FIREBASE_PROJECT_NUMBER = "82776565585"
 FIREBASE_ANDROID_APP_ID = "1:82776565585:android:085cf9b4eecb76e9535570"
 ANDROID_PACKAGE_NAME = "com.otyaplayer.app"
 FIREBASE_APP_CHECK_MODE = "monitor"
-# Authenticated OTYA accounts allowed to open private admin tools/Console.
-# Additional administrators can be added as a comma-separated list after their
-# OTYA accounts are created and secured.
 ADMIN_EMAILS = "petersmartlink@gmail.com"
 
 [assets]
@@ -44,19 +46,18 @@ bucket_name = "otya-player-releases"
 binding = "KV"
 id      = "3f179286e0fc4dbfa2332884cdf81312"
 
+# Keep the physical D1 name during the v1 cutover. Renaming the database is not
+# part of the product/Worker identity migration.
 [[d1_databases]]
 binding       = "DB"
 database_name = "otya-store-db"
 database_id   = "ab157fc6-2cbb-4d46-9789-2e4392e16aea"
 
-# Preserve the verified live per-Worker Analytics Engine binding. New source
-# instrumentation should target env.ANALYTICS. The compatibility binding below
-# remains temporarily because the current entrypoint/release workflow still
-# writes through env.OTYA_ANALYTICS; remove it only after those callers migrate.
 [[analytics_engine_datasets]]
 binding = "ANALYTICS"
-dataset = "otya-store-analytics"
+dataset = "otya-core-analytics"
 
+# Compatibility dataset remains until every legacy writer is migrated.
 [[analytics_engine_datasets]]
 binding = "OTYA_ANALYTICS"
 dataset = "otya_system_analytics"
@@ -71,26 +72,30 @@ namespace_id = "1001"
 
 [[queues.producers]]
 binding = "PUSH_QUEUE"
-queue   = "otya-push-queue"
+queue   = "otya-push"
 [[queues.consumers]]
-queue             = "otya-push-queue"
+queue             = "otya-push"
 max_batch_size    = 10
 max_retries       = 3
-dead_letter_queue = "otya-push-queue-dlq"
+dead_letter_queue = "otya-push-dlq"
 
 [[queues.producers]]
 binding = "AI_QUEUE"
-queue   = "otya-ai-queue"
+queue   = "otya-next-jobs"
+
+# Do not attach otya-release-events here yet. The dedicated idempotent release
+# intake handler must land and pass tests before the R2 event queue gets a
+# consumer.
 
 [[services]]
 binding = "AUTH"
 service = "otya-auth"
 [[services]]
 binding = "AI_SUPPORT"
-service = "otya-ai"
+service = "otya-next"
 
 [[workflows]]
-name = "otya-release-workflow"
+name = "otya-release"
 binding = "OTYA_RELEASE_WORKFLOW"
 class_name = "OtyaReleaseWorkflow"
 

@@ -1,11 +1,13 @@
-name = "otya-ai"
+name = "otya-next"
 main = "src/scheduled-entry.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
+workers_dev = false
 
 [observability]
 enabled = true
+redact_query_string = true
 [observability.logs]
 enabled = true
 head_sampling_rate = 0.35
@@ -15,21 +17,16 @@ head_sampling_rate = 0.05
 
 [vars]
 ENVIRONMENT = "production"
-APP_NAME = "OTYA AI"
+APP_NAME = "Next by OTYA"
 WEBSITE_URL = "https://petersmartlink.com"
 ADMIN_REPORT_EMAIL = "petersmartlink@gmail.com"
 ADMIN_CRASH_ALERT_THRESHOLD = "5"
 TELEGRAM_BOT_USERNAME = "OtyaPlayerBot"
 TELEGRAM_CHANNEL_URL = "https://t.me/otyaplayer"
-AI_GATEWAY_ID = "otya-ai-gateway"
-# Public Otya catalog. Public model choice remains isolated from the private
-# Admin intelligence plane.
+AI_GATEWAY_ID = "otya-next-gateway"
 AI_PUBLIC_MODELS = "llama-fast,otya-smart,gemma-4,granite,llama-70b,gpt-oss-20b,gpt-oss-120b,nemotron,llama-4-scout,qwen3,sea-lion"
 AI_GUEST_MODEL = "llama-fast"
 AI_DEFAULT_MODEL = "otya-smart"
-# Private Admin does not expose a model picker. The server chooses the approved
-# operator model. GLM-4.7-Flash is a current Workers AI agentic/tool-calling
-# model that remains available on standard Workers Free billing.
 OTYA_AI_MODEL = "@cf/zai-org/glm-4.7-flash"
 OTYA_REPORT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"
 GMAIL_GOOGLE_CLIENT_ID = "82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv.apps.googleusercontent.com"
@@ -46,8 +43,9 @@ instance_name = "otya-knowledge"
 
 [[analytics_engine_datasets]]
 binding = "ANALYTICS"
-dataset = "otya-ai-analytics"
+dataset = "otya-next-analytics"
 
+# Keep the physical D1 name during the v1 cutover.
 [[d1_databases]]
 binding = "DB"
 database_name = "otya-store-db"
@@ -59,14 +57,14 @@ id = "3f179286e0fc4dbfa2332884cdf81312"
 
 [[queues.producers]]
 binding = "PUSH_QUEUE"
-queue = "otya-push-queue"
+queue = "otya-push"
 
 [[queues.consumers]]
-queue = "otya-ai-queue"
+queue = "otya-next-jobs"
 max_batch_size = 5
 max_batch_timeout = 30
 max_retries = 3
-dead_letter_queue = "otya-ai-queue-dlq"
+dead_letter_queue = "otya-next-jobs-dlq"
 
 [triggers]
 # Hourly: lightweight admin-only exception check.

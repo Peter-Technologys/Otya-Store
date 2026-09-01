@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: '22', package-manager-cache: false }
-      - name: Validate store/web
+      - name: Validate OTYA core/web
         run: |
           npm install --no-package-lock --ignore-scripts
           npm run validate:config
@@ -33,7 +33,7 @@ jobs:
           npm install --no-package-lock --ignore-scripts
           npm test
           npx tsc --noEmit
-      - name: Validate AI worker
+      - name: Validate Next worker
         working-directory: ai-worker
         run: |
           npm install --no-package-lock --ignore-scripts
@@ -61,6 +61,7 @@ jobs:
           TELEGRAM_LOGIN_CLIENT_SECRET: ${{ secrets.TELEGRAM_LOGIN_CLIENT_SECRET }}
           TELEGRAM_GATEWAY_TOKEN: ${{ secrets.TELEGRAM_GATEWAY_TOKEN }}
           ACCOUNT_ENCRYPTION_KEY: ${{ secrets.ACCOUNT_ENCRYPTION_KEY }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -68,72 +69,18 @@ jobs:
           test -n "$AUTH_JWT_SECRET" && test -n "$RESEND_API_KEY" && test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
           printf '%s' "$AUTH_JWT_SECRET" | npx wrangler secret put AUTH_JWT_SECRET
           printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
-          if [ -n "${FIREBASE_API_KEY:-}" ]; then
-            printf '%s' "$FIREBASE_API_KEY" | npx wrangler secret put FIREBASE_API_KEY
-          fi
-          if [ -n "${TELEGRAM_LOGIN_CLIENT_ID:-}" ]; then
-            printf '%s' "$TELEGRAM_LOGIN_CLIENT_ID" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_ID
-          fi
-          if [ -n "${TELEGRAM_LOGIN_CLIENT_SECRET:-}" ]; then
-            printf '%s' "$TELEGRAM_LOGIN_CLIENT_SECRET" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_SECRET
-          fi
-          if [ -n "${TELEGRAM_GATEWAY_TOKEN:-}" ]; then
-            printf '%s' "$TELEGRAM_GATEWAY_TOKEN" | npx wrangler secret put TELEGRAM_GATEWAY_TOKEN
-          fi
-          if [ -n "${ACCOUNT_ENCRYPTION_KEY:-}" ]; then
-            printf '%s' "$ACCOUNT_ENCRYPTION_KEY" | npx wrangler secret put ACCOUNT_ENCRYPTION_KEY
-          fi
+          if [ -n "${FIREBASE_API_KEY:-}" ]; then printf '%s' "$FIREBASE_API_KEY" | npx wrangler secret put FIREBASE_API_KEY; fi
+          if [ -n "${TELEGRAM_LOGIN_CLIENT_ID:-}" ]; then printf '%s' "$TELEGRAM_LOGIN_CLIENT_ID" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_ID; fi
+          if [ -n "${TELEGRAM_LOGIN_CLIENT_SECRET:-}" ]; then printf '%s' "$TELEGRAM_LOGIN_CLIENT_SECRET" | npx wrangler secret put TELEGRAM_LOGIN_CLIENT_SECRET; fi
+          if [ -n "${TELEGRAM_GATEWAY_TOKEN:-}" ]; then printf '%s' "$TELEGRAM_GATEWAY_TOKEN" | npx wrangler secret put TELEGRAM_GATEWAY_TOKEN; fi
+          if [ -n "${ACCOUNT_ENCRYPTION_KEY:-}" ]; then printf '%s' "$ACCOUNT_ENCRYPTION_KEY" | npx wrangler secret put ACCOUNT_ENCRYPTION_KEY; fi
+          if [ -n "${INTERNAL_SECRET:-}" ]; then printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET; fi
           npx wrangler deploy
 
-  deploy-store:
-    name: Deploy otya-store
+  deploy-next:
+    name: Deploy otya-next
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy-auth
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with: { node-version: '22', package-manager-cache: false }
-      - run: npm install --no-package-lock --ignore-scripts
-      - name: Build and deploy OTYA backend
-        env:
-          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
-          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
-          FIREBASE_APP_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_APP_DISTRIBUTION_TESTERS }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
-          npm run validate:config
-          if [ -n "${FCM_SERVICE_ACCOUNT_JSON:-}" ]; then
-            printf '%s' "$FCM_SERVICE_ACCOUNT_JSON" | npx wrangler secret put FCM_SERVICE_ACCOUNT_JSON
-          fi
-          if [ -n "${INTERNAL_SECRET:-}" ]; then
-            printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET
-          fi
-          if [ -n "${ADMIN_EMAIL:-}" ]; then
-            printf '%s' "$ADMIN_EMAIL" | npx wrangler secret put ADMIN_EMAIL
-          fi
-          if [ -n "${ADMIN_PASSWORD:-}" ]; then
-            printf '%s' "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD
-          fi
-          if [ -n "${ADMIN_SESSION_SECRET:-}" ]; then
-            printf '%s' "$ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET
-          fi
-          if [ -n "${FIREBASE_APP_DISTRIBUTION_TESTERS:-}" ]; then
-            printf '%s' "$FIREBASE_APP_DISTRIBUTION_TESTERS" | npx wrangler secret put FIREBASE_APP_DISTRIBUTION_TESTERS
-          fi
-          npm run deploy
-
-  deploy-ai:
-    name: Deploy otya-ai
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-store
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -141,13 +88,7 @@ jobs:
         with: { node-version: '22', package-manager-cache: false }
       - working-directory: ai-worker
         run: npm install --no-package-lock --ignore-scripts
-      - name: Remove obsolete store AI queue consumer
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          npx wrangler queues consumer remove otya-ai-queue otya-store || true
-      - name: Configure and deploy AI
+      - name: Configure and deploy Next
         working-directory: ai-worker
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -161,58 +102,80 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
-          if [ -n "${RESEND_API_KEY:-}" ]; then
-            printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
-          fi
-          if [ -n "${INTERNAL_SECRET:-}" ]; then
-            printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET
-          fi
-          if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
-            printf '%s' "$TELEGRAM_BOT_TOKEN" | npx wrangler secret put TELEGRAM_BOT_TOKEN
-          fi
-          if [ -n "${TELEGRAM_WEBHOOK_SECRET:-}" ]; then
-            printf '%s' "$TELEGRAM_WEBHOOK_SECRET" | npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
-          fi
-          if [ -n "${GMAIL_GOOGLE_CLIENT_SECRET:-}" ]; then
-            printf '%s' "$GMAIL_GOOGLE_CLIENT_SECRET" | npx wrangler secret put GMAIL_GOOGLE_CLIENT_SECRET
-          fi
-          if [ -n "${CONNECTOR_ENCRYPTION_KEY:-}" ]; then
-            printf '%s' "$CONNECTOR_ENCRYPTION_KEY" | npx wrangler secret put CONNECTOR_ENCRYPTION_KEY
-          fi
+          if [ -n "${RESEND_API_KEY:-}" ]; then printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY; fi
+          if [ -n "${INTERNAL_SECRET:-}" ]; then printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET; fi
+          if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then printf '%s' "$TELEGRAM_BOT_TOKEN" | npx wrangler secret put TELEGRAM_BOT_TOKEN; fi
+          if [ -n "${TELEGRAM_WEBHOOK_SECRET:-}" ]; then printf '%s' "$TELEGRAM_WEBHOOK_SECRET" | npx wrangler secret put TELEGRAM_WEBHOOK_SECRET; fi
+          if [ -n "${GMAIL_GOOGLE_CLIENT_SECRET:-}" ]; then printf '%s' "$GMAIL_GOOGLE_CLIENT_SECRET" | npx wrangler secret put GMAIL_GOOGLE_CLIENT_SECRET; fi
+          if [ -n "${CONNECTOR_ENCRYPTION_KEY:-}" ]; then printf '%s' "$CONNECTOR_ENCRYPTION_KEY" | npx wrangler secret put CONNECTOR_ENCRYPTION_KEY; fi
           npx wrangler deploy
+
+  deploy-core:
+    name: Deploy otya-core
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-next
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Build and deploy OTYA core
+        env:
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          FIREBASE_APP_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_APP_DISTRIBUTION_TESTERS }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          npm run validate:config
+          if [ -n "${FCM_SERVICE_ACCOUNT_JSON:-}" ]; then printf '%s' "$FCM_SERVICE_ACCOUNT_JSON" | npx wrangler secret put FCM_SERVICE_ACCOUNT_JSON; fi
+          if [ -n "${INTERNAL_SECRET:-}" ]; then printf '%s' "$INTERNAL_SECRET" | npx wrangler secret put INTERNAL_SECRET; fi
+          if [ -n "${ADMIN_EMAIL:-}" ]; then printf '%s' "$ADMIN_EMAIL" | npx wrangler secret put ADMIN_EMAIL; fi
+          if [ -n "${ADMIN_PASSWORD:-}" ]; then printf '%s' "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD; fi
+          if [ -n "${ADMIN_SESSION_SECRET:-}" ]; then printf '%s' "$ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET; fi
+          if [ -n "${FIREBASE_APP_DISTRIBUTION_TESTERS:-}" ]; then printf '%s' "$FIREBASE_APP_DISTRIBUTION_TESTERS" | npx wrangler secret put FIREBASE_APP_DISTRIBUTION_TESTERS; fi
+          npm run deploy
 
   verify-production:
     name: Verify live OTYA after deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-ai
+    needs: deploy-core
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - name: Wait for Cloudflare propagation
         run: sleep 15
-      - name: Smoke-test public OTYA routes
-        env:
-          SITE: https://petersmartlink.com
+      - name: Smoke-test OTYA public surfaces
         run: |
           set -euo pipefail
           check() {
-            local path="$1"
+            local url="$1"
             local expected="$2"
             local code=""
             for attempt in 1 2 3 4 5; do
-              code="$(curl --silent --show-error --location --output /tmp/otya-smoke-body --write-out '%{http_code}' --connect-timeout 10 --max-time 20 "$SITE$path" || true)"
+              code="$(curl --silent --show-error --location --output /tmp/otya-smoke-body --write-out '%{http_code}' --connect-timeout 10 --max-time 20 "$url" || true)"
               if printf '%s' "$code" | grep -Eq "$expected"; then
-                echo "OK $path -> $code"
+                echo "OK $url -> $code"
                 return 0
               fi
-              echo "Attempt $attempt: $path -> ${code:-network-error}"
+              echo "Attempt $attempt: $url -> ${code:-network-error}"
               sleep $((attempt * 5))
             done
-            echo "::error::Production smoke test failed for $path (last status ${code:-network-error})"
+            echo "::error::Production smoke test failed for $url (last status ${code:-network-error})"
             head -c 1000 /tmp/otya-smoke-body 2>/dev/null || true
             exit 1
           }
-          check / '^(200|301|302|307|308)$'
-          check /latest '^(200|301|302|307|308)$'
-          check /download '^(200|301|302|307|308)$'
-          check /api/version '^(200|401)$'
+          check https://petersmartlink.com/ '^(200|301|302|307|308)$'
+          check https://petersmartlink.com/latest '^(200|301|302|307|308)$'
+          check https://petersmartlink.com/download '^(200|301|302|307|308)$'
+          check https://petersmartlink.com/api/version '^(200|401)$'
+          check https://docs.petersmartlink.com/ '^(200|301|302|307|308)$'
+          check https://status.petersmartlink.com/ '^(200|301|302|307|308)$'
+          check https://space.petersmartlink.com/ '^(200|301|302|307|308)$'
