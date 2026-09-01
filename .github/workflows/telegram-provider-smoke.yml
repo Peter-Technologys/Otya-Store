@@ -2,7 +2,7 @@ name: OTYA Telegram Provider Smoke
 
 on:
   workflow_run:
-    workflows: ['Sync Telegram Auth Credential']
+    workflows: ['Deploy OTYA to Cloudflare']
     types: [completed]
   workflow_dispatch:
 
