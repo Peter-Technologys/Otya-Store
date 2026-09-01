@@ -66,6 +66,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (url.pathname === '/api/telegram/webhook') return handleTelegramWebhook(request, env, ctx)
+    if (url.pathname.startsWith('/api/telegram/')) return json({ error: 'Not found' }, 404)
     if (url.pathname === '/api/admin/telegram/test' || url.pathname === '/api/admin/telegram/webhook') {
       const denied = await authorizeAdmin(request, env)
       if (denied) return denied
