@@ -6,12 +6,17 @@ import { retrieveOtyaKnowledge, shouldRetrieveOtyaKnowledge } from '../src/next-
 test('general questions do not spend Otya knowledge queries', () => {
   assert.equal(shouldRetrieveOtyaKnowledge('Explain photosynthesis in simple words'), false)
   assert.equal(shouldRetrieveOtyaKnowledge('Write a birthday message for my friend'), false)
+  assert.equal(shouldRetrieveOtyaKnowledge('Recommend music for studying'), false)
+  assert.equal(shouldRetrieveOtyaKnowledge('Explain video compression'), false)
+  assert.equal(shouldRetrieveOtyaKnowledge('What theme is used in Hamlet?'), false)
+  assert.equal(shouldRetrieveOtyaKnowledge('Create a strong password for me'), false)
 })
 
 test('Otya product/help questions opt into retrieval', () => {
   assert.equal(shouldRetrieveOtyaKnowledge('How does Otya Transfer work?'), true)
   assert.equal(shouldRetrieveOtyaKnowledge('Why is my music missing from the Library?'), true)
   assert.equal(shouldRetrieveOtyaKnowledge('How do I reset my password?'), true)
+  assert.equal(shouldRetrieveOtyaKnowledge('Why does the app notification not appear?'), true)
 })
 
 test('retrieval is bounded and does not enable expensive rewrite or reranking', async () => {
