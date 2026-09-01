@@ -9,7 +9,7 @@
     "test": "node --test test/*.test.mjs",
     "validate:config": "node validate-config.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy",
+    "deploy": "opennextjs-cloudflare build && wrangler deploy src/production-router.mjs --config wrangler.toml",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
