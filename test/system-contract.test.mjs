@@ -56,9 +56,14 @@ test('Admin MFA OTPs are format-checked, single-use, and hashed at rest', () => 
 test('Admin Telegram step-up preserves the existing normal browser session', () => {
   const worker = read('auth-worker/src/telegram-login.ts')
   const callback = read('src/app/api/auth/telegram/[...path]/route.ts')
-  const adminBlock = worker.match(/if \(stored\.mode === 'admin'\) \{[\s\S]*?\n    \}/)?.[0] ?? ''
+  const helper = worker.match(/async function completeTelegramIdentity\([\s\S]*?\n}\n\nexport async function handleTelegramLogin/)?.[0] ?? ''
+  const adminStart = helper.indexOf("if (stored.mode === 'admin')")
+  const adminEnd = helper.indexOf("await env.AUTH_DB.prepare(`\n    INSERT INTO linked_identities", adminStart)
+  const adminBlock = adminStart >= 0 && adminEnd > adminStart ? helper.slice(adminStart, adminEnd) : ''
 
+  assert.match(adminBlock, /existingIdentity\.user_id !== userId/)
   assert.match(adminBlock, /markAdminTelegramComplete/)
+  assert.match(adminBlock, /admin_mfa:\s*true/)
   assert.doesNotMatch(adminBlock, /issueBrowserTokens/)
   assert.doesNotMatch(adminBlock, /refresh_token/)
   assert.match(callback, /data\.admin_mfa === true/)
