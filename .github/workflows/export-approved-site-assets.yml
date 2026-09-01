@@ -1,0 +1,94 @@
+name: Export approved OTYA site assets
+
+on:
+  push:
+    branches:
+      - chore/export-approved-site-assets-2026-09-01
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build approved site asset pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="OTYA_Approved_Site_Assets_2026-09-01"
+          mkdir -p "$root/approved-current/brand" "$root/current-site-stale-not-approved"
+
+          # Canonical OTYA product identity currently selected by OtyaBrandMark.
+          cp public/otya-icon.svg "$root/approved-current/"
+          cp public/otya-icon-dark.svg "$root/approved-current/"
+
+          # Canonical Next identity currently selected by OtyaBrandMark.
+          cp public/otya-ai.svg "$root/approved-current/"
+          cp public/otya-ai-thinking.svg "$root/approved-current/"
+          cp public/otya-ai-thinking-light.svg "$root/approved-current/"
+
+          # Current product preview used on the home/product pages.
+          cp public/brand/otya-app-preview.svg "$root/approved-current/brand/"
+
+          # Current browser/PWA identity files maintained with the site.
+          cp public/favicon.ico "$root/approved-current/"
+          cp public/favicon-16x16.png "$root/approved-current/"
+          cp public/favicon-32x32.png "$root/approved-current/"
+          cp public/apple-touch-icon.png "$root/approved-current/"
+          cp public/android-chrome-192x192.png "$root/approved-current/"
+          cp public/android-chrome-512x512.png "$root/approved-current/"
+          cp public/manifest.json "$root/approved-current/"
+
+          # These are currently present/referenced but conflict with the current approved identity.
+          # They are included only so Peter can see exactly what is stale and must not be reused as approved art.
+          cp public/og-image.jpg "$root/current-site-stale-not-approved/"
+          cp public/og-image.svg "$root/current-site-stale-not-approved/"
+          cp public/site.webmanifest "$root/current-site-stale-not-approved/"
+
+          cat > "$root/README.md" <<'EOF'
+          # OTYA approved website asset pack — 2026-09-01
+
+          This pack was exported from `PeterSmartLink/Otya-Server` at the current `main` source used for the website audit.
+
+          ## approved-current
+
+          These are the current approved identity/assets to reuse:
+
+          - `otya-icon.svg` — canonical OTYA product mark for light surfaces.
+          - `otya-icon-dark.svg` — canonical OTYA product mark for dark surfaces.
+          - `otya-ai.svg` — static Next mark: blue upper-left, red upper-right, yellow lower-center.
+          - `otya-ai-thinking.svg` — Next thinking/working animation; the three balls rotate only while working.
+          - `otya-ai-thinking-light.svg` — maintained thinking variant currently identical to the thinking asset.
+          - `brand/otya-app-preview.svg` — current website product preview showing Video / Music / Me.
+          - favicon/PWA PNG/ICO files — current browser/app icon derivatives maintained in the site repository.
+          - `manifest.json` — the active PWA manifest referenced by the current site layout.
+
+          ## current-site-stale-not-approved
+
+          These files are included for transparency because they are currently present or referenced by the site, but they conflict with the current approved OTYA identity and should NOT be reused as approved branding:
+
+          - `og-image.jpg` / `og-image.svg` — old play-logo / old OTYA Player + OTYA AI wording. The current layout still references the JPG for OpenGraph/Twitter metadata.
+          - `site.webmanifest` — old `OTYA Player` naming and old purple theme values. The current Next.js layout uses `manifest.json`, not this file.
+
+          ## Intentionally excluded
+
+          The old reusable templates under `public/brand/otya-feature-graphic.svg`, `otya-social-card.svg`, `otya-release-poster.svg`, and `otya-screenshot-frame.svg` are not included as approved assets because their old play-logo / OTYA Player visual language conflicts with the current canonical product identity. Final screenshots must come from the real validated app build.
+
+          Do not substitute the old play-logo or a generic ring for the canonical OTYA mark. Next keeps its separate three-ball identity on AI surfaces.
+          EOF
+
+          find "$root" -type f -print0 | sort -z | xargs -0 sha256sum > "$root/SHA256SUMS.txt"
+
+      - name: Upload exact asset pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: OTYA_Approved_Site_Assets_2026-09-01
+          path: OTYA_Approved_Site_Assets_2026-09-01
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
