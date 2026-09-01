@@ -8,7 +8,8 @@ test('production account deletion uses hardened paginated session cleanup', () =
   const entry = read('src/production-entrypoint.ts')
   const account = read('src/secure-account.ts')
 
-  assert.match(entry, /handleSecureAccountRoute\(request, env\)/)
+  assert.match(entry, /const runtimeEnv = resendCompatibleEnv\(env\)/)
+  assert.match(entry, /handleSecureAccountRoute\(request, runtimeEnv\)/)
   assert.match(account, /cursor\?: string/)
   assert.match(account, /limit: 1000,\s*cursor/)
   assert.match(account, /auth_session:\$\{userId\}:\$\{sessionId\}/)
