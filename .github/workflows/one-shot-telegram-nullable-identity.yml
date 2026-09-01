@@ -1,0 +1,130 @@
+name: One-shot Telegram nullable identity repair
+
+on:
+  push:
+    branches: ['fix/telegram-nullable-identity-2026-09-01']
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/telegram-nullable-identity-2026-09-01
+          fetch-depth: 0
+      - name: Implement nullable Telegram identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git log -1 --pretty=%s)" = "Implement Telegram nullable identity" ]; then
+            echo 'Repair commit already applied.'
+            exit 0
+          fi
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'expected text missing in {path}: {old[:120]}')
+              p.write_text(text.replace(old, new, count))
+
+          # Source types must match the nullable-email D1 schema.
+          replace('auth-worker/src/db.ts',
+                  '  email:                      string\n',
+                  '  email:                      string | null\n')
+          replace('auth-worker/src/db.ts',
+                  "  user: Pick<UserRow, 'id' | 'email' | 'password_hash' | 'google_id' | 'name' | 'avatar_url'>,\n",
+                  "  user: { id: string; email: string; password_hash: string | null; google_id: string | null; name: string | null; avatar_url: string | null },\n")
+          replace('auth-worker/src/db.ts',
+                  "  user: Pick<UserRow, 'id' | 'email' | 'google_id' | 'name' | 'avatar_url'>,\n",
+                  "  user: { id: string; email: string; google_id: string | null; name: string | null; avatar_url: string | null },\n")
+          replace('auth-worker/src/crypto.ts',
+                  '  email: string\n',
+                  '  email: string | null\n')
+          replace('auth-worker/src/index.ts',
+                  'async function issueAccessToken(userId: string, email: string, secret: string): Promise<string> {\n',
+                  'async function issueAccessToken(userId: string, email: string | null, secret: string): Promise<string> {\n')
+          replace('auth-worker/src/index.ts',
+                  '  checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})\n',
+                  "  if (user.email) checkAndAlertNewDeviceLogin(env.AUTH_KV, env, user.id, user.email, req).catch(() => {})\n")
+
+          # One canonical helper owns Telegram account creation for browser + Mini App.
+          Path('auth-worker/src/telegram-account.ts').write_text("""import { generateUuid } from './crypto'\nimport { generateOtyaId, getUserById, touchUserProduct, type D1Database, type UserRow } from './db'\n\nexport interface TelegramAccountEnv {\n  AUTH_DB: D1Database\n}\n\nfunction safeUsername(value: string | null | undefined): string | null {\n  const username = String(value ?? '').trim()\n  return /^[A-Za-z0-9_]{1,64}$/.test(username) ? username : null\n}\n\nfunction safeName(value: string | null | undefined, username: string | null): string {\n  const name = String(value ?? '').replace(/[\\u0000-\\u001f]/g, ' ').trim().slice(0, 120)\n  return name || username || 'Telegram user'\n}\n\nasync function linkedUser(env: TelegramAccountEnv, subject: string): Promise<UserRow | null> {\n  const link = await env.AUTH_DB.prepare(\n    \"SELECT user_id FROM linked_identities WHERE provider = 'telegram' AND provider_subject = ? LIMIT 1\",\n  ).bind(subject).first<{ user_id?: string }>()\n  if (!link?.user_id) return null\n  const user = await getUserById(env.AUTH_DB, link.user_id)\n  if (!user) throw new Error('Linked Telegram OTYA account is missing')\n  return user\n}\n\nexport async function createOrGetTelegramUser(\n  env: TelegramAccountEnv,\n  providerSubject: string,\n  providerUsername?: string | null,\n  displayName?: string | null,\n): Promise<UserRow> {\n  const subject = providerSubject.trim()\n  if (!/^\\d+$/.test(subject)) throw new Error('Invalid Telegram subject')\n  const username = safeUsername(providerUsername)\n\n  const existing = await linkedUser(env, subject)\n  if (existing) {\n    await env.AUTH_DB.prepare(\n      \"UPDATE linked_identities SET provider_username = ?, last_used_at = datetime('now') WHERE provider = 'telegram' AND provider_subject = ?\",\n    ).bind(username, subject).run()\n    await touchUserProduct(env.AUTH_DB, existing.id, 'otya')\n    return existing\n  }\n\n  const userId = generateUuid()\n  let created = false\n  for (let attempt = 0; attempt < 16; attempt++) {\n    const otyaId = await generateOtyaId(env.AUTH_DB)\n    try {\n      await env.AUTH_DB.prepare(`\n        INSERT INTO users (id, otya_id, email, password_hash, google_id, name, avatar_url)\n        VALUES (?, ?, NULL, NULL, NULL, ?, NULL)\n      `).bind(userId, otyaId, safeName(displayName, username)).run()\n      created = true\n      break\n    } catch (error) {\n      const raced = await linkedUser(env, subject)\n      if (raced) return raced\n      if (attempt === 15) throw error\n    }\n  }\n  if (!created) throw new Error('Could not create OTYA Telegram account')\n\n  try {\n    await env.AUTH_DB.prepare(`\n      INSERT INTO linked_identities (user_id, provider, provider_subject, provider_username, provider_email, linked_at, last_used_at)\n      VALUES (?, 'telegram', ?, ?, NULL, datetime('now'), datetime('now'))\n      ON CONFLICT(provider, provider_subject) DO UPDATE SET\n        provider_username = excluded.provider_username,\n        last_used_at = datetime('now')\n    `).bind(userId, subject, username).run()\n  } catch (error) {\n    await env.AUTH_DB.prepare(\n      \"DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM linked_identities WHERE user_id = ?)\",\n    ).bind(userId, userId).run()\n    const raced = await linkedUser(env, subject)\n    if (raced) return raced\n    throw error\n  }\n\n  const owner = await linkedUser(env, subject)\n  if (!owner) {\n    await env.AUTH_DB.prepare(\n      \"DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM linked_identities WHERE user_id = ?)\",\n    ).bind(userId, userId).run()\n    throw new Error('Could not link Telegram identity')\n  }\n  if (owner.id !== userId) {\n    await env.AUTH_DB.prepare(\n      \"DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM linked_identities WHERE user_id = ?)\",\n    ).bind(userId, userId).run()\n  }\n  await touchUserProduct(env.AUTH_DB, owner.id, 'otya')\n  return owner\n}\n""")
+
+          # Browser Telegram OIDC: remove synthetic email implementation and use canonical helper.
+          p = Path('auth-worker/src/telegram-primary-login.ts')
+          text = p.read_text()
+          text = text.replace(
+              "import { generateRefreshToken, generateUuid, signJwt } from './crypto'\nimport { assertSchemaReady, getUserByEmail, getUserById, insertUser, touchUserProduct, type D1Database, type UserRow } from './db'\n",
+              "import { generateRefreshToken, signJwt } from './crypto'\nimport { assertSchemaReady, type D1Database, type UserRow } from './db'\nimport { createOrGetTelegramUser } from './telegram-account'\n",
+              1,
+          )
+          text, n = re.subn(r"\nfunction internalTelegramEmail\([\s\S]*?\nasync function applyVerifiedPhone", "\nasync function applyVerifiedPhone", text, count=1)
+          if n != 1:
+              raise SystemExit('could not replace synthetic Telegram account block')
+          old = "    const user = await createOrGetTelegramUser(env, claims)\n    await applyVerifiedPhone(env, user.id, claims)\n    await touchUserProduct(env.AUTH_DB, user.id, 'otya')\n"
+          new = "    const user = await createOrGetTelegramUser(env, claims.sub!, claims.preferred_username, claims.name)\n    await applyVerifiedPhone(env, user.id, claims)\n"
+          if old not in text:
+              raise SystemExit('primary Telegram callback callsite missing')
+          text = text.replace(old, new, 1)
+          text = text.replace("        email: user.email.endsWith('@identity.invalid') ? null : user.email,\n", "        email: user.email,\n", 1)
+          p.write_text(text)
+
+          # Mini App: unauthenticated verified Telegram identity is CREATE OR LOGIN.
+          p = Path('auth-worker/src/telegram-miniapp.ts')
+          text = p.read_text()
+          text = text.replace(
+              "import { assertSchemaReady, getUserById, type D1Database, type UserRow } from './db'\n",
+              "import { assertSchemaReady, getUserById, type D1Database, type UserRow } from './db'\nimport { createOrGetTelegramUser } from './telegram-account'\n",
+              1,
+          )
+          old = """  const userId = await currentUserId(request, env)\n  if (!userId) {\n    // Product policy keeps one OTYA Account and does not silently invent an\n    // email account from Telegram profile fields. The Mini App keeps initData\n    // locally, opens OTYA sign-in, then retries this endpoint to link explicitly.\n    return json({\n      error: 'Sign in to your OTYA Account to connect Telegram.',\n      code: 'OTYA_ACCOUNT_REQUIRED',\n      authenticated: false,\n      telegram_user_id: providerSubject,\n      account_url: 'https://space.petersmartlink.com/telegram/?complete=account',\n    }, 409)\n  }\n\n"""
+          new = """  const userId = await currentUserId(request, env)\n  if (!userId) {\n    const name = [verified.user.first_name, verified.user.last_name].filter(Boolean).join(' ').trim()\n    const user = await createOrGetTelegramUser(env, providerSubject, providerUsername(verified.user), name)\n    const session = await issueSession(user, env)\n    return json({\n      ok: true,\n      authenticated: true,\n      created_or_logged_in: true,\n      telegram_user_id: providerSubject,\n      access_token: session.accessToken,\n      refresh_token: session.refreshToken,\n      user: { id: user.id, otya_id: user.otya_id, email: user.email, name: user.name, avatar_url: user.avatar_url },\n    })\n  }\n\n"""
+          if old not in text:
+              raise SystemExit('Mini App account-required block missing')
+          p.write_text(text.replace(old, new, 1))
+
+          # Nullable-email safety for existing email-only operations.
+          replace('auth-worker/src/admin-mfa.ts',
+                  '  if (!user || !allowlist(env).has(user.email.toLowerCase())) return null\n',
+                  '  if (!user?.email || !allowlist(env).has(user.email.toLowerCase())) return null\n')
+          p = Path('auth-worker/src/admin-mfa.ts')
+          t = p.read_text().replace('user.email.toLowerCase()', 'user.email!.toLowerCase()').replace('to: [user.email],', 'to: [user.email!],')
+          p.write_text(t)
+          replace('auth-worker/src/secure-otp.ts',
+                  "  if (path === '/auth/send-verification') {\n    if (user.is_verified) return json({ ok: true, message: 'Email already verified.' })\n",
+                  "  if (path === '/auth/send-verification') {\n    if (!user.email) return json({ error: 'Add an email address to your OTYA Account before verifying email.', code: 'EMAIL_REQUIRED' }, 400)\n    if (user.is_verified) return json({ ok: true, message: 'Email already verified.' })\n")
+          replace('auth-worker/src/two-factor.ts',
+                  '    const label = encodeURIComponent(`OTYA:${user.email}`)\n',
+                  '    const label = encodeURIComponent(`OTYA:${user.email ?? user.otya_id}`)\n')
+
+          # Contract tests: forbid fake emails and require Mini App CREATE OR LOGIN.
+          p = Path('test/telegram-login-fallback-contract.test.mjs')
+          t = p.read_text()
+          needle = "  assert.match(primaryLogin, /touchUserProduct/)\n"
+          if needle in t:
+              t = t.replace(needle, "  assert.match(primaryLogin, /createOrGetTelegramUser/)\n  assert.doesNotMatch(primaryLogin, /identity\\.invalid/)\n", 1)
+          else:
+              # Current helper import already satisfies create-or-login; append next to existing assertion.
+              t = t.replace("  assert.match(primaryLogin, /createOrGetTelegramUser/)\n", "  assert.match(primaryLogin, /createOrGetTelegramUser/)\n  assert.doesNotMatch(primaryLogin, /identity\\.invalid/)\n", 1)
+          t = t.replace("  assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)\n", "  assert.match(miniAuth, /authDate < now - MAX_AGE_SECONDS/)\n  assert.match(miniAuth, /createOrGetTelegramUser/)\n  assert.match(miniAuth, /created_or_logged_in/)\n  assert.doesNotMatch(miniAuth, /OTYA_ACCOUNT_REQUIRED/)\n", 1)
+          p.write_text(t)
+          PY
+
+          (cd auth-worker && npm install --no-package-lock --ignore-scripts && npm run typecheck && npm test)
+          node --test test/telegram-login-fallback-contract.test.mjs test/telegram-package-contract.test.mjs test/system-contract.test.mjs
+          ! grep -R "identity.invalid" auth-worker/src
+          git diff --check
+
+          git config user.name 'OTYA CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add auth-worker/src test/telegram-login-fallback-contract.test.mjs
+          git commit -m 'Implement Telegram nullable identity'
+          git push origin HEAD:fix/telegram-nullable-identity-2026-09-01
