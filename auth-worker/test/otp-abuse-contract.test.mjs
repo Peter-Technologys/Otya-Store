@@ -19,3 +19,16 @@ test('password-reset verification is bounded across distributed IPs', () => {
   assert.match(source, /if \(!ipAllowed \|\| !emailAllowed\)/)
   assert.match(source, /delete\(`secure_otp_attempt_global:reset:\$\{email\}`\)/)
 })
+
+test('failed password-reset delivery removes the unusable reset code', () => {
+  assert.match(source, /const resetKey = `otp:\$\{email\}`/)
+  assert.match(source, /await env\.AUTH_KV\.delete\(resetKey\)/)
+  assert.match(source, /Password-reset email failed/)
+})
+
+test('failed verification delivery removes the unusable verification code', () => {
+  assert.match(source, /const verificationKey = `verify_otp:\$\{user\.id\}`/)
+  assert.match(source, /await env\.AUTH_KV\.delete\(verificationKey\)/)
+  assert.match(source, /Verification email failed/)
+  assert.match(source, /Verification email is temporarily unavailable/)
+})

@@ -186,10 +186,12 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
     if (!user) return json({ ok: true, message: GENERIC_RESET_MESSAGE })
 
     const code = generateOtp()
-    await env.AUTH_KV.put(`otp:${email}`, await digestCode(env, 'password-reset', email, code), { expirationTtl: OTP_TTL })
+    const resetKey = `otp:${email}`
+    await env.AUTH_KV.put(resetKey, await digestCode(env, 'password-reset', email, code), { expirationTtl: OTP_TTL })
     try {
       await sendCode(env, email, 'Your Otya password reset code', 'Use this code to reset your Otya password:', code)
     } catch (error) {
+      await env.AUTH_KV.delete(resetKey)
       console.error('[auth/otp] Password-reset email failed:', (error as Error)?.message)
     }
     return json({ ok: true, message: GENERIC_RESET_MESSAGE })
@@ -237,8 +239,15 @@ export async function handleSecureOtpRoute(request: Request, env: SecureOtpEnv):
       return json({ error: 'Too many verification codes requested. Try again later.' }, 429)
     }
     const code = generateOtp()
-    await env.AUTH_KV.put(`verify_otp:${user.id}`, await digestCode(env, 'verify-email', user.id, code), { expirationTtl: OTP_TTL })
-    await sendCode(env, user.email, 'Your Otya verification code', 'Use this code to verify your Otya email address:', code)
+    const verificationKey = `verify_otp:${user.id}`
+    await env.AUTH_KV.put(verificationKey, await digestCode(env, 'verify-email', user.id, code), { expirationTtl: OTP_TTL })
+    try {
+      await sendCode(env, user.email, 'Your Otya verification code', 'Use this code to verify your Otya email address:', code)
+    } catch (error) {
+      await env.AUTH_KV.delete(verificationKey)
+      console.error('[auth/otp] Verification email failed:', (error as Error)?.message)
+      return json({ error: 'Verification email is temporarily unavailable.' }, 503)
+    }
     return json({ ok: true, message: 'Verification code sent.' })
   }
 
