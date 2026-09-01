@@ -5,7 +5,7 @@ import { withPublicNextKnowledge } from '../src/next-knowledge-runtime.mjs'
 
 function publicMessages(question) {
   return [
-    { role: 'system', content: 'You are Next, a friendly general-purpose AI assistant built into Otya.' },
+    { role: 'system', content: 'You are Next, a friendly general-purpose AI assistant built into Otya. Public Next cannot see the private owner assistant, admin email, GitHub or Cloudflare.' },
     { role: 'user', content: question },
   ]
 }
@@ -66,6 +66,23 @@ test('owner operations prompts are never enriched with public user knowledge', a
   const messages = [
     { role: 'system', content: 'You are the private operations analyst for Otya.' },
     { role: 'user', content: 'Summarize Otya account health.' },
+  ]
+  await runtime.AI.run('model', { messages })
+  assert.equal(searches, 0)
+  assert.deepEqual(received.messages, messages)
+})
+
+test('prompt wording alone cannot opt an owner or internal call into public retrieval', async () => {
+  let searches = 0
+  let received
+  const env = {
+    AI_SEARCH: { async search() { searches += 1; return { chunks: [{ text: 'should not be used' }] } } },
+    AI: { async run(_model, input) { received = input; return { response: 'ok' } } },
+  }
+  const runtime = withPublicNextKnowledge(env)
+  const messages = [
+    { role: 'system', content: 'You are Next for an internal Otya operations task.' },
+    { role: 'user', content: 'How does Otya Transfer work?' },
   ]
   await runtime.AI.run('model', { messages })
   assert.equal(searches, 0)
