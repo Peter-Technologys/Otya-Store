@@ -14,6 +14,16 @@ test('production auth fails closed when identity schema is unavailable', () => {
   assert.match(source, /503/)
 })
 
-test('browser preflight does not require D1 readiness', () => {
-  assert.match(source, /if \(request\.method !== 'OPTIONS'\) \{/)
+test('schema readiness guards only session-creating identity writes', () => {
+  assert.match(source, /function createsIdentitySession\(request: Request, url: URL\)/)
+  assert.match(source, /\['\/auth\/register', '\/auth\/login', '\/auth\/google'\]/)
+  assert.match(source, /if \(createsIdentitySession\(request, url\)\) \{/)
+})
+
+test('security and provider handlers run before schema readiness', () => {
+  const adminIndex = source.indexOf("url.pathname.startsWith('/auth/admin/')")
+  const telegramIndex = source.indexOf("url.pathname.startsWith('/auth/telegram/')")
+  const schemaIndex = source.indexOf('if (createsIdentitySession(request, url))')
+  assert.ok(adminIndex >= 0 && adminIndex < schemaIndex)
+  assert.ok(telegramIndex >= 0 && telegramIndex < schemaIndex)
 })
