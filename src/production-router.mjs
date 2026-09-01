@@ -6,6 +6,21 @@ const DOCS_HOST = 'docs.petersmartlink.com'
 const STATUS_HOST = 'status.petersmartlink.com'
 const SPACE_HOST = 'space.petersmartlink.com'
 
+const CANONICAL_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://accounts.google.com https://telegram.org https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://partner.googleadservices.com https://tpc.googlesyndication.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://challenges.cloudflare.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https: https://pagead2.googlesyndication.com",
+  "connect-src 'self' https://petersmartlink.com https://accounts.google.com https://telegram.org https://oauth.telegram.org https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com",
+  "frame-src https://accounts.google.com https://oauth.telegram.org https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  'upgrade-insecure-requests',
+].join('; ')
+
 function publicSurfaceRedirect(url, pathname) {
   const target = new URL(url)
   target.protocol = 'https:'
@@ -26,7 +41,25 @@ function isSpaceAppPath(pathname) {
     || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
 }
 
-function dispatchCanonical(request, url, env, ctx) {
+function applyCanonicalBrowserPolicy(response) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.toLowerCase().includes('text/html')) return response
+  const headers = new Headers(response.headers)
+  headers.set('Content-Security-Policy', CANONICAL_CSP)
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  headers.set('X-Content-Type-Options', 'nosniff')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
+async function dispatchWorker(request, env, ctx) {
+  return applyCanonicalBrowserPolicy(await worker.fetch(request, env, ctx))
+}
+
+async function dispatchCanonical(request, url, env, ctx) {
   const target = new URL(url)
   target.protocol = 'https:'
   target.hostname = APP_HOST
@@ -39,7 +72,7 @@ function dispatchCanonical(request, url, env, ctx) {
     redirect: 'manual',
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body
-  return worker.fetch(new Request(target.toString(), init), env, ctx)
+  return dispatchWorker(new Request(target.toString(), init), env, ctx)
 }
 
 export default {
@@ -52,7 +85,7 @@ export default {
       url.pathname = '/latest'
       const headers = new Headers(request.headers)
       headers.set('X-OTYA-Version-Alias', 'api-version')
-      return worker.fetch(new Request(url, { method: request.method, headers }), env, ctx)
+      return dispatchWorker(new Request(url, { method: request.method, headers }), env, ctx)
     }
 
     if (host === SPACE_HOST) {
@@ -69,6 +102,6 @@ export default {
       if (host === STATUS_HOST) return publicSurfaceRedirect(url, '/status')
     }
 
-    return worker.fetch(request, env, ctx)
+    return dispatchWorker(request, env, ctx)
   },
 }
