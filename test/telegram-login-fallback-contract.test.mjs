@@ -6,13 +6,14 @@ const wrapper = readFileSync(new URL('../auth-worker/src/production-entrypoint-m
 const miniAuth = readFileSync(new URL('../auth-worker/src/telegram-miniapp.ts', import.meta.url), 'utf8')
 const proxy = readFileSync(new URL('../src/app/api/auth/telegram/[...path]/route.ts', import.meta.url), 'utf8')
 const config = readFileSync(new URL('../next.config.mjs', import.meta.url), 'utf8')
+const router = readFileSync(new URL('../src/production-router.mjs', import.meta.url), 'utf8')
 const wrangler = readFileSync(new URL('../auth-worker/wrangler.toml', import.meta.url), 'utf8')
 const secretWorkflowUrl = new URL('../.github/workflows/telegram-auth-secret.yml', import.meta.url)
 
 test('Telegram browser Sign-In stays OIDC-only while Mini App uses Secrets Store HMAC', () => {
   assert.match(wrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
-  assert.match(wrapper, /TELEGRAM_BOT_TOKEN: undefined/)
-  assert.match(wrapper, /url\.pathname\.startsWith\('\/auth\/telegram\/'\)/)
+  assert.match(wrapper, /return worker\.fetch\(request, env\)/)
+  assert.doesNotMatch(wrapper, /oidcEnv|TELEGRAM_BOT_TOKEN: undefined/)
   assert.match(miniAuth, /WebAppData/)
   assert.match(miniAuth, /TELEGRAM_BOT_TOKEN\?\.get/)
   assert.match(miniAuth, /constantTimeHexEqual/)
@@ -28,10 +29,16 @@ test('Mini App auth proxy is constrained to the private AUTH service and secure 
   assert.match(proxy, /delete safe\.refresh_token/)
 })
 
-test('Telegram browser origins remain allowed without weakening frame ancestors', () => {
+test('Google and Telegram browser origins are enforced at the outer production router', () => {
+  assert.match(config, /https:\/\/accounts\.google\.com/)
   assert.match(config, /https:\/\/telegram\.org/)
-  assert.match(config, /https:\/\/oauth\.telegram\.org/)
   assert.match(config, /frame-ancestors 'none'/)
+  assert.match(router, /CANONICAL_CSP/)
+  assert.match(router, /script-src[^\n]*accounts\.google\.com/)
+  assert.match(router, /connect-src[^\n]*accounts\.google\.com/)
+  assert.match(router, /https:\/\/telegram\.org/)
+  assert.match(router, /headers\.set\('Content-Security-Policy', CANONICAL_CSP\)/)
+  assert.doesNotMatch(router, /unsafe-eval/)
 })
 
 test('auth reads Telegram bot credential from Cloudflare Secrets Store without GitHub duplication', () => {
