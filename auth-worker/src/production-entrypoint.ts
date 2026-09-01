@@ -75,6 +75,11 @@ async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null
   }
 }
 
+function createsIdentitySession(request: Request, url: URL): boolean {
+  return request.method === 'POST'
+    && ['/auth/register', '/auth/login', '/auth/google'].includes(url.pathname)
+}
+
 async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Promise<string | Response> {
   const audiences = configuredGoogleAudiences(env)
   if (audiences.size === 0) return googleError('Google auth not configured', 503)
@@ -185,10 +190,12 @@ export default {
     const secureOtpResponse = await handleSecureOtpRoute(request, env)
     if (secureOtpResponse) return secureOtpResponse
 
-    // OPTIONS is handled by the compatibility core without identity storage.
-    // Every remaining production identity path can touch the legacy users table,
-    // so fail closed before handing it to that core when D1 is not ready.
-    if (request.method !== 'OPTIONS') {
+    // Registration, password login and Google sign-in are the compatibility
+    // paths that create a complete identity session and depend on the legacy
+    // users schema. Fail those writes clearly if D1 schema preparation fails,
+    // while leaving token verification, MFA and provider-security responses
+    // independent of schema health.
+    if (createsIdentitySession(request, url)) {
       const schemaError = await ensureIdentitySchema(env)
       if (schemaError) return schemaError
     }
