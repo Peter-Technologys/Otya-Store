@@ -2,6 +2,7 @@ import authWorker from './entrypoint'
 import { ensureSchema } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
+import { sendResendEmail } from './resend'
 import {
   handleSecureOtpRoute,
   hardenRegistrationVerification,
@@ -18,6 +19,13 @@ interface GoogleTokenPayload {
   exp?: string | number
   email?: string
   email_verified?: string | boolean
+}
+
+interface LegacyEmailMessage {
+  from: { email: string; name?: string }
+  to: { email: string }[]
+  subject: string
+  text: string
 }
 
 type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & SecureAccountEnv & {
@@ -53,6 +61,32 @@ function authError(message: string, status: number, code?: string): Response {
 
 function googleError(message: string, status: number): Response {
   return authError(message, status)
+}
+
+function resendCompatibleEnv(env: ProductionEnv): ProductionEnv {
+  const apiKey = env.RESEND_API_KEY?.trim()
+  if (!apiKey) return env
+
+  const EMAIL = {
+    async send(message: LegacyEmailMessage): Promise<void> {
+      const fromAddress = message.from?.email?.trim()
+      if (!fromAddress) throw new Error('Email sender is missing')
+      const fromName = message.from?.name?.trim()
+      const recipients = Array.isArray(message.to)
+        ? message.to.map((recipient) => recipient?.email?.trim()).filter(Boolean) as string[]
+        : []
+      if (recipients.length === 0) throw new Error('Email recipient is missing')
+
+      await sendResendEmail(apiKey, {
+        from: fromName ? `${fromName} <${fromAddress}>` : fromAddress,
+        to: recipients,
+        subject: message.subject,
+        text: message.text,
+      })
+    },
+  }
+
+  return { ...env, EMAIL }
 }
 
 async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
@@ -170,24 +204,25 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
 export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
+    const runtimeEnv = resendCompatibleEnv(env)
 
     // Security and provider-specific wrapper routes run before storage readiness.
     // This preserves correct 401/403/configuration responses and avoids leaking
     // D1 health to callers that are not authorized to reach identity storage.
     if (url.pathname.startsWith('/auth/admin/')) {
-      const response = await handleAdminMfa(request, env)
+      const response = await handleAdminMfa(request, runtimeEnv)
       if (response) return response
     }
 
     if (url.pathname.startsWith('/auth/telegram/')) {
-      const response = await handleTelegramLogin(request, env)
+      const response = await handleTelegramLogin(request, runtimeEnv)
       if (response) return response
     }
 
-    const secureAccountResponse = await handleSecureAccountRoute(request, env)
+    const secureAccountResponse = await handleSecureAccountRoute(request, runtimeEnv)
     if (secureAccountResponse) return secureAccountResponse
 
-    const secureOtpResponse = await handleSecureOtpRoute(request, env)
+    const secureOtpResponse = await handleSecureOtpRoute(request, runtimeEnv)
     if (secureOtpResponse) return secureOtpResponse
 
     // Registration, password login and Google sign-in are the compatibility
@@ -196,31 +231,31 @@ export default {
     // while leaving token verification, MFA and provider-security responses
     // independent of schema health.
     if (createsIdentitySession(request, url)) {
-      const schemaError = await ensureIdentitySchema(env)
+      const schemaError = await ensureIdentitySchema(runtimeEnv)
       if (schemaError) return schemaError
     }
 
     if (request.method === 'POST' && url.pathname === '/auth/google') {
-      const audience = await verifiedGoogleAudience(request, env)
+      const audience = await verifiedGoogleAudience(request, runtimeEnv)
       if (audience instanceof Response) return audience
 
-      const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience }
+      const requestEnv = { ...runtimeEnv, GOOGLE_CLIENT_ID: audience }
       const response = await authWorker.fetch(
         request,
         requestEnv as Parameters<typeof authWorker.fetch>[1],
       )
-      return normalizeAccountResponse(response, env)
+      return normalizeAccountResponse(response, runtimeEnv)
     }
 
     const response = await authWorker.fetch(
       request,
-      env as Parameters<typeof authWorker.fetch>[1],
+      runtimeEnv as Parameters<typeof authWorker.fetch>[1],
     )
 
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
-      await hardenRegistrationVerification(response, env)
+      await hardenRegistrationVerification(response, runtimeEnv)
     }
 
-    return normalizeAccountResponse(response, env)
+    return normalizeAccountResponse(response, runtimeEnv)
   },
 }
