@@ -40,10 +40,68 @@ jobs:
           npm test
           npm run check
 
-  deploy-auth:
-    name: Deploy otya-auth
+  plan-deploy:
+    name: Plan Otya runtime deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.paths.outputs.auth }}
+      next: ${{ steps.paths.outputs.next }}
+      core: ${{ steps.paths.outputs.core }}
+      any_runtime: ${{ steps.paths.outputs.any_runtime }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - name: Classify changed runtime components
+        id: paths
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          auth=false
+          next=false
+          core=false
+
+          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "No usable previous commit; conservatively deploying all runtime components."
+            auth=true
+            next=true
+            core=true
+          else
+            git diff --name-only --no-renames "$BEFORE" "$AFTER" > /tmp/otya-changed-files
+            while IFS= read -r path; do
+              [ -n "$path" ] || continue
+              case "$path" in
+                auth-worker/*)
+                  auth=true
+                  ;;
+                ai-worker/*)
+                  next=true
+                  ;;
+                .github/workflows/*|docs/*|test/*|*.md|.github/ISSUE_TEMPLATE/*)
+                  ;;
+                *)
+                  core=true
+                  ;;
+              esac
+            done < /tmp/otya-changed-files
+          fi
+
+          any_runtime=false
+          if [ "$auth" = true ] || [ "$next" = true ] || [ "$core" = true ]; then any_runtime=true; fi
+          echo "auth=$auth" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "core=$core" >> "$GITHUB_OUTPUT"
+          echo "any_runtime=$any_runtime" >> "$GITHUB_OUTPUT"
+          echo "Deploy plan: auth=$auth next=$next core=$core"
+
+  deploy-auth:
+    name: Deploy otya-auth
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan-deploy.outputs.auth == 'true' }}
+    needs: [validate, plan-deploy]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -88,8 +146,8 @@ jobs:
 
   deploy-next:
     name: Deploy otya-next
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-auth
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && needs.plan-deploy.outputs.next == 'true' }}
+    needs: [validate, plan-deploy, deploy-auth]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -121,8 +179,8 @@ jobs:
 
   deploy-core:
     name: Deploy otya-core
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-next
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && needs.plan-deploy.outputs.core == 'true' }}
+    needs: [validate, plan-deploy, deploy-auth, deploy-next]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -154,8 +212,8 @@ jobs:
 
   verify-production:
     name: Verify live OTYA after deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy-core
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && needs.plan-deploy.outputs.any_runtime == 'true' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && (needs.deploy-core.result == 'success' || needs.deploy-core.result == 'skipped') }}
+    needs: [validate, plan-deploy, deploy-auth, deploy-next, deploy-core]
     runs-on: ubuntu-latest
     timeout-minutes: 7
     steps:
@@ -184,6 +242,8 @@ jobs:
           check https://petersmartlink.com/ '^(200|301|302|307|308)$'
           check https://petersmartlink.com/latest '^(200|301|302|307|308)$'
           check https://petersmartlink.com/download '^(200|301|302|307|308)$'
+          check https://petersmartlink.com/download/otya '^(200|301|302|307|308)$'
+          check https://petersmartlink.com/download/otya-player '^(200|301|302|307|308)$'
           check https://petersmartlink.com/api/version '^(200|401)$'
           check https://docs.petersmartlink.com/ '^(200|301|302|307|308)$'
           check https://status.petersmartlink.com/ '^(200|301|302|307|308)$'
