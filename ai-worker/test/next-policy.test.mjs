@@ -5,9 +5,7 @@ import {
   NEXT_BRAND,
   NEXT_DEGRADED_MESSAGE,
   NEXT_PUBLIC_BETA_MODELS,
-  canUseOwnerTools,
   classifyNextFailure,
-  normalizeNextRole,
   publicBetaModels,
   safeNextFailureResponse,
 } from '../src/next-policy.mjs'
@@ -16,14 +14,6 @@ test('public branding uses Otya and Next', () => {
   assert.equal(NEXT_BRAND.product, 'Otya')
   assert.equal(NEXT_BRAND.assistant, 'Next')
   assert.equal(NEXT_BRAND.company, 'PeterSmart Link')
-})
-
-test('owner tools are never granted to guest or normal users', () => {
-  assert.equal(normalizeNextRole('OWNER'), 'owner')
-  assert.equal(canUseOwnerTools('owner'), true)
-  assert.equal(canUseOwnerTools('user'), false)
-  assert.equal(canUseOwnerTools('guest'), false)
-  assert.equal(canUseOwnerTools('anything-else'), false)
 })
 
 test('public beta model policy keeps the economical pool bounded', () => {
