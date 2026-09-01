@@ -4,12 +4,6 @@ export const NEXT_BRAND = Object.freeze({
   company: 'PeterSmart Link',
 })
 
-export const NEXT_ROLES = Object.freeze({
-  guest: 'guest',
-  user: 'user',
-  owner: 'owner',
-})
-
 export const NEXT_PUBLIC_BETA_MODELS = Object.freeze([
   'llama-fast',
   'otya-smart',
@@ -19,17 +13,6 @@ export const NEXT_PUBLIC_BETA_MODELS = Object.freeze([
 
 export const NEXT_DEGRADED_MESSAGE =
   'Next is temporarily unavailable. Your local Otya music, video, Library, Private and Transfer features are still available.'
-
-export function normalizeNextRole(value) {
-  const role = String(value || '').trim().toLowerCase()
-  if (role === NEXT_ROLES.owner) return NEXT_ROLES.owner
-  if (role === NEXT_ROLES.user) return NEXT_ROLES.user
-  return NEXT_ROLES.guest
-}
-
-export function canUseOwnerTools(role) {
-  return normalizeNextRole(role) === NEXT_ROLES.owner
-}
 
 export function publicBetaModels(value) {
   const configured = String(value || '')
