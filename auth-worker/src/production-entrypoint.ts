@@ -55,14 +55,24 @@ function googleError(message: string, status: number): Response {
   return authError(message, status)
 }
 
-async function ensureIdentitySchema(env: ProductionEnv): Promise<void> {
-  if (!identitySchemaReady) {
-    identitySchemaReady = ensureSchema(env.AUTH_DB).catch((error) => {
-      identitySchemaReady = null
-      throw error
-    })
+async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
+  try {
+    if (!identitySchemaReady) {
+      identitySchemaReady = ensureSchema(env.AUTH_DB).catch((error) => {
+        identitySchemaReady = null
+        throw error
+      })
+    }
+    await identitySchemaReady
+    return null
+  } catch (error) {
+    console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
+    return authError(
+      'OTYA Account is temporarily unavailable. Please try again shortly.',
+      503,
+      'AUTH_SCHEMA_UNAVAILABLE',
+    )
   }
-  await identitySchemaReady
 }
 
 async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Promise<string | Response> {
@@ -156,49 +166,37 @@ export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
 
-    // OPTIONS never needs D1 and should remain cheap for browser preflight.
-    if (request.method !== 'OPTIONS') {
-      try {
-        await ensureIdentitySchema(env)
-      } catch (error) {
-        console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
-        return authError(
-          'OTYA Account is temporarily unavailable. Please try again shortly.',
-          503,
-          'AUTH_SCHEMA_UNAVAILABLE',
-        )
-      }
-    }
-
+    // Security and provider-specific wrapper routes run before storage readiness.
+    // This preserves correct 401/403/configuration responses and avoids leaking
+    // D1 health to callers that are not authorized to reach identity storage.
     if (url.pathname.startsWith('/auth/admin/')) {
       const response = await handleAdminMfa(request, env)
       if (response) return response
     }
 
-    // Keep Telegram on the production wrapper so admin step-up and normal
-    // account linking share the exact same OIDC verifier and AUTH_KV state.
     if (url.pathname.startsWith('/auth/telegram/')) {
       const response = await handleTelegramLogin(request, env)
       if (response) return response
     }
 
-    // Account deletion must revoke every refresh token and recorded device
-    // session with correct KV pagination before the D1 identity is removed.
     const secureAccountResponse = await handleSecureAccountRoute(request, env)
     if (secureAccountResponse) return secureAccountResponse
 
-    // Password-reset and email-verification codes are purpose-bound, HMAC
-    // protected in KV, rate-limited, expiring and single-use.
     const secureOtpResponse = await handleSecureOtpRoute(request, env)
     if (secureOtpResponse) return secureOtpResponse
+
+    // OPTIONS is handled by the compatibility core without identity storage.
+    // Every remaining production identity path can touch the legacy users table,
+    // so fail closed before handing it to that core when D1 is not ready.
+    if (request.method !== 'OPTIONS') {
+      const schemaError = await ensureIdentitySchema(env)
+      if (schemaError) return schemaError
+    }
 
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
 
-      // The legacy core performs its own issuer/expiry/audience validation.
-      // Override only GOOGLE_CLIENT_ID for this single request with the audience
-      // we already verified is one of the two explicitly configured clients.
       const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience }
       const response = await authWorker.fetch(
         request,
@@ -212,9 +210,6 @@ export default {
       env as Parameters<typeof authWorker.fetch>[1],
     )
 
-    // Registration remains on the compatibility core because it also owns
-    // consent/session orchestration. Immediately replace its short-lived
-    // plaintext verification code with a purpose-bound HMAC record.
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
       await hardenRegistrationVerification(response, env)
     }
