@@ -13,11 +13,16 @@ test('production custom worker wraps the generated OpenNext handler', () => {
   assert.match(router, /applyCanonicalBrowserPolicy\(await openNextWorker\.fetch/)
 })
 
-test('core-only Telegram routes bypass Next.js and stay on the backend worker', () => {
+test('backend-only auth, Next, owner and Telegram routes bypass Next.js', () => {
   const router = read('src/production-router.mjs')
-  assert.match(router, /isCoreTelegramRoute/)
-  assert.match(router, /\/api\/telegram\/webhook/)
-  assert.match(router, /backendWorker\.fetch\(request, env, ctx\)/)
+  assert.match(router, /function isCoreBackendRoute/)
+  assert.match(router, /pathname === '\/auth'/)
+  assert.match(router, /pathname\.startsWith\('\/auth\/'\)/)
+  assert.match(router, /pathname\.startsWith\('\/api\/ai\/'\)/)
+  assert.match(router, /pathname\.startsWith\('\/api\/admin\/ai\/'\)/)
+  assert.match(router, /pathname === '\/api\/admin\/release-workflow'/)
+  assert.match(router, /pathname === '\/api\/telegram\/webhook'/)
+  assert.match(router, /if \(isCoreBackendRoute\(url\.pathname\)\) return backendWorker\.fetch\(request, env, ctx\)/)
 })
 
 test('/api/version is resolved to canonical /latest before OpenNext routing', () => {
