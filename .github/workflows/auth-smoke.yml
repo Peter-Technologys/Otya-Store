@@ -14,12 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  smoke:
+  browser-policy:
+    name: Browser Google policy
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
       - name: Check live sign-in is fresh and Google-compatible
         shell: bash
@@ -45,6 +46,14 @@ jobs:
           set -euo pipefail
           curl -fsS --max-time 20 -o /dev/null https://accounts.google.com/gsi/client
 
+  account-backend:
+    name: Account backend
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
       - name: Check browser account session route
         shell: bash
         run: |
@@ -83,6 +92,14 @@ jobs:
           ! grep -q 'AUTH_SCHEMA_UNAVAILABLE' "$response"
           ! grep -qi 'temporarily unavailable' "$response"
 
+  telegram-boundary:
+    name: Telegram account boundary
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
       - name: Check Telegram Mini App surface on exact Space origin
         shell: bash
         run: |
