@@ -1,5 +1,5 @@
 import { verifyJwt } from './crypto'
-import { ensureSchema, type D1Database } from './db'
+import { assertSchemaReady, type D1Database } from './db'
 
 interface Env {
   AUTH_DB: D1Database
@@ -67,9 +67,9 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
   if (!userId) return json({ error: 'Sign in required' }, 401)
 
   try {
-    await ensureSchema(env.AUTH_DB)
+    await assertSchemaReady(env.AUTH_DB)
   } catch (error) {
-    console.error('[auth/account] Schema initialization failed:', (error as Error)?.message)
+    console.error('[auth/account] Schema readiness check failed:', (error as Error)?.message)
     return json({ error: 'Otya account storage is temporarily unavailable. Please try again.' }, 503)
   }
 

@@ -1,5 +1,5 @@
 import { generateRefreshToken, signJwt, verifyJwt } from './crypto'
-import { ensureSchema, getUserById, type D1Database, type UserRow } from './db'
+import { assertSchemaReady, getUserById, type D1Database, type UserRow } from './db'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -146,7 +146,7 @@ export async function handleTelegramMiniApp(request: Request, env: TelegramMiniA
     return json({ error: error instanceof Error ? error.message : 'Telegram Mini App verification failed', code: 'TELEGRAM_MINIAPP_INVALID' }, 401)
   }
 
-  await ensureSchema(env.AUTH_DB)
+  await assertSchemaReady(env.AUTH_DB)
   const providerSubject = String(verified.user.id)
   const identity = await env.AUTH_DB.prepare(
     "SELECT user_id FROM linked_identities WHERE provider = 'telegram' AND provider_subject = ? LIMIT 1",

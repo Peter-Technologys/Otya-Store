@@ -1,5 +1,5 @@
 import { generateRefreshToken, signJwt, verifyJwt } from './crypto'
-import { ensureSchema, getUserById, type D1Database, type UserRow } from './db'
+import { assertSchemaReady, getUserById, type D1Database, type UserRow } from './db'
 import { adminTelegramPending, markAdminTelegramComplete } from './admin-mfa'
 
 interface KVNamespaceLike {
@@ -319,7 +319,7 @@ export async function handleTelegramLogin(request: Request, env: TelegramLoginEn
     return json({ error: 'Telegram Sign-In is not configured yet', code: 'TELEGRAM_LOGIN_UNAVAILABLE' }, 503)
   }
 
-  await ensureSchema(env.AUTH_DB)
+  await assertSchemaReady(env.AUTH_DB)
 
   if (isStart) {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)

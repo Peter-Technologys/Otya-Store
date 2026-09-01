@@ -29,7 +29,7 @@ ensure_column() {
 }
 
 # Create only when absent. Existing production data is preserved.
-run_sql "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, otya_id TEXT, email TEXT UNIQUE NOT NULL, password_hash TEXT, google_id TEXT UNIQUE, name TEXT, avatar_url TEXT, is_verified INTEGER DEFAULT 0, phone_number TEXT, phone_verified_at TEXT, phone_verification_method TEXT, recovery_email TEXT, recovery_email_verified_at TEXT, country_code TEXT, locale TEXT, timezone TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))"
+run_sql "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, otya_id TEXT, email TEXT UNIQUE, password_hash TEXT, google_id TEXT UNIQUE, name TEXT, avatar_url TEXT, is_verified INTEGER DEFAULT 0, phone_number TEXT, phone_verified_at TEXT, phone_verification_method TEXT, recovery_email TEXT, recovery_email_verified_at TEXT, country_code TEXT, locale TEXT, timezone TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))"
 
 # A production identity table without these two core columns is not safely
 # repairable automatically. Fail closed rather than mutate account identity.

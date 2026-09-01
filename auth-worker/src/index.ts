@@ -46,7 +46,7 @@ import {
 } from './crypto'
 
 import {
-  ensureSchema,
+  assertSchemaReady,
   getUserByEmail,
   getUserById,
   insertUser,
@@ -96,7 +96,7 @@ interface EmailMessage {
 }
 
 // ── Module-level init flag (Bug 9 fix) ────────────────────────────────────────
-// ensureSchema runs CREATE TABLE IF NOT EXISTS — idempotent but adds latency.
+// assertSchemaReady runs CREATE TABLE IF NOT EXISTS — idempotent but adds latency.
 // We only run it once per Worker instance (cold start), not on every request.
 let dbInitialised = false
 
@@ -1060,10 +1060,10 @@ export default {
     // Ensure schema once per Worker instance (Bug 9 fix — not on every request)
     if (!dbInitialised) {
       try {
-        await ensureSchema(env.AUTH_DB)
+        await assertSchemaReady(env.AUTH_DB)
         dbInitialised = true
       } catch (e) {
-        console.error('[auth] ensureSchema failed:', (e as Error)?.message)
+        console.error('[auth] assertSchemaReady failed:', (e as Error)?.message)
       }
     }
 

@@ -1,5 +1,5 @@
 import { verifyJwt } from './crypto'
-import { ensureSchema, type D1Database } from './db'
+import { assertSchemaReady, type D1Database } from './db'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -76,7 +76,7 @@ export async function handlePhoneVerification(request: Request, env: PhoneVerifi
 
   const userId = await userIdFromRequest(request, env)
   if (!userId) return json({ error: 'Sign in required' }, 401)
-  await ensureSchema(env.AUTH_DB)
+  await assertSchemaReady(env.AUTH_DB)
 
   if (url.pathname === '/auth/phone/request') {
     if (!env.TELEGRAM_GATEWAY_TOKEN) {
