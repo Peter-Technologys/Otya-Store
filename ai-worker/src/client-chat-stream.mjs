@@ -21,6 +21,7 @@ const clean=(v,max=5000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().s
 const parseIds=v=>String(v??'').split(',').map(x=>clean(x,60)).filter(Boolean)
 const trustedStoreRequest=(request,env)=>Boolean(env.INTERNAL_SECRET)&&request.headers.get('X-OTYA-Internal-Secret')===env.INTERNAL_SECRET
 const LIVE_HINT=/\b(today|tonight|now|currently|current|latest|recent|recently|this week|this month|news|breaking|updated|update on|right now|president|prime minister|leader|ceo|score|standings|weather|temperature|forecast|price|exchange rate|currency rate|stock|market|election|winner|schedule|open now|release date)\b/i
+const RELEASE_HINT=/\b(version|release|update|upgrade|download|apk|build number|latest build|current version)\b/i
 const SEARCH_ORIGIN='https://html.duckduckgo.com/html/'
 
 function configuredPolicy(env){
@@ -59,6 +60,10 @@ function needsLiveWeb(message){
   return LIVE_HINT.test(message)
 }
 
+function needsReleaseMetadata(message){
+  return RELEASE_HINT.test(message)
+}
+
 async function browserSearch(env,message){
   if(!needsLiveWeb(message)||!env.BROWSER?.quickAction)return''
   const searchUrl=`${SEARCH_ORIGIN}?q=${encodeURIComponent(message)}`
@@ -88,17 +93,19 @@ async function liveContext(env,message){
     `Official OTYA download: ${base}/download/otya-player.`,
     `Official support: ${base}/apps/otya-player/support.`,
   ]
-  try{
-    const controller=new AbortController()
-    const timeout=setTimeout(()=>controller.abort(),2500)
-    const response=await fetch(`${base}/latest`,{headers:{Accept:'application/json'},signal:controller.signal})
-    clearTimeout(timeout)
-    if(response.ok){
-      const release=await response.json().catch(()=>null)
-      const version=clean(release?.version,80)
-      if(version)facts.push(`Current public OTYA release: ${version}.`)
-    }
-  }catch{}
+  if(needsReleaseMetadata(message)){
+    try{
+      const controller=new AbortController()
+      const timeout=setTimeout(()=>controller.abort(),1500)
+      const response=await fetch(`${base}/latest`,{headers:{Accept:'application/json'},signal:controller.signal})
+      clearTimeout(timeout)
+      if(response.ok){
+        const release=await response.json().catch(()=>null)
+        const version=clean(release?.version,80)
+        if(version)facts.push(`Current public OTYA release: ${version}.`)
+      }
+    }catch{}
+  }
   const web=await browserSearch(env,message)
   return{otya:facts.join('\n'),web}
 }
