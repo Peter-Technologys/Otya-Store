@@ -3,8 +3,8 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getDB } from '@/lib/d1'
 
 const LATEST_MAP: Record<string, string> = {
-  arm64: 'OtyaPlayer-arm64.apk',
-  arm32: 'OtyaPlayer-arm32.apk',
+  arm64: 'Otya-arm64.apk',
+  arm32: 'Otya-arm32.apk',
 }
 
 export async function GET(
@@ -24,7 +24,7 @@ export async function GET(
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       return new NextResponse('Invalid version', { status: 400 })
     }
-    key = `releases/v${version}/OtyaPlayer-${file}.apk`
+    key = `releases/v${version}/Otya-${file}.apk`
   } else {
     key = LATEST_MAP[file]
   }
@@ -35,27 +35,22 @@ export async function GET(
       get(key: string): Promise<{
         body: ReadableStream
         size: number
-        // PERFORMANCE 1: httpMetadata carries the stored Content-Type from R2
-        // so we can serve the correct MIME type without hardcoding it.
         httpMetadata?: { contentType?: string }
       } | null>
     } | undefined
 
     if (!r2) {
-      return new NextResponse('Storage not available', { status: 503 })
+      return new NextResponse('Storage is not available.', { status: 503 })
     }
 
     const object = await r2.get(key)
     if (!object) {
-      // Redirect to the download page rather than returning a JSON error body —
-      // browsers expecting a binary APK would show a broken/corrupt download.
       return NextResponse.redirect(
         'https://petersmartlink.com/download/otya-player',
         { status: 302 }
       )
     }
 
-    // Track download in D1 (non-fatal)
     try {
       const db = getDB(env as Record<string, unknown>)
       await db.prepare(
@@ -68,15 +63,8 @@ export async function GET(
         ).run()
     } catch { /* non-fatal */ }
 
-    const filename = version
-      ? `OtyaPlayer-v${version}-${file}.apk`
-      : `OtyaPlayer-latest-${file}.apk`
-
+    const filename = `Otya-${file}.apk`
     const headers = new Headers()
-
-    // PERFORMANCE 1: Use httpMetadata content-type from R2 object if available,
-    // falling back to the known APK MIME type. R2 objects always have a size,
-    // so Content-Length is set unconditionally when size > 0.
     const contentType = object.httpMetadata?.contentType ?? 'application/vnd.android.package-archive'
     headers.set('Content-Type', contentType)
     headers.set('Content-Disposition', `attachment; filename="${filename}"`)
@@ -86,6 +74,6 @@ export async function GET(
 
     return new NextResponse(object.body, { headers })
   } catch {
-    return new NextResponse('Download failed. Please try again.', { status: 500 })
+    return new NextResponse('Download failed. Try again.', { status: 500 })
   }
 }
