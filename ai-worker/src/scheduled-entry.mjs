@@ -2,6 +2,7 @@ import aiWorker from './index.mjs'
 import { handleSupportEmailAdmin } from './support-email.mjs'
 import { handleGmailConnector } from './gmail-connector.mjs'
 import { handlePublicChat, handleSharedTelegram } from './client-chat.mjs'
+import { handlePublicChatStream } from './client-chat-stream.mjs'
 import { handleOwnerActions } from './owner-actions.mjs'
 import { handleOwnerConsole } from './owner-console.mjs'
 
@@ -175,7 +176,11 @@ export default {
     if(url.pathname.startsWith('/api/admin/ai/support/')) return handleSupportEmailAdmin(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/console/')) return handleOwnerConsole(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,runtimeEnv)
-    if(url.pathname==='/api/ai/chat') return handlePublicChat(request,runtimeEnv)
+    if(url.pathname==='/api/ai/chat'){
+      const streamed=await handlePublicChatStream(request,runtimeEnv)
+      if(streamed)return streamed
+      return handlePublicChat(request,runtimeEnv)
+    }
     if(url.pathname.startsWith('/api/telegram/')){const shared=await handleSharedTelegram(request,runtimeEnv);if(shared)return shared}
     return aiWorker.fetch(request,runtimeEnv,ctx)
   },
