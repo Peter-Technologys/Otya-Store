@@ -1,0 +1,50 @@
+name: OTYA Next Production Smoke
+
+on:
+  workflow_run:
+    workflows: ['Deploy OTYA to Cloudflare']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: otya-next-production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify Next service catalog through OTYA core
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 20 -o "$response" -w '%{http_code}' \
+            'https://petersmartlink.com/api/ai/chat?models=1')"
+          cat "$response"; echo; echo "HTTP $status"
+          test "$status" = "200"
+          grep -q '"models"' "$response"
+          grep -q '"guest_model"' "$response"
+
+      - name: Verify Next can generate a live response
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 35 -o "$response" -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data '{"message":"Reply with a very short greeting.","guest_id":"production-smoke"}' \
+            'https://petersmartlink.com/api/ai/chat')"
+          cat "$response"; echo; echo "HTTP $status"
+          test "$status" = "200"
+          grep -q '"answer"' "$response"
+          grep -q '"model"' "$response"
