@@ -2,7 +2,7 @@ import worker from './entrypoint.mjs'
 import { handleTelegramAdmin, handleTelegramWebhook } from './lib/telegram-bot.mjs'
 export { OtyaReleaseWorkflow } from './entrypoint.mjs'
 
-const ACCESS_COOKIE = '__Host-otya_access'
+const ACCESS_COOKIE = '__Secure-otya_access'
 const ADMIN_COOKIE = 'otya_admin_session'
 const APP_ORIGIN = 'https://petersmartlink.com'
 
