@@ -1,0 +1,117 @@
+name: One-shot auth runtime schema repair
+
+on:
+  push:
+    branches: ['fix/auth-runtime-schema-readiness-2026-09-01']
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/auth-runtime-schema-readiness-2026-09-01
+          fetch-depth: 0
+      - name: Separate deploy-time schema repair from request-time readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          db_path = Path('auth-worker/src/db.ts')
+          db = db_path.read_text()
+          old_email = '  email                      TEXT UNIQUE NOT NULL,'
+          if old_email not in db:
+              raise SystemExit('expected db users email definition not found')
+          db = db.replace(old_email, '  email                      TEXT UNIQUE,', 1)
+
+          marker = 'export async function ensureSchema(db: D1Database): Promise<void> {'
+          if marker not in db:
+              raise SystemExit('ensureSchema marker not found')
+          readiness = '''const REQUIRED_SCHEMA_READS = [
+            `SELECT id, otya_id, email, password_hash, google_id, name, avatar_url, is_verified,
+                    phone_number, phone_verified_at, phone_verification_method, recovery_email,
+                    recovery_email_verified_at, country_code, locale, timezone, created_at, updated_at
+             FROM users LIMIT 0`,
+            `SELECT user_id, product_id, status, first_seen_at, last_seen_at
+             FROM user_products LIMIT 0`,
+            `SELECT user_id, provider, provider_subject, provider_username, provider_email, linked_at, last_used_at
+             FROM linked_identities LIMIT 0`,
+          ] as const
+
+          /**
+           * Read-only production readiness check. Schema creation and repair belong to
+           * deployment (`auth-worker/scripts/repair-remote-schema.sh`), never a user
+           * request. A missing table/column therefore fails closed without issuing DDL.
+           */
+          export async function assertSchemaReady(db: D1Database): Promise<void> {
+            for (const query of REQUIRED_SCHEMA_READS) {
+              await db.prepare(query).all()
+            }
+          }
+
+          '''
+          db = db.replace(marker, readiness + marker, 1)
+          db_path.write_text(db)
+
+          schema_path = Path('auth-worker/schema.sql')
+          schema = schema_path.read_text()
+          schema = schema.replace('  id                         TEXT PRIMARY KEY,\n  email                      TEXT UNIQUE NOT NULL,',
+                                  '  id                         TEXT PRIMARY KEY,\n  otya_id                    TEXT,\n  email                      TEXT UNIQUE,', 1)
+          if 'otya_id                    TEXT' not in schema or 'email                      TEXT UNIQUE NOT NULL' in schema:
+              raise SystemExit('canonical auth schema update failed')
+          if 'idx_users_otya_id' not in schema:
+              schema = schema.replace('CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);',
+                                      "CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);\nCREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL;", 1)
+          schema_path.write_text(schema)
+
+          repair_path = Path('auth-worker/scripts/repair-remote-schema.sh')
+          repair = repair_path.read_text()
+          repair = repair.replace('email TEXT UNIQUE NOT NULL', 'email TEXT UNIQUE', 1)
+          if 'email TEXT UNIQUE NOT NULL' in repair:
+              raise SystemExit('fresh auth repair schema still requires email')
+          repair_path.write_text(repair)
+
+          runtime_files = []
+          for path in sorted(Path('auth-worker/src').glob('*.ts')):
+              if path.name == 'db.ts':
+                  continue
+              text = path.read_text()
+              if 'ensureSchema' not in text:
+                  continue
+              text = text.replace('ensureSchema', 'assertSchemaReady')
+              text = text.replace('Schema initialization failed', 'Schema readiness check failed')
+              text = text.replace('schema initialization', 'schema readiness')
+              path.write_text(text)
+              runtime_files.append(path.as_posix())
+
+          if not runtime_files:
+              raise SystemExit('no runtime ensureSchema callers were replaced')
+
+          contract_path = Path('test/auth-readiness-contract.test.mjs')
+          contract = contract_path.read_text()
+          contract = contract.replace("assert.match(source, /import \\\{ ensureSchema \\\} from '\\\.\\\/db'/)",
+                                      "assert.match(source, /import \\\{ assertSchemaReady \\\} from '\\\.\\\/db'/)")
+          contract = contract.replace('identitySchemaReady = ensureSchema\\(env\\.AUTH_DB\\)\\.catch',
+                                      'identitySchemaReady = assertSchemaReady\\(env\\.AUTH_DB\\)\\.catch')
+          contract_path.write_text(contract)
+
+          runtime_contract = Path('test/auth-runtime-schema-contract.test.mjs')
+          runtime_contract.write_text('''import test from 'node:test'\nimport assert from 'node:assert/strict'\nimport { readFileSync, readdirSync } from 'node:fs'\n\nconst read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n\ntest('production auth request paths use read-only schema readiness', () => {\n  const files = readdirSync(new URL('../auth-worker/src/', import.meta.url))\n    .filter(name => name.endsWith('.ts') && name !== 'db.ts')\n  for (const name of files) {\n    const source = read(`auth-worker/src/${name}`)\n    assert.doesNotMatch(source, /\\bensureSchema\\s*\\(/, `${name} must not run schema DDL at request time`)\n  }\n  const db = read('auth-worker/src/db.ts')\n  assert.match(db, /export async function assertSchemaReady/)\n  const readiness = db.slice(db.indexOf('export async function assertSchemaReady'), db.indexOf('export async function ensureSchema'))\n  assert.doesNotMatch(readiness, /CREATE TABLE|ALTER TABLE|CREATE INDEX/i)\n  assert.match(readiness, /FROM users LIMIT 0/)\n  assert.match(readiness, /FROM user_products LIMIT 0/)\n  assert.match(readiness, /FROM linked_identities LIMIT 0/)\n})\n\ntest('fresh auth schema supports provider-only identities and public Otya IDs', () => {\n  const schema = read('auth-worker/schema.sql')\n  const repair = read('auth-worker/scripts/repair-remote-schema.sh')\n  assert.match(schema, /otya_id\\s+TEXT/)\n  assert.match(schema, /email\\s+TEXT UNIQUE,/)\n  assert.doesNotMatch(schema, /email\\s+TEXT UNIQUE NOT NULL/)\n  assert.doesNotMatch(repair, /email TEXT UNIQUE NOT NULL/)\n  assert.match(repair, /bash|run_sql|CREATE TABLE IF NOT EXISTS users/)\n})\n''')
+
+          # This workflow is only a guarded patch vehicle; do not leave it in the PR.
+          Path('.github/workflows/one-shot-auth-runtime-schema.yml').unlink()
+          print('Updated runtime callers:', ', '.join(runtime_files))
+          PY
+
+          node --test test/auth-readiness-contract.test.mjs test/auth-runtime-schema-contract.test.mjs
+
+          git config user.name 'OTYA CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Move auth schema repair out of request paths'
+          git push origin HEAD:fix/auth-runtime-schema-readiness-2026-09-01
