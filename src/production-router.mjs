@@ -32,14 +32,18 @@ function redirectToHost(url, hostname, pathname) {
   return Response.redirect(target.toString(), 302)
 }
 
-function isSpaceAppPath(pathname) {
-  return pathname === '/telegram'
-    || pathname === '/telegram/'
-    || pathname.startsWith('/_next/')
-    || pathname.startsWith('/api/')
+function isSharedAppAssetPath(pathname) {
+  return pathname.startsWith('/_next/')
     || pathname === '/favicon.ico'
     || pathname === '/robots.txt'
     || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
+}
+
+function isSpaceAppPath(pathname) {
+  return pathname === '/telegram'
+    || pathname === '/telegram/'
+    || pathname.startsWith('/api/')
+    || isSharedAppAssetPath(pathname)
 }
 
 function isCoreBackendRoute(pathname) {
@@ -74,10 +78,12 @@ async function dispatchOpenNext(request, env, ctx) {
   return applyCanonicalBrowserPolicy(await openNextWorker.fetch(request, env, ctx))
 }
 
-async function dispatchCanonical(request, url, env, ctx, pathname = url.pathname) {
+// Internally rewrite a custom public surface to the matching Next.js route while
+// preserving the public hostname. This keeps docs/status/space visible in the
+// browser and avoids bouncing between a subdomain and an apex path.
+async function dispatchSurface(request, url, env, ctx, pathname = url.pathname) {
   const target = new URL(url)
   target.protocol = 'https:'
-  target.hostname = APP_HOST
   target.pathname = pathname
   const headers = new Headers(request.headers)
   headers.set('X-Forwarded-Host', url.hostname)
@@ -108,22 +114,47 @@ export default {
 
     if (host === SPACE_HOST) {
       if (url.pathname === '/' || url.pathname === '/account' || url.pathname === '/account/') {
-        return dispatchCanonical(request, url, env, ctx, '/account/')
+        return dispatchSurface(request, url, env, ctx, '/account/')
       }
       if (url.pathname === '/sign-in' || url.pathname === '/sign-in/') {
-        return dispatchCanonical(request, url, env, ctx, '/sign-in/')
+        return dispatchSurface(request, url, env, ctx, '/sign-in/')
       }
-      if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
+      if (isSpaceAppPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, SPACE_HOST, '/')
-      return dispatchCanonical(request, url, env, ctx)
+      return dispatchSurface(request, url, env, ctx)
+    }
+
+    if (host === DOCS_HOST) {
+      if (url.pathname === '/' || url.pathname === '/help' || url.pathname === '/help/') {
+        return dispatchSurface(request, url, env, ctx, '/help/')
+      }
+      if (isSharedAppAssetPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
+      if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, DOCS_HOST, '/')
+      return dispatchSurface(request, url, env, ctx)
+    }
+
+    if (host === STATUS_HOST) {
+      if (url.pathname === '/' || url.pathname === '/status' || url.pathname === '/status/') {
+        return dispatchSurface(request, url, env, ctx, '/status/')
+      }
+      if (isSharedAppAssetPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
+      if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, STATUS_HOST, '/')
+      return dispatchSurface(request, url, env, ctx)
     }
 
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) {
         return redirectToHost(url, SPACE_HOST, '/')
       }
-      if (host === DOCS_HOST) return redirectToHost(url, APP_HOST, '/help')
-      if (host === STATUS_HOST) return redirectToHost(url, APP_HOST, '/status')
+      if (host === APP_HOST && (url.pathname === '/sign-in' || url.pathname === '/sign-in/')) {
+        return redirectToHost(url, SPACE_HOST, '/sign-in/')
+      }
+      if (host === APP_HOST && (url.pathname === '/help' || url.pathname === '/help/' || url.pathname === '/docs' || url.pathname === '/docs/')) {
+        return redirectToHost(url, DOCS_HOST, '/')
+      }
+      if (host === APP_HOST && (url.pathname === '/status' || url.pathname === '/status/')) {
+        return redirectToHost(url, STATUS_HOST, '/')
+      }
     }
 
     return dispatchOpenNext(request, env, ctx)

@@ -11,27 +11,48 @@ test('custom domains are canonical public entry points', () => {
   assert.ok(router.includes("const DOCS_HOST = 'docs.petersmartlink.com'"))
   assert.ok(router.includes("const STATUS_HOST = 'status.petersmartlink.com'"))
   assert.ok(router.includes("const SPACE_HOST = 'space.petersmartlink.com'"))
-  assert.ok(router.includes("redirectToHost(url, APP_HOST, '/help')"))
-  assert.ok(router.includes("redirectToHost(url, APP_HOST, '/status')"))
-})
-
-test('Space serves the account surface and apex account links converge to Space', () => {
-  assert.ok(router.includes("url.pathname === '/' || url.pathname === '/account'"))
-  assert.ok(router.includes("dispatchCanonical(request, url, env, ctx, '/account/')"))
+  assert.ok(router.includes("redirectToHost(url, DOCS_HOST, '/')"))
+  assert.ok(router.includes("redirectToHost(url, STATUS_HOST, '/')"))
   assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/')"))
 })
 
-test('Space canonical rewrites honor Next trailing slash policy to prevent redirect loops', () => {
+test('Space serves account and sign-in behind the Space hostname', () => {
+  assert.ok(router.includes("url.pathname === '/' || url.pathname === '/account'"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/sign-in/')"))
+})
+
+test('Docs and Status are internal rewrites instead of redirects to apex paths', () => {
+  assert.ok(router.includes("host === DOCS_HOST"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/help/')"))
+  assert.ok(router.includes("host === STATUS_HOST"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/status/')"))
+  assert.ok(!router.includes("redirectToHost(url, APP_HOST, '/help')"))
+  assert.ok(!router.includes("redirectToHost(url, APP_HOST, '/status')"))
+})
+
+test('surface rewrites preserve the browser hostname and Next trailing slash policy', () => {
   assert.ok(nextConfig.includes('trailingSlash: true'))
-  assert.ok(router.includes("dispatchCanonical(request, url, env, ctx, '/account/')"))
-  assert.ok(router.includes("dispatchCanonical(request, url, env, ctx, '/sign-in/')"))
-  assert.ok(!router.includes("dispatchCanonical(request, url, env, ctx, '/account')\n"))
-  assert.ok(!router.includes("dispatchCanonical(request, url, env, ctx, '/sign-in')\n"))
+  assert.ok(router.includes('async function dispatchSurface'))
+  assert.ok(router.includes("headers.set('X-Forwarded-Host', url.hostname)"))
+  assert.ok(router.includes("target.pathname = pathname"))
+  assert.ok(!router.includes('target.hostname = APP_HOST'))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/sign-in/')"))
+})
+
+test('legacy apex paths converge to the clean subdomains', () => {
+  assert.ok(router.includes("url.pathname === '/docs'"))
+  assert.ok(router.includes("url.pathname === '/help'"))
+  assert.ok(router.includes("url.pathname === '/status'"))
+  assert.ok(router.includes("url.pathname === '/account'"))
+  assert.ok(router.includes("redirectToHost(url, DOCS_HOST, '/')"))
+  assert.ok(router.includes("redirectToHost(url, STATUS_HOST, '/')"))
+  assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/')"))
 })
 
 test('custom surfaces keep HTTPS and generated OpenNext routing explicit', () => {
   assert.ok(router.includes("target.protocol = 'https:'"))
-  assert.ok(router.includes('target.hostname = APP_HOST'))
   assert.ok(router.includes("import openNextWorker from '../.open-next/worker.js'"))
   assert.ok(router.includes('Response.redirect(target.toString(), 302)'))
 })
