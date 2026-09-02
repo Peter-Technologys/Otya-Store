@@ -17,11 +17,11 @@ permissions:
 
 jobs:
   baseline-security:
-    name: OTYA security baseline
+    name: Otya security baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 0 }
       - name: Block tracked secret/signing files
         shell: bash
@@ -64,24 +64,31 @@ jobs:
             echo '::error::Possible AI/provider secret key committed to source.'
             exit 1
           fi
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - name: Validate web/backend
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
+      - name: Validate and audit web/backend
         run: |
+          set -euo pipefail
           npm install --no-package-lock --ignore-scripts
-          npm run validate:config
-          npm test
-          npm run typecheck
-      - name: Validate auth worker
+          npm install --package-lock-only --ignore-scripts
+          npm run audit:all
+          npm run check
+      - name: Validate and audit auth worker
         working-directory: auth-worker
         run: |
+          set -euo pipefail
           npm install --no-package-lock --ignore-scripts
+          npm install --package-lock-only --ignore-scripts
+          npm audit --audit-level=high
           npm test
           npx tsc --noEmit
-      - name: Validate AI worker
+      - name: Validate and audit Next worker
         working-directory: ai-worker
         run: |
+          set -euo pipefail
           npm install --no-package-lock --ignore-scripts
+          npm install --package-lock-only --ignore-scripts
+          npm audit --audit-level=high
           npm test
           npm run check
 
@@ -91,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
         with: { fail-on-severity: high }
 
@@ -104,11 +111,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: github/codeql-action/init@v3
         with: { languages: javascript-typescript }
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', package-manager-cache: false }
       - run: npm install --no-package-lock --ignore-scripts
       - working-directory: auth-worker
         run: npm install --no-package-lock --ignore-scripts

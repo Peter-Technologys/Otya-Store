@@ -16,6 +16,14 @@ const securityHeaders = [
     value: 'nosniff',
   },
   {
+    key: 'X-XSS-Protection',
+    value: '0',
+  },
+  {
+    key: 'X-Permitted-Cross-Domain-Policies',
+    value: 'none',
+  },
+  {
     key: 'Referrer-Policy',
     value: 'strict-origin-when-cross-origin',
   },
@@ -26,6 +34,14 @@ const securityHeaders = [
   {
     key: 'Cross-Origin-Opener-Policy',
     value: 'same-origin-allow-popups',
+  },
+  {
+    key: 'Cross-Origin-Resource-Policy',
+    value: 'same-site',
+  },
+  {
+    key: 'Origin-Agent-Cluster',
+    value: '?1',
   },
   {
     key: 'Content-Security-Policy',
@@ -72,6 +88,10 @@ const nextConfig = {
       },
       {
         source: '/telegram-login/:path*',
+        headers: noStoreHeaders,
+      },
+      {
+        source: '/admin/:path*',
         headers: noStoreHeaders,
       },
       {
