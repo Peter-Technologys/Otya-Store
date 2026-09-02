@@ -1,4 +1,5 @@
 import worker from './queue-worker.mjs'
+import { verifyReleaseCiRequest } from './release-ci-auth.mjs'
 export { OtyaReleaseWorkflow } from './release-workflow.mjs'
 
 const HEALTH_CHECK_CRON = '*/5 * * * *'
@@ -97,11 +98,12 @@ async function forwardAdminAi(request,env){
 }
 
 async function authorizeReleaseWorkflow(request,env){
+  if(await verifyReleaseCiRequest(request,env))return {ok:true,user:{id:'github-actions',email:'release-ci@petersmartlink.com'},automation:true}
   const user=await authenticateUser(request,env)
   if(!user)return {ok:false,response:json({error:'Sign in required'},401)}
   if(!isAdminUser(user,env))return {ok:false,response:json({error:'Administrator access required'},403)}
   if(!await hasElevatedAdminSession(request,env))return {ok:false,response:json({error:'Elevated administrator verification required'},403)}
-  return {ok:true,user}
+  return {ok:true,user,automation:false}
 }
 
 export default {
