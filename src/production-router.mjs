@@ -54,6 +54,35 @@ function isSpaceSurfacePath(pathname) {
     || isSharedAppAssetPath(pathname)
 }
 
+// Public OTYA IDs are intentionally human-friendly and safe to display.
+// Internal users.id values, provider subjects, emails and auth tokens never
+// belong in the browser path.
+function matchSpaceConsoleRoute(pathname) {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'u' || !/^2IS\d{8}$/i.test(parts[1] || '')) return null
+
+  const publicId = parts[1].toUpperCase()
+  const section = parts.slice(2).join('/') || 'overview'
+
+  if (section === 'overview') return { publicId, section, target: '/space/' }
+  if (section === 'account/sign-in-methods') return { publicId, section, target: '/account/sign-in-methods/' }
+  if (section === 'next') return { publicId, section, target: '/ask/' }
+  if (section === 'telegram') return { publicId, section, target: '/telegram/' }
+
+  const accountSections = new Set([
+    'account',
+    'security',
+    'devices',
+    'providers',
+    'storage',
+    'activity',
+    'notifications',
+    'settings',
+  ])
+  if (accountSections.has(section)) return { publicId, section, target: '/account/' }
+  return { publicId, section: 'overview', target: '/space/', unknown: true }
+}
+
 function isCoreBackendRoute(pathname) {
   return pathname === '/auth'
     || pathname.startsWith('/auth/')
@@ -121,8 +150,19 @@ export default {
     }
 
     if (host === SPACE_HOST) {
-      // The canonical Space root is the signed-in product home. Account is a
-      // section inside Space, not the definition of Space itself.
+      // Console-style user-scoped paths remain visible in the browser while the
+      // current Next routes are reused internally. The signed-in Space gate
+      // verifies that the public ID in the path belongs to the active session.
+      const consoleRoute = matchSpaceConsoleRoute(url.pathname)
+      if (consoleRoute) {
+        if (consoleRoute.unknown && (request.method === 'GET' || request.method === 'HEAD')) {
+          return redirectToHost(url, SPACE_HOST, `/u/${consoleRoute.publicId}/overview`)
+        }
+        return dispatchSurface(request, url, env, ctx, consoleRoute.target)
+      }
+
+      // Legacy clean paths remain compatibility entry points. Once authenticated,
+      // OtyaSpaceGate canonicalizes them to /u/<public OTYA ID>/<section>.
       if (url.pathname === '/' || url.pathname === '/space' || url.pathname === '/space/') {
         return dispatchSurface(request, url, env, ctx, '/space/')
       }
