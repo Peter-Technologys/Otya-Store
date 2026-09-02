@@ -1,6 +1,7 @@
 const COOKIE_NAME = 'otya_admin_session'
 const ACCOUNT_ACCESS_COOKIE = '__Secure-otya_access'
 const SESSION_TTL_SECONDS = 60 * 60
+const AUTH_LOOKUP_TIMEOUT_MS = 5000
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
 type AdminEnv = Record<string, unknown> & { AUTH?: AuthBinding }
@@ -105,6 +106,7 @@ export async function getOtyaAccountAdminEmail(request: Request, env: AdminEnv):
     const upstream = await env.AUTH.fetch(new Request('https://auth/auth/account', {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(AUTH_LOOKUP_TIMEOUT_MS),
     }))
     if (!upstream.ok) return null
     const data = await upstream.json().catch(() => ({})) as { email?: string; user?: { email?: string } }

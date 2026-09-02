@@ -11,6 +11,7 @@ import {
 } from '@/lib/admin_auth'
 
 const ACCESS_COOKIE = '__Secure-otya_access'
+const AUTH_STEP_TIMEOUT_MS = 8000
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
 
@@ -34,6 +35,7 @@ async function authStep(
       'Content-Type': 'application/json',
     },
     body: body === undefined ? '{}' : JSON.stringify(body),
+    signal: AbortSignal.timeout(AUTH_STEP_TIMEOUT_MS),
   }))
 }
 
@@ -41,8 +43,12 @@ export async function GET(request: NextRequest) {
   const { env } = await getCloudflareContext({ async: true })
   const recordEnv = env as Record<string, unknown>
   const configured = adminConfigured(recordEnv)
-  const accountAdmin = Boolean(await getOtyaAccountAdminEmail(request, recordEnv))
+
+  // A valid elevated cookie is self-contained and already proves that this is
+  // an allowlisted Otya admin. Do not block every Admin page load on another
+  // private AUTH service lookup once elevation has succeeded.
   const authenticated = configured ? await verifyAdminSession(request, recordEnv) : false
+  const accountAdmin = authenticated || Boolean(await getOtyaAccountAdminEmail(request, recordEnv))
 
   return NextResponse.json(
     { ok: true, configured, authenticated, accountAdmin },
@@ -65,32 +71,40 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as { action?: string; otp?: string }
   const action = body.action ?? ''
 
-  if (action === 'start') {
-    const upstream = await authStep(request, recordEnv, '/auth/admin/start')
-    const data = await upstream.json().catch(() => ({}))
-    return NextResponse.json(data, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } })
-  }
-
-  if (action === 'verify-otp') {
-    const upstream = await authStep(request, recordEnv, '/auth/admin/verify-otp', { otp: body.otp })
-    const data = await upstream.json().catch(() => ({}))
-    return NextResponse.json(data, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } })
-  }
-
-  if (action === 'complete') {
-    const upstream = await authStep(request, recordEnv, '/auth/admin/consume')
-    const data = await upstream.json().catch(() => ({})) as { ok?: boolean; email?: string; error?: string }
-    if (!upstream.ok || data.ok !== true || data.email?.toLowerCase() !== accountEmail) {
-      return NextResponse.json({ error: data.error ?? 'Complete Telegram verification first.' }, { status: 401 })
+  try {
+    if (action === 'start') {
+      const upstream = await authStep(request, recordEnv, '/auth/admin/start')
+      const data = await upstream.json().catch(() => ({}))
+      return NextResponse.json(data, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } })
     }
 
-    const session = await createAdminSession(recordEnv, accountEmail)
-    return NextResponse.json({ ok: true }, {
-      headers: {
-        'Set-Cookie': adminSessionCookie(session),
-        'Cache-Control': 'no-store',
-      },
-    })
+    if (action === 'verify-otp') {
+      const upstream = await authStep(request, recordEnv, '/auth/admin/verify-otp', { otp: body.otp })
+      const data = await upstream.json().catch(() => ({}))
+      return NextResponse.json(data, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    if (action === 'complete') {
+      const upstream = await authStep(request, recordEnv, '/auth/admin/consume')
+      const data = await upstream.json().catch(() => ({})) as { ok?: boolean; email?: string; error?: string }
+      if (!upstream.ok || data.ok !== true || data.email?.toLowerCase() !== accountEmail) {
+        return NextResponse.json({ error: data.error ?? 'Complete Telegram verification first.' }, { status: 401 })
+      }
+
+      const session = await createAdminSession(recordEnv, accountEmail)
+      return NextResponse.json({ ok: true }, {
+        headers: {
+          'Set-Cookie': adminSessionCookie(session),
+          'Cache-Control': 'no-store',
+        },
+      })
+    }
+  } catch (error) {
+    console.error('[admin/session] verification service unavailable:', (error as Error)?.message)
+    return NextResponse.json(
+      { error: 'Admin verification service is temporarily unavailable. Try again.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    )
   }
 
   return NextResponse.json({ error: 'Unsupported owner verification step.' }, { status: 400 })
