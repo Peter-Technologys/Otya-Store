@@ -54,7 +54,7 @@ function isSpaceSurfacePath(pathname) {
     || isSharedAppAssetPath(pathname)
 }
 
-// Public OTYA IDs are intentionally human-friendly and safe to display.
+// Public Otya IDs are intentionally human-friendly and safe to display.
 // Internal users.id values, provider subjects, emails and auth tokens never
 // belong in the browser path.
 function matchSpaceConsoleRoute(pathname) {
@@ -63,23 +63,22 @@ function matchSpaceConsoleRoute(pathname) {
 
   const publicId = parts[1].toUpperCase()
   const section = parts.slice(2).join('/') || 'overview'
-
-  if (section === 'overview') return { publicId, section, target: '/space/' }
-  if (section === 'account/sign-in-methods') return { publicId, section, target: '/account/sign-in-methods/' }
-  if (section === 'next') return { publicId, section, target: '/ask/' }
-  if (section === 'telegram') return { publicId, section, target: '/telegram/' }
-
-  const accountSections = new Set([
-    'account',
-    'security',
-    'devices',
-    'providers',
-    'storage',
-    'activity',
-    'notifications',
-    'settings',
+  const direct = new Map([
+    ['overview', '/space/'],
+    ['account', '/account/'],
+    ['account/sign-in-methods', '/account/sign-in-methods/'],
+    ['providers', '/account/sign-in-methods/'],
+    ['security', '/account/security/'],
+    ['devices', '/account/devices/'],
+    ['storage', '/account/storage/'],
+    ['activity', '/account/activity/'],
+    ['notifications', '/account/notifications/'],
+    ['settings', '/account/settings/'],
+    ['next', '/ask/'],
+    ['telegram', '/telegram/'],
   ])
-  if (accountSections.has(section)) return { publicId, section, target: '/account/' }
+  const target = direct.get(section)
+  if (target) return { publicId, section, target }
   return { publicId, section: 'overview', target: '/space/', unknown: true }
 }
 
@@ -104,20 +103,13 @@ function applyCanonicalBrowserPolicy(response) {
   headers.set('Content-Security-Policy', CANONICAL_CSP)
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
   headers.set('X-Content-Type-Options', 'nosniff')
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  })
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
 async function dispatchOpenNext(request, env, ctx) {
   return applyCanonicalBrowserPolicy(await openNextWorker.fetch(request, env, ctx))
 }
 
-// Internally rewrite a custom public surface to the matching Next.js route while
-// preserving the public hostname. This keeps docs/status/space visible in the
-// browser and avoids bouncing between a subdomain and an apex path.
 async function dispatchSurface(request, url, env, ctx, pathname = url.pathname) {
   const target = new URL(url)
   target.protocol = 'https:'
@@ -136,10 +128,6 @@ export default {
     const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
 
-    // These routes are implemented by the OTYA backend worker/service bindings,
-    // not by the generated Next.js application. Dispatch them before OpenNext so
-    // Android auth/Next and protected owner operations cannot fall through to a
-    // website 404 page.
     if (isCoreBackendRoute(url.pathname)) return backendWorker.fetch(request, env, ctx)
 
     if (url.pathname === '/api/version' || url.pathname === '/api/version/') {
@@ -150,9 +138,6 @@ export default {
     }
 
     if (host === SPACE_HOST) {
-      // Console-style user-scoped paths remain visible in the browser while the
-      // current Next routes are reused internally. The signed-in Space gate
-      // verifies that the public ID in the path belongs to the active session.
       const consoleRoute = matchSpaceConsoleRoute(url.pathname)
       if (consoleRoute) {
         if (consoleRoute.unknown && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -161,53 +146,35 @@ export default {
         return dispatchSurface(request, url, env, ctx, consoleRoute.target)
       }
 
-      // Legacy clean paths remain compatibility entry points. Once authenticated,
-      // OtyaSpaceGate canonicalizes them to /u/<public OTYA ID>/<section>.
       if (url.pathname === '/' || url.pathname === '/space' || url.pathname === '/space/') {
         return dispatchSurface(request, url, env, ctx, '/space/')
       }
-      if (url.pathname === '/account') {
-        return dispatchSurface(request, url, env, ctx, '/account/')
-      }
-      if (url.pathname === '/sign-in') {
-        return dispatchSurface(request, url, env, ctx, '/sign-in/')
-      }
+      if (url.pathname === '/account') return dispatchSurface(request, url, env, ctx, '/account/')
+      if (url.pathname === '/sign-in') return dispatchSurface(request, url, env, ctx, '/sign-in/')
       if (isSpaceSurfacePath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, SPACE_HOST, '/')
       return dispatchSurface(request, url, env, ctx)
     }
 
     if (host === DOCS_HOST) {
-      if (url.pathname === '/' || url.pathname === '/help' || url.pathname === '/help/') {
-        return dispatchSurface(request, url, env, ctx, '/help/')
-      }
+      if (url.pathname === '/' || url.pathname === '/help' || url.pathname === '/help/') return dispatchSurface(request, url, env, ctx, '/help/')
       if (isSharedAppAssetPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, DOCS_HOST, '/')
       return dispatchSurface(request, url, env, ctx)
     }
 
     if (host === STATUS_HOST) {
-      if (url.pathname === '/' || url.pathname === '/status' || url.pathname === '/status/') {
-        return dispatchSurface(request, url, env, ctx, '/status/')
-      }
+      if (url.pathname === '/' || url.pathname === '/status' || url.pathname === '/status/') return dispatchSurface(request, url, env, ctx, '/status/')
       if (isSharedAppAssetPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, STATUS_HOST, '/')
       return dispatchSurface(request, url, env, ctx)
     }
 
     if (request.method === 'GET' || request.method === 'HEAD') {
-      if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) {
-        return redirectToHost(url, SPACE_HOST, '/account/')
-      }
-      if (host === APP_HOST && (url.pathname === '/sign-in' || url.pathname === '/sign-in/')) {
-        return redirectToHost(url, SPACE_HOST, '/sign-in/')
-      }
-      if (host === APP_HOST && (url.pathname === '/help' || url.pathname === '/help/' || url.pathname === '/docs' || url.pathname === '/docs/')) {
-        return redirectToHost(url, DOCS_HOST, '/')
-      }
-      if (host === APP_HOST && (url.pathname === '/status' || url.pathname === '/status/')) {
-        return redirectToHost(url, STATUS_HOST, '/')
-      }
+      if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) return redirectToHost(url, SPACE_HOST, '/account/')
+      if (host === APP_HOST && (url.pathname === '/sign-in' || url.pathname === '/sign-in/')) return redirectToHost(url, SPACE_HOST, '/sign-in/')
+      if (host === APP_HOST && (url.pathname === '/help' || url.pathname === '/help/' || url.pathname === '/docs' || url.pathname === '/docs/')) return redirectToHost(url, DOCS_HOST, '/')
+      if (host === APP_HOST && (url.pathname === '/status' || url.pathname === '/status/')) return redirectToHost(url, STATUS_HOST, '/')
     }
 
     return dispatchOpenNext(request, env, ctx)
