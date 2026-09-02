@@ -3,6 +3,7 @@ import { assertSchemaReady } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import { handleGoogleLink } from './google-link'
+import { deliverNewDeviceAlert, deliverRegistrationEmails } from './production-email'
 import {
   handleSecureOtpRoute,
   hardenRegistrationVerification,
@@ -208,21 +209,40 @@ export default {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
 
-      const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience }
+      // The compatibility worker still contains historical env.EMAIL code.
+      // Production deliberately suppresses that binding; Resend owns delivery.
+      const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience, EMAIL: undefined }
       const response = await authWorker.fetch(
         request,
         requestEnv as Parameters<typeof authWorker.fetch>[1],
       )
+      if (response.ok) {
+        await deliverNewDeviceAlert(request, response, env).catch(error => {
+          console.error('[auth/email] Google new-device alert failed:', (error as Error)?.message)
+        })
+      }
       return normalizeAccountResponse(response, env)
     }
 
+    const compatibilityEnv = { ...env, EMAIL: undefined }
     const response = await authWorker.fetch(
       request,
-      env as Parameters<typeof authWorker.fetch>[1],
+      compatibilityEnv as Parameters<typeof authWorker.fetch>[1],
     )
 
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
+      // Convert any compatibility OTP immediately, then replace it with the
+      // Resend-delivered HMAC code. Delivery failure removes the active code.
       await hardenRegistrationVerification(response, env)
+      await deliverRegistrationEmails(response, env).catch(error => {
+        console.error('[auth/email] Registration delivery pipeline failed:', (error as Error)?.message)
+      })
+    }
+
+    if (request.method === 'POST' && url.pathname === '/auth/login' && response.ok) {
+      await deliverNewDeviceAlert(request, response, env).catch(error => {
+        console.error('[auth/email] Password new-device alert failed:', (error as Error)?.message)
+      })
     }
 
     return normalizeAccountResponse(response, env)
