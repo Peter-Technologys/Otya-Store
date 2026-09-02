@@ -1,5 +1,5 @@
 import { verifyJwt } from './crypto'
-import { assertSchemaReady, type D1Database } from './db'
+import { assertSchemaReady, getUserByEmail, type D1Database } from './db'
 
 interface Env {
   AUTH_DB: D1Database
@@ -28,6 +28,10 @@ const clean = (value: unknown, max: number): string | null => {
   if (typeof value !== 'string') return null
   const normalized = value.trim().slice(0, max)
   return normalized || null
+}
+
+function validEmail(value: string | null): boolean {
+  return value !== null && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 function validRecoveryEmail(value: string | null): boolean {
@@ -78,13 +82,41 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
       const body = await request.json().catch(() => null) as Record<string, unknown> | null
       if (!body) return json({ error: 'Invalid JSON body' }, 400)
 
-      const allowed = ['name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone'] as const
+      const allowed = ['email', 'name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone'] as const
       if (!allowed.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
         return json({ error: 'No supported profile fields supplied' }, 400)
       }
 
       const updates: string[] = ["updated_at = datetime('now')"]
       const values: unknown[] = []
+
+      if ('email' in body) {
+        const email = clean(body.email, 254)?.toLowerCase() ?? null
+        if (!validEmail(email)) return json({ error: 'Enter a valid email address.' }, 400)
+
+        const current = await env.AUTH_DB.prepare('SELECT email FROM users WHERE id = ? LIMIT 1')
+          .bind(userId)
+          .first<{ email?: string | null }>()
+        if (!current) return json({ error: 'Account not found. Please sign in again.' }, 404)
+
+        const currentEmail = current.email?.trim().toLowerCase() ?? null
+        if (currentEmail && currentEmail !== email) {
+          return json({
+            error: 'Changing an existing primary email requires the dedicated verified email-change flow.',
+            code: 'EMAIL_CHANGE_REQUIRES_VERIFICATION',
+          }, 409)
+        }
+
+        const owner = await getUserByEmail(env.AUTH_DB, email)
+        if (owner && owner.id !== userId) {
+          return json({ error: 'That email is already connected to another OTYA account.', code: 'EMAIL_IN_USE' }, 409)
+        }
+
+        if (!currentEmail) {
+          updates.push('email = ?', 'is_verified = 0')
+          values.push(email)
+        }
+      }
 
       if ('name' in body) {
         updates.push('name = ?')
