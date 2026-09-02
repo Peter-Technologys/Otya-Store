@@ -136,8 +136,9 @@ test('Next keeps a low-cost guest model and curated signed-in catalog', () => {
   for (const id of expected) assert.ok(configuredModels.includes(id), `${id} must remain in AI_PUBLIC_MODELS`)
 
   assert.match(chat, /if\(!signedIn\).*policy\.guest/)
-  assert.match(chat, /friendly general-purpose AI assistant built into OTYA/)
-  assert.match(chat, /Public Ask OTYA cannot see the private Admin Assistant/)
+  assert.match(chat, /friendly general-purpose AI assistant built into Otya/)
+  assert.match(chat, /Public Next cannot see the private Admin Assistant/)
+  assert.match(chat, /Online Music\/Jamendo is retired/)
 })
 
 test('Free-plan model catalog does not advertise paid-only GLM 5.3', () => {
@@ -152,6 +153,7 @@ test('Cloudflare remains the public release and AI control plane', () => {
   assert.match(chat, /Official website:/)
   assert.match(chat, /\/latest/)
   assert.match(chat, /Local playback, media scanning, local search and supported local transfer/)
+  assert.match(chat, /must not contact a music-provider catalog while the user types/)
 })
 
 test('Online Music is retired across the canonical control plane', () => {
