@@ -30,7 +30,7 @@ const clean = (value: unknown, max: number): string | null => {
   return normalized || null
 }
 
-function validEmail(value: string | null): boolean {
+function validEmail(value: string | null): value is string {
   return value !== null && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
