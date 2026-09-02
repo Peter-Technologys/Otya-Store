@@ -22,6 +22,10 @@ interface GoogleTokenPayload {
   email_verified?: string | boolean
 }
 
+interface ExecutionContextLike {
+  waitUntil(promise: Promise<unknown>): void
+}
+
 type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & SecureAccountEnv & {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_WEB_CLIENT_ID?: string
@@ -55,6 +59,14 @@ function authError(message: string, status: number, code?: string): Response {
 
 function googleError(message: string, status: number): Response {
   return authError(message, status)
+}
+
+function runAfterResponse(ctx: ExecutionContextLike | undefined, task: Promise<unknown>) {
+  const guarded = task.catch(error => {
+    console.error('[auth/background] Task failed:', (error as Error)?.message)
+  })
+  if (ctx) ctx.waitUntil(guarded)
+  else void guarded
 }
 
 async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
@@ -170,7 +182,7 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
 }
 
 export default {
-  async fetch(request: Request, env: ProductionEnv): Promise<Response> {
+  async fetch(request: Request, env: ProductionEnv, ctx?: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url)
 
     // Security and provider-specific wrapper routes run before storage readiness.
@@ -209,30 +221,38 @@ export default {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
 
-      // The compatibility worker still contains historical env.EMAIL code.
-      // Production deliberately suppresses that binding; Resend owns delivery.
-      const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience, EMAIL: undefined }
+      // The compatibility worker still contains historical email delivery.
+      // The outer production layer is the single Resend owner.
+      const requestEnv = {
+        ...env,
+        GOOGLE_CLIENT_ID: audience,
+        EMAIL: undefined,
+        SUPPRESS_COMPAT_EMAIL: true,
+      }
       const response = await authWorker.fetch(
         request,
         requestEnv as Parameters<typeof authWorker.fetch>[1],
       )
       if (response.ok) {
-        await deliverNewDeviceAlert(request, response, env).catch(error => {
-          console.error('[auth/email] Google new-device alert failed:', (error as Error)?.message)
-        })
+        runAfterResponse(ctx, deliverNewDeviceAlert(request, response, env))
       }
       return normalizeAccountResponse(response, env)
     }
 
-    const compatibilityEnv = { ...env, EMAIL: undefined }
+    const compatibilityEnv = {
+      ...env,
+      EMAIL: undefined,
+      SUPPRESS_COMPAT_EMAIL: true,
+    }
     const response = await authWorker.fetch(
       request,
       compatibilityEnv as Parameters<typeof authWorker.fetch>[1],
     )
 
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
-      // Convert any compatibility OTP immediately, then replace it with the
-      // Resend-delivered HMAC code. Delivery failure removes the active code.
+      // The compatibility worker may still create a temporary code in KV, but
+      // it no longer sends it. Replace it with one HMAC-backed production code,
+      // then send exactly one verification message plus the welcome message.
       await hardenRegistrationVerification(response, env)
       await deliverRegistrationEmails(response, env).catch(error => {
         console.error('[auth/email] Registration delivery pipeline failed:', (error as Error)?.message)
@@ -240,9 +260,8 @@ export default {
     }
 
     if (request.method === 'POST' && url.pathname === '/auth/login' && response.ok) {
-      await deliverNewDeviceAlert(request, response, env).catch(error => {
-        console.error('[auth/email] Password new-device alert failed:', (error as Error)?.message)
-      })
+      // Security mail must never hold the user on the sign-in screen.
+      runAfterResponse(ctx, deliverNewDeviceAlert(request, response, env))
     }
 
     return normalizeAccountResponse(response, env)
