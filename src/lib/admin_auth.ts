@@ -51,10 +51,7 @@ export function adminEmails(env: AdminEnv): Set<string> {
 }
 
 function adminSessionSecret(env: AdminEnv): string {
-  const dedicated = text(env.ADMIN_SESSION_SECRET)
-  if (dedicated) return dedicated
-  const internal = text(env.INTERNAL_SECRET)
-  return internal ? `otya-admin-session:v1:${internal}` : ''
+  return text(env.ADMIN_SESSION_SECRET)
 }
 
 export function adminConfigured(env: AdminEnv): boolean {
