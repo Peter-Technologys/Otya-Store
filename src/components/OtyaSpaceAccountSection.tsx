@@ -21,8 +21,6 @@ type Identity = { provider: string; provider_username?: string | null }
 type Session = { id: string; created_at: string; last_used_at: string; ip?: string | null; user_agent?: string | null }
 type TwoFactor = { enabled?: boolean; recovery_codes_remaining?: number; available?: boolean }
 type Consent = { terms_accepted?: number; privacy_accepted?: number; marketing_consent?: number }
-type Json = Record<string, unknown>
-
 type AccountPayload = { user?: User; identities?: Identity[] }
 
 const META: Record<Section, { eyebrow: string; title: string; subtitle: string }> = {
