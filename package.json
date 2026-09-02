@@ -15,7 +15,7 @@
     "audit:runtime": "npm audit --omit=dev --audit-level=high",
     "audit:all": "npm audit --audit-level=high",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy src/production-router.mjs --config wrangler.toml",
+    "deploy": "node scripts/ensure-admin-session-secret.mjs && opennextjs-cloudflare build && wrangler deploy src/production-router.mjs --config wrangler.toml && node scripts/verify-admin-mfa.mjs",
     "maintenance:edge-csp": "bash scripts/remove-legacy-edge-csp.sh",
     "cf-typegen": "wrangler types"
   },
