@@ -12,7 +12,9 @@ test('Firebase is not a production OTYA authentication provider', () => {
 })
 
 test('approved Firebase capabilities remain platform services rather than account authority', () => {
-  assert.match(systemContract, /Push transport:\s*Firebase Cloud Messaging|Firebase Cloud Messaging/)
+  assert.match(systemContract, /Identity\/security: OTYA Auth only/)
   assert.match(systemContract, /FCM is transport only/)
-  assert.match(systemContract, /OTYA Auth/)
+  assert.match(systemContract, /Firebase App Check uses Play Integrity/)
+  assert.match(systemContract, /Firebase Remote Config owns only approved client presentation\/experiment values/)
+  assert.match(systemContract, /Cloudflare remains the OTYA control plane and canonical account\/session authority/)
 })
