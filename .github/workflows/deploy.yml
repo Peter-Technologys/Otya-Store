@@ -209,6 +209,7 @@ jobs:
           if [ -n "${ADMIN_SESSION_SECRET:-}" ]; then printf '%s' "$ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET; fi
           if [ -n "${FIREBASE_APP_DISTRIBUTION_TESTERS:-}" ]; then printf '%s' "$FIREBASE_APP_DISTRIBUTION_TESTERS" | npx wrangler secret put FIREBASE_APP_DISTRIBUTION_TESTERS; fi
           npm run deploy
+          node scripts/sync-production-kv.mjs
 
   verify-production:
     name: Verify live OTYA after deploy
