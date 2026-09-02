@@ -1,5 +1,5 @@
-import { OtyaSpaceAccountSection } from '@/components/OtyaSpaceAccountSection'
+import { OtyaSpaceSecurityPage } from '@/components/OtyaSpaceSecurityPage'
 
 export default function SecurityPage() {
-  return <OtyaSpaceAccountSection section="security" />
+  return <OtyaSpaceSecurityPage />
 }
