@@ -16,12 +16,15 @@ test('custom domains are canonical public entry points', () => {
   assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/')"))
 })
 
-test('Space root is a product home while Account remains a Space section', () => {
+test('Space root is a product home while Account remains a dedicated Space section', () => {
   assert.ok(router.includes("url.pathname === '/' || url.pathname === '/space'"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/space/')"))
   assert.ok(router.includes("url.pathname === '/account'"))
-  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
-  assert.ok(router.includes("pathname.startsWith('/account/')"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/overview/')"))
+  assert.ok(router.includes("section === 'security'"))
+  assert.ok(router.includes("target: '/account/security/'"))
+  assert.ok(router.includes("section === 'devices'"))
+  assert.ok(router.includes("target: '/account/devices/'"))
 })
 
 test('Space allows approved signed-in product routes instead of redirecting them away', () => {
@@ -45,10 +48,10 @@ test('surface rewrites preserve browser hostname and Next trailing slash policy'
   assert.ok(nextConfig.includes('trailingSlash: true'))
   assert.ok(router.includes('async function dispatchSurface'))
   assert.ok(router.includes("headers.set('X-Forwarded-Host', url.hostname)"))
-  assert.ok(router.includes("target.pathname = pathname"))
+  assert.ok(router.includes('target.pathname = pathname'))
   assert.ok(!router.includes('target.hostname = APP_HOST'))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/space/')"))
-  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/overview/')"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/sign-in/')"))
 })
 
