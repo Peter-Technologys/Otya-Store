@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -86,7 +86,7 @@ test('Production account OTPs are purpose-bound, protected at rest, and single-u
   assert.match(entry, /hardenRegistrationVerification\(response, env\)/)
 })
 
-test('OTYA one-time codes and public IDs use unbiased random allocation', () => {
+test('Otya one-time codes and public IDs use unbiased random allocation', () => {
   const crypto = read('auth-worker/src/crypto.ts')
   const db = read('auth-worker/src/db.ts')
 
@@ -100,7 +100,7 @@ test('OTYA one-time codes and public IDs use unbiased random allocation', () => 
   assert.match(db, /CREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id/)
 })
 
-test('OTYA public ID allocation retries collisions without exposing the internal UUID', () => {
+test('Otya public ID allocation retries collisions without exposing the internal UUID', () => {
   const db = read('auth-worker/src/db.ts')
   const account = read('src/app/account/page.tsx')
 
@@ -118,7 +118,7 @@ test('Production auth responses normalize the immutable public Otya ID', () => {
   assert.match(source, /return normalizeAccountResponse\(response, env\)/)
 })
 
-test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () => {
+test('Next keeps a low-cost guest model and curated signed-in catalog', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
 
@@ -129,17 +129,9 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
   assert.ok(catalogLine, 'AI_PUBLIC_MODELS must be present in ai-worker/wrangler.toml')
   const configuredModels = catalogLine[1].split(',').map(value => value.trim()).filter(Boolean)
   const expected = [
-    'llama-fast',
-    'otya-smart',
-    'gemma-4',
-    'granite',
-    'llama-70b',
-    'gpt-oss-20b',
-    'gpt-oss-120b',
-    'nemotron',
-    'llama-4-scout',
-    'qwen3',
-    'sea-lion',
+    'llama-fast', 'otya-smart', 'gemma-4', 'granite', 'llama-70b',
+    'gpt-oss-20b', 'gpt-oss-120b', 'nemotron', 'llama-4-scout',
+    'qwen3', 'sea-lion',
   ]
   for (const id of expected) assert.ok(configuredModels.includes(id), `${id} must remain in AI_PUBLIC_MODELS`)
 
@@ -148,7 +140,7 @@ test('Ask OTYA keeps a low-cost guest model and curated signed-in catalog', () =
   assert.match(chat, /Public Ask OTYA cannot see the private Admin Assistant/)
 })
 
-test('Free-plan OTYA catalog does not advertise paid-only GLM 5.3', () => {
+test('Free-plan model catalog does not advertise paid-only GLM 5.3', () => {
   const config = read('ai-worker/wrangler.toml')
   const chat = read('ai-worker/src/client-chat.mjs')
   assert.doesNotMatch(config, /glm-5\.3/i)
@@ -159,39 +151,42 @@ test('Cloudflare remains the public release and AI control plane', () => {
   const chat = read('ai-worker/src/client-chat.mjs')
   assert.match(chat, /Official website:/)
   assert.match(chat, /\/latest/)
-  assert.match(chat, /Local playback, media scanning, local search and supported local transfer must keep working/)
-  assert.match(chat, /without signing in, Firebase, Jamendo or AI/)
-  assert.match(chat, /local Search are primary; online music and AI are optional enhancements/)
+  assert.match(chat, /Local playback, media scanning, local search and supported local transfer/)
 })
 
-test('new client capabilities stay synchronized across the control plane', () => {
+test('Online Music is retired across the canonical control plane', () => {
   const clientConfig = read('src/lib/client_config.ts')
   const appConfig = read('src/app/api/app-config/route.ts')
+  const musicPage = read('src/app/music/page.tsx')
 
-  assert.match(clientConfig, /'onlineMusic'/)
-  assert.match(appConfig, /onlineMusic:\s*true/)
-  assert.match(appConfig, /providerPriority:\s*\['local',\s*'help',\s*'online'\]/)
+  assert.doesNotMatch(clientConfig, /'onlineMusic'/)
+  assert.doesNotMatch(appConfig, /onlineMusic:\s*true/)
+  assert.match(appConfig, /providerPriority:\s*\['local',\s*'help'\]/)
+  assert.doesNotMatch(appConfig, /'online-music'/)
+  assert.match(appConfig, /delete features\.onlineMusic/)
+  assert.match(appConfig, /config = enforceProductScope\(config\)/)
   assert.match(appConfig, /ai:\s*'https:\/\/petersmartlink\.com\/ask'/)
   assert.doesNotMatch(appConfig, /action:\s*'\/myspace'/)
+  assert.match(musicPage, /No Online Music catalog/)
+  assert.doesNotMatch(musicPage, /api\/music\/jamendo|streamUrl|<audio/i)
 })
 
-test('Jamendo credentials remain server-side and linked-account tokens are encrypted at rest', () => {
-  const catalog = read('src/app/api/music/jamendo/route.ts')
-  const callback = read('src/app/api/music/jamendo/oauth/callback/route.ts')
-
-  assert.match(catalog, /JAMENDO_CLIENT_ID/)
-  assert.doesNotMatch(catalog, /JAMENDO_CLIENT_SECRET/)
-  assert.match(callback, /JAMENDO_CLIENT_SECRET/)
-  assert.match(callback, /AES-GCM/)
-  assert.match(callback, /crypto\.subtle\.encrypt/)
-  assert.match(callback, /const encrypted = await encryptTokenRecord\(record, clientSecret\)/)
-  assert.match(callback, /kv\.put\(`jamendo:account:\$\{accountKey\}`, encrypted\)/)
-  assert.doesNotMatch(callback, /kv\.put\(`jamendo:account:\$\{accountKey\}`, JSON\.stringify\(record\)\)/)
+test('retired Jamendo provider routes stay physically absent', () => {
+  for (const path of [
+    'src/app/api/music/jamendo/route.ts',
+    'src/app/api/music/jamendo/status/route.ts',
+    'src/app/api/music/jamendo/download/[id]/route.ts',
+    'src/app/api/music/jamendo/oauth/start/route.ts',
+    'src/app/api/music/jamendo/oauth/callback/route.ts',
+  ]) {
+    assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, `${path} must stay removed`)
+  }
 })
 
-test('Jamendo catalog never exposes a download action unless provider permission and URL are both valid', () => {
-  const catalog = read('src/app/api/music/jamendo/route.ts')
-  assert.match(catalog, /audiodownload_allowed/)
-  assert.match(catalog, /downloadAllowed/)
-  assert.match(catalog, /downloadUrl/)
+test('Telegram no longer invokes a remote music provider', () => {
+  const telegram = read('src/lib/telegram-bot.mjs')
+  assert.doesNotMatch(telegram, /Search OTYA music for:/)
+  assert.doesNotMatch(telegram, /askNext\(`Search .*music/i)
+  assert.match(telegram, /Music playback and library search are local to the Android app/)
+  assert.match(telegram, /built-in Online Music catalog has been retired/)
 })
