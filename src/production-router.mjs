@@ -54,7 +54,7 @@ function isSpaceSurfacePath(pathname) {
     || isSharedAppAssetPath(pathname)
 }
 
-// Public OTYA IDs are intentionally human-friendly and safe to display.
+// Public Otya IDs are intentionally human-friendly and safe to display.
 // Internal users.id values, provider subjects, emails and auth tokens never
 // belong in the browser path.
 function matchSpaceConsoleRoute(pathname) {
@@ -69,17 +69,18 @@ function matchSpaceConsoleRoute(pathname) {
   if (section === 'next') return { publicId, section, target: '/ask/' }
   if (section === 'telegram') return { publicId, section, target: '/telegram/' }
 
-  const accountSections = new Set([
-    'account',
-    'security',
-    'devices',
-    'providers',
-    'storage',
-    'activity',
-    'notifications',
-    'settings',
+  const accountSectionTargets = new Map([
+    ['account', '/account/'],
+    ['security', '/account/security/'],
+    ['devices', '/account/devices/'],
+    ['providers', '/account/sign-in-methods/'],
+    ['storage', '/account/storage/'],
+    ['activity', '/account/activity/'],
+    ['notifications', '/account/notifications/'],
+    ['settings', '/account/settings/'],
   ])
-  if (accountSections.has(section)) return { publicId, section, target: '/account/' }
+  const target = accountSectionTargets.get(section)
+  if (target) return { publicId, section, target }
   return { publicId, section: 'overview', target: '/space/', unknown: true }
 }
 
@@ -136,7 +137,7 @@ export default {
     const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
 
-    // These routes are implemented by the OTYA backend worker/service bindings,
+    // These routes are implemented by the Otya backend worker/service bindings,
     // not by the generated Next.js application. Dispatch them before OpenNext so
     // Android auth/Next and protected owner operations cannot fall through to a
     // website 404 page.
@@ -151,8 +152,9 @@ export default {
 
     if (host === SPACE_HOST) {
       // Console-style user-scoped paths remain visible in the browser while the
-      // current Next routes are reused internally. The signed-in Space gate
-      // verifies that the public ID in the path belongs to the active session.
+      // signed-in Space gate verifies that the public ID belongs to the active
+      // session. Each section now resolves to its own page instead of reusing a
+      // single all-in-one account document.
       const consoleRoute = matchSpaceConsoleRoute(url.pathname)
       if (consoleRoute) {
         if (consoleRoute.unknown && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -161,8 +163,8 @@ export default {
         return dispatchSurface(request, url, env, ctx, consoleRoute.target)
       }
 
-      // Legacy clean paths remain compatibility entry points. Once authenticated,
-      // OtyaSpaceGate canonicalizes them to /u/<public OTYA ID>/<section>.
+      // Legacy clean paths remain compatibility entry points. OtyaSpaceGate
+      // adopts the /u/<public Otya ID>/<section> URL in-place after auth.
       if (url.pathname === '/' || url.pathname === '/space' || url.pathname === '/space/') {
         return dispatchSurface(request, url, env, ctx, '/space/')
       }

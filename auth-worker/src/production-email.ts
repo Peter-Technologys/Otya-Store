@@ -1,4 +1,5 @@
-import { generateOtp } from './crypto'
+import { generateOtp, verifyJwt } from './crypto'
+import { getUserById, type D1Database } from './db'
 import { sendResendEmail } from './resend'
 
 interface KVLike {
@@ -8,6 +9,7 @@ interface KVLike {
 }
 
 export interface ProductionEmailEnv {
+  AUTH_DB: D1Database
   AUTH_KV: KVLike
   AUTH_JWT_SECRET: string
   RESEND_API_KEY?: string
@@ -48,12 +50,19 @@ function userFromResponse(response: Response): Promise<{ id?: string; email?: st
     .catch(() => null)
 }
 
-export async function deliverRegistrationEmails(response: Response, env: ProductionEmailEnv): Promise<void> {
+/**
+ * Registration sends exactly one transactional message in the critical path:
+ * the code the user must enter before continuing. The welcome message is sent
+ * only after successful email verification, avoiding two back-to-back signup
+ * emails and making the account journey explicit.
+ */
+export async function deliverRegistrationVerification(response: Response, env: ProductionEmailEnv): Promise<void> {
   if (!response.ok) return
   const user = await userFromResponse(response)
   const userId = String(user?.id ?? '').trim()
   const email = String(user?.email ?? '').trim().toLowerCase()
   if (!userId || !email) return
+  if (!env.RESEND_API_KEY) throw new Error('Verification email is unavailable')
 
   const name = String(user?.name ?? '').trim() || 'there'
   const code = generateOtp()
@@ -73,6 +82,7 @@ export async function deliverRegistrationEmails(response: Response, env: Product
         code,
         '',
         'This code expires in 10 minutes.',
+        'It contains 1 uppercase letter followed by 4 digits.',
         '',
         'If you did not create this Otya account, you can ignore this message.',
         '— The Otya Team',
@@ -81,27 +91,36 @@ export async function deliverRegistrationEmails(response: Response, env: Product
   } catch (error) {
     await env.AUTH_KV.delete(key)
     console.error('[auth/email] Registration verification delivery failed:', (error as Error)?.message)
-    return
+    throw error
   }
+}
 
-  try {
-    await sendResendEmail(env.RESEND_API_KEY, {
-      from: 'Otya <noreply@petersmartlink.com>',
-      to: [email],
-      subject: 'Welcome to Otya',
-      text: [
-        `Hi ${name},`,
-        '',
-        'Welcome to Otya. Your account is ready.',
-        '',
-        'Your local music and video remain usable without signing in; your Otya account adds connected services, security and recovery features you choose to use.',
-        '',
-        '— The Otya Team',
-      ].join('\n'),
-    })
-  } catch (error) {
-    console.error('[auth/email] Welcome email delivery failed:', (error as Error)?.message)
-  }
+export async function deliverVerifiedWelcome(request: Request, env: ProductionEmailEnv): Promise<void> {
+  if (!env.RESEND_API_KEY) return
+  const authorization = request.headers.get('Authorization')
+  if (!authorization?.startsWith('Bearer ')) return
+  const payload = await verifyJwt(authorization.slice(7), env.AUTH_JWT_SECRET)
+  if (!payload?.sub) return
+
+  const user = await getUserById(env.AUTH_DB, payload.sub)
+  const email = String(user?.email ?? '').trim().toLowerCase()
+  if (!user || !email) return
+  const name = String(user.name ?? '').trim() || 'there'
+
+  await sendResendEmail(env.RESEND_API_KEY, {
+    from: 'Otya <noreply@petersmartlink.com>',
+    to: [email],
+    subject: 'Welcome to Otya',
+    text: [
+      `Hi ${name},`,
+      '',
+      'Your email is verified and your Otya account is ready.',
+      '',
+      'Local music and video remain usable without signing in. Your Otya account adds the connected services, security and recovery features you choose to use.',
+      '',
+      '— The Otya Team',
+    ].join('\n'),
+  })
 }
 
 function clientIp(request: Request): string {
