@@ -70,6 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-package-lock --ignore-scripts
+          npm install --package-lock-only --ignore-scripts
           npm run audit:all
           npm run check
       - name: Validate and audit auth worker
@@ -77,6 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-package-lock --ignore-scripts
+          npm install --package-lock-only --ignore-scripts
           npm audit --audit-level=high
           npm test
           npx tsc --noEmit
@@ -85,6 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-package-lock --ignore-scripts
+          npm install --package-lock-only --ignore-scripts
           npm audit --audit-level=high
           npm test
           npm run check
