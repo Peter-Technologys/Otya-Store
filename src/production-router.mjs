@@ -108,10 +108,10 @@ export default {
 
     if (host === SPACE_HOST) {
       if (url.pathname === '/' || url.pathname === '/account' || url.pathname === '/account/') {
-        return dispatchCanonical(request, url, env, ctx, '/account')
+        return dispatchCanonical(request, url, env, ctx, '/account/')
       }
       if (url.pathname === '/sign-in' || url.pathname === '/sign-in/') {
-        return dispatchCanonical(request, url, env, ctx, '/sign-in')
+        return dispatchCanonical(request, url, env, ctx, '/sign-in/')
       }
       if (isSpaceAppPath(url.pathname)) return dispatchCanonical(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, SPACE_HOST, '/')
