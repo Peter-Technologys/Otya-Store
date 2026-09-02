@@ -1,58 +1,56 @@
-# OTYA v1 Server Contract
+# Otya v1 Server Contract
 
-OTYA v1 is one product. The Android app, website, API, auth, Ask OTYA, Admin, notifications, email and provider integrations must share clear boundaries instead of acting like separate products.
+Otya v1 is one product. The Android app, website, API, auth, Next, Admin, notifications and email must share clear boundaries instead of acting like separate products.
 
 ## Single owners
 
-- Public product/backend API: one OTYA API contract.
-- Identity/security: OTYA Auth only.
-- Email/password, OTP and account email: OTYA Auth + Resend.
-- Public assistant: Ask OTYA only.
+- Public product/backend API: one Otya API contract.
+- Identity/security: `otya-auth` only.
+- Email/password, OTP and account email: Otya Auth + Resend.
+- Public assistant: Next only.
 - Human support: one ticket/email handoff path.
-- Admin operations: one private OTYA Admin/Command Center surface.
-- Push business logic: OTYA backend; FCM is transport only.
+- Admin operations: one private Otya Admin/Command Center surface.
+- Push business logic: Otya backend; FCM is transport only.
 - Remote config/releases/feature metadata: one Cloudflare config/release contract, with approved Firebase-owned client presentation parameters composed behind it.
-- Online music provider access: OTYA backend is the provider boundary; the Android UI never owns Jamendo secrets or OAuth token exchange.
 - Storage: D1 for relational records, KV for cache/config where appropriate, R2 for objects/releases, Queues for async work where justified.
 
 ## Public product rules
 
-The public website presents one product: OTYA. Ask OTYA is available at `/ask` and through appropriate product/support entry points. Account is a supporting security/recovery surface, not a separate product. Admin AI is private and never exposed through public Ask OTYA permissions.
+The public website presents one product: Otya. Next is available at `/ask` and through appropriate product/support entry points. Account is a supporting security/recovery surface, not a separate product. Admin AI is private and never exposed through public Next permissions.
 
 Android keeps only three permanent top-level destinations: Video, Music and Me. Deeper functions are contextual or organized under those destinations. Do not create duplicate top-level entries for utilities that already belong in a player, media-item action, Tools or Settings.
 
 ## Offline-first product contract
 
-OTYA is an offline-first media player. Internet access enhances the product but never defines it.
+Otya is an offline-first media player. Internet access enhances selected services but never defines local media playback.
 
-- App startup, local scanning, local Search, local playback, playlists, downloaded media, Private, supported local Transfer and local tools must remain usable without internet, OTYA sign-in, Firebase, Jamendo, Ask OTYA or Resend.
-- Global Search computes local results first. Optional provider results may be added afterward only when available.
-- Cloud/backend failures must degrade optional online surfaces quietly and must not replace local results with a global error state.
+- App startup, local scanning, local Search, local playback, playlists, downloaded media, Private, supported local Transfer and local tools must remain usable without internet, Otya sign-in, Firebase, Next or Resend.
+- Global Search computes local results on-device and must not contact a music catalog while the user types.
+- Cloud/backend failures must degrade optional online services quietly and must not replace local media results with a global error state.
 - Remote config is loaded after the first frame and may use cached values. Network configuration refresh must not block startup.
 
-## Online music contract
+## Music contract
 
-Online music is an enhancement inside Music/Search, not a separate streaming-app identity.
+Music is a local-library product surface, not a built-in streaming catalog.
 
-- Provider 1 is Jamendo behind the OTYA `/api/music/jamendo` gateway.
-- Normal public catalog/search/playback uses only `JAMENDO_CLIENT_ID`; `JAMENDO_CLIENT_SECRET` must never be used by or returned from the public catalog route.
-- OTYA users do not need a Jamendo account to browse or listen to the public catalog.
-- OTYA account identity and Jamendo identity remain separate. Optional Jamendo account linking requires explicit user OAuth consent.
-- Jamendo OAuth uses the registered HTTPS callback, cryptographically random one-time state, strict state verification and immediate server-side code exchange. Reusable access/refresh tokens must be encrypted at rest before KV storage.
-- A Download action is exposed only when the provider says downloading is allowed and a valid provider download URL is present. Non-downloadable tracks must not show a disabled or misleading Download button.
-- Downloaded tracks become ordinary local media and should appear through the normal Music library after Android media indexing/scanning.
-- `onlineMusic` is an optional remotely controlled client feature. Turning it off must leave local Music/Search/playback unchanged.
-- Search provider priority is `local -> help -> online`; online enrichment never outranks local results.
+- Otya Music covers local songs, albums, artists, folders, playlists and supported background playback.
+- The retired Online Music/Jamendo catalog, OAuth, status and download-proxy routes must remain absent from production code.
+- `onlineMusic` must not exist as an enabled client feature and cannot be restored through Firebase Remote Config or stale Cloudflare KV configuration.
+- Search provider priority for product search is `local -> help`; there is no online music provider stage.
+- `/music` on the website explains the local Android Music experience and must not fetch or proxy remote tracks.
+- The legacy `/docs/online-music` route may redirect to the current Music page so old links fail safely instead of advertising a retired feature.
+- Telegram `/music` is informational only and must not invoke a remote music-provider search.
+- A future music provider is not part of v1. Reintroducing one requires a separate reviewed product/security/privacy contract and verified catalog/rights suitability; it must not be silently re-enabled through config.
 
 ## AI rules
 
-Ask OTYA is a friendly general-purpose assistant with extra OTYA context. Guests remain server-limited to the configured low-cost guest model; signed-in users may receive the curated model selector and persistent conversations according to server policy. Keep abuse/rate protection and Cloudflare quota awareness. Human-required requests can create a support handoff. Never expose secrets, OTPs, refresh tokens, customer lists, service-account credentials or private Admin AI tools to public Ask OTYA.
+Next is a friendly general-purpose assistant with extra Otya context. Guests remain server-limited to the configured low-cost guest model; signed-in users may receive approved model behavior according to server policy. Keep abuse/rate protection and Cloudflare quota awareness. Human-required requests can create a support handoff. Never expose secrets, OTPs, refresh tokens, customer lists, service-account credentials or private Admin AI tools to public Next.
 
-Ask OTYA product knowledge must stay synchronized with current OTYA behavior. For Online Music it must understand that OTYA is still offline-first, Jamendo login is optional, provider outages do not disable local music, and Download is available only for provider-authorized tracks. It must never claim it performed a device/account/provider action unless the backend actually confirms that action.
+Next product knowledge must stay synchronized with current Otya behavior. It must describe Music as local-first and must not recommend or claim a built-in Online Music/Jamendo catalog. It must never claim it performed a device/account/provider action unless the backend actually confirms that action.
 
 ## Firebase and Google identity contract
 
-Cloudflare remains the OTYA control plane and canonical account/session authority. Firebase is not a second database/backend for v1.
+Cloudflare remains the Otya control plane and canonical account/session authority. Firebase is not a second database/backend for v1.
 
 Verified production client identity:
 
@@ -71,31 +69,43 @@ FCM uses the HTTP v1 API with short-lived Google OAuth access tokens. Firebase A
 
 ## Notification contract
 
-Playback notifications are system media-session controls, not ordinary marketing notifications. Local and online audio use the same Now Playing path with artwork/title/artist and headset/lock-screen controls. Playback must not trigger an ordinary notification permission prompt merely because the user pressed Play.
+Playback notifications are system media-session controls, not ordinary marketing notifications. Local audio uses the same Now Playing path with artwork/title/artist and headset/lock-screen controls. Playback must not trigger an ordinary notification permission prompt merely because the user pressed Play.
 
-Non-media notifications are categorized and purposeful: downloads/transfers, account/security, support/system notices and updates. Online catalog availability alone must not generate push spam.
+Non-media notifications are categorized and purposeful: downloads/transfers, account/security, support/system notices and updates. Removed provider/catalog availability must not generate push traffic.
 
 ## Email contract
 
-There is no production Cloudflare EMAIL binding. Legacy auth handlers are wrapped by the production entrypoint with a Resend adapter, and known account messages use the published OTYA Resend templates with a safe HTML/text fallback. Required provider credentials stay in Cloudflare/GitHub secret storage only.
+There is no production Cloudflare EMAIL binding. Legacy auth handlers are wrapped by the production entrypoint with Resend delivery, and known account messages use the published Otya Resend templates with a safe HTML/text fallback. Required credentials stay in Cloudflare/GitHub secret storage only.
 
 Current core templates are Verification Code, Password Reset, Welcome, Security Alert and Service Notice. Template aliases and backend selection logic must remain synchronized. Email/provider failure should not expose secrets or raw provider payloads to users.
 
 ## Configuration safety
 
-`validate-config.mjs` and system-contract tests are deployment gates. They pin the verified Firebase identifiers, required Worker/service bindings, FCM HTTP v1, App Check monitor mode, approved OAuth clients, feature/route synchronization and secret-material rules.
+`validate-config.mjs` and system-contract tests are deployment gates. They pin verified Firebase identifiers, required Worker/service bindings, FCM HTTP v1, App Check monitor mode, approved OAuth clients, feature/route synchronization and secret-material rules.
 
-Client-facing feature names added to OTYA must be carried through the approved control-plane allowlist and default config in the same change. Stale public routes such as legacy `/myspace` or old AI links must not reappear in canonical configuration.
+Client-facing feature names added to Otya must be carried through the approved control-plane allowlist and default config in the same change. Removed features must be deleted from that allowlist so stale Firebase or KV state cannot revive them. Stale public routes such as legacy `/myspace` or old AI links must not reappear in canonical configuration.
 
 Firebase Remote Config owns only approved client presentation/experiment values. It cannot override Cloudflare-owned maintenance, release safety, auth/session authority, secret material, App Check enforcement policy or push infrastructure.
 
-Wrangler remains the reviewed declaration for `otya-store`, `otya-auth` and `otya-ai`, but production must still be compared against live Cloudflare before release. Do not create duplicate D1/KV/R2/Queue resources as a shortcut for a mismatch.
+Wrangler remains the reviewed declaration for the Otya Workers, but production must still be compared against live Cloudflare before release. Do not create duplicate D1/KV/R2/Queue resources as a shortcut for a mismatch.
+
+## Transfer security contract
+
+Otya Transfer is a same-LAN feature, not a general-purpose downloader or public HTTP server.
+
+- Cleartext HTTP is permitted only for authenticated transfer links on loopback/private IPv4 ranges because nearby devices use changing LAN addresses.
+- Internet-facing Otya services remain HTTPS.
+- Sender links use a cryptographically random one-time token and serve only supported audio/video extensions.
+- Receiver links must contain the expected `/media` path and a valid token and must resolve to an allowed local/private IPv4 address.
+- Transfer receivers must refuse redirects, require the Otya sender marker, accept only audio/video MIME types with a declared length, enforce a bounded maximum size and detect early/oversized streams.
+- Transfer responses use `no-store` and anti-content-sniffing headers.
+- Received content is never treated as executable code; unsupported file extensions are rejected before storage.
 
 ## Async reliability and observability
 
 Every promise that affects a correct response must be awaited. Non-critical work that must reliably complete after the response should use the Cloudflare execution context or an appropriate Queue/Workflow rather than a floating promise. Retryable account/email/support/background work should not be silently lost.
 
-Production Workers keep logs/traces enabled. Logs must be useful for diagnosing auth, AI, provider, email and release failures without logging passwords, OTPs, tokens, API keys, service-account JSON or decrypted provider credentials.
+Production Workers keep logs/traces enabled. Logs must be useful for diagnosing auth, AI, email, release and security failures without logging passwords, OTPs, tokens, API keys, service-account JSON or decrypted credentials.
 
 ## No placeholders
 
@@ -103,10 +113,10 @@ Do not publish Coming Soon, dead links, fake product cards or nonfunctional admi
 
 ## Free-first rule
 
-Prefer free-tier-capable infrastructure while it remains technically reliable: Cloudflare Workers/D1/KV/R2/Queues/AI within current allocations, Resend free allowance, Firebase services used within applicable free quotas, and Jamendo under the applicable approved non-commercial developer plan. Do not silently introduce a paid dependency.
+Prefer free-tier-capable infrastructure while it remains technically reliable: Cloudflare Workers/D1/KV/R2/Queues/AI within current allocations, Resend free allowance and Firebase services used within applicable free quotas. Do not silently introduce a paid dependency.
 
 ## Release and deployment gate
 
 Pull requests validate only. Production Worker deployment is permitted only from a validated push to `main`; the app's official release objects are published only through the separately gated release/tag process. Never use ordinary CI success to overwrite canonical R2 release artifacts.
 
-Do not merge the Android v1 rebuild until all applicable app gates are green, including zero analyzer issues, tests, Android compile, signed release build and real-device acceptance. The backend may deploy independently when its exact head passes website/store/auth/AI/security validation and the production resource/binding/secret contract is known safe.
+Do not merge the Android v1 rebuild until all applicable app gates are green, including zero analyzer issues, tests, Android compile, signed release build and real-device acceptance. The backend may deploy independently when its exact head passes website/auth/AI/security validation and the production resource/binding/secret contract is known safe.

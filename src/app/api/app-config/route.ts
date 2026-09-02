@@ -8,7 +8,7 @@ import {
 
 const KEY = 'app:remote-config'
 const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
-const CURRENT_REVISION = 9
+const CURRENT_REVISION = 10
 const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
 const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
   revision: CURRENT_REVISION,
   maintenance: {
     enabled: false,
-    title: 'OTYA online services are temporarily unavailable',
+    title: 'Otya online services are temporarily unavailable',
     message: 'Local playback and offline tools are still available.',
     allowOfflinePlayback: true,
     services: {},
@@ -26,8 +26,8 @@ const DEFAULT_CONFIG = {
     minimumBuild: 1,
     recommendedBuild: 1,
     forceUpdate: false,
-    minimumMessage: 'This version of OTYA can no longer use online services. Please update to continue.',
-    recommendedMessage: 'A newer OTYA version is available with improvements and fixes.',
+    minimumMessage: 'This version of Otya can no longer use online services. Please update to continue.',
+    recommendedMessage: 'A newer Otya version is available with improvements and fixes.',
     downloadUrl: 'https://petersmartlink.com/download/otya-player',
   },
   features: {
@@ -39,7 +39,6 @@ const DEFAULT_CONFIG = {
     equalizer: true,
     whatsappTrimmer: true,
     converter: true,
-    onlineMusic: true,
     onlineThemes: true,
     googleSignIn: true,
     firebaseIdentity: true,
@@ -81,11 +80,11 @@ const DEFAULT_CONFIG = {
     productContext: 'otya-aware',
     guestPolicy: 'single-low-cost-model',
     signedInPolicy: 'managed-model-selector',
-    greeting: 'Ask OTYA anything. It can answer general questions and has extra OTYA product context when you need help with playback, files, Transfer, Private, online music, updates or your account.',
+    greeting: 'Ask Otya anything. It can answer general questions and has extra Otya product context when you need help with playback, files, Transfer, Private, updates or your account.',
     suggestedPrompts: [
       'Explain something I am learning in simple language.',
       'Help me think through a decision step by step.',
-      'How do I send a large video with OTYA Transfer?',
+      'How do I send a large video with Otya Transfer?',
       'Why can a video have picture but no sound?',
     ],
   },
@@ -111,8 +110,8 @@ const DEFAULT_CONFIG = {
   },
   search: {
     suggestions: [],
-    categories: ['video', 'music', 'folders', 'playlists', 'files', 'help', 'online-music'],
-    providerPriority: ['local', 'help', 'online'],
+    categories: ['video', 'music', 'folders', 'playlists', 'files', 'help'],
+    providerPriority: ['local', 'help'],
     timeoutSeconds: 6,
   },
   experiments: {
@@ -153,10 +152,29 @@ function asRecord(value: unknown): ConfigRecord {
     : {}
 }
 
+function enforceProductScope(value: ConfigRecord): ConfigRecord {
+  const features = { ...asRecord(value.features) }
+  delete features.onlineMusic
+
+  return {
+    ...value,
+    features,
+    search: {
+      ...asRecord(value.search),
+      categories: DEFAULT_CONFIG.search.categories,
+      providerPriority: DEFAULT_CONFIG.search.providerPriority,
+    },
+    ai: {
+      ...asRecord(value.ai),
+      greeting: DEFAULT_CONFIG.ai.greeting,
+    },
+  }
+}
+
 function migrateConfig(stored: unknown): ConfigRecord {
   const source = asRecord(stored)
   const revision = Number(source.revision ?? 0)
-  if (revision >= CURRENT_REVISION) return source
+  if (revision >= CURRENT_REVISION) return enforceProductScope(source)
 
   const oldFeatures = asRecord(source.features)
   const transfer = oldFeatures.transfer ?? oldFeatures.beam ?? true
@@ -171,7 +189,6 @@ function migrateConfig(stored: unknown): ConfigRecord {
     equalizer: oldFeatures.equalizer ?? true,
     whatsappTrimmer: oldFeatures.whatsappTrimmer ?? oldFeatures.trimmer ?? true,
     converter: oldFeatures.converter ?? true,
-    onlineMusic: oldFeatures.onlineMusic ?? true,
     onlineThemes: oldFeatures.onlineThemes ?? true,
     googleSignIn: oldFeatures.googleSignIn ?? true,
     firebaseIdentity,
@@ -193,7 +210,7 @@ function migrateConfig(stored: unknown): ConfigRecord {
     optionalForPlayback: true,
   }
 
-  return {
+  return enforceProductScope({
     ...DEFAULT_CONFIG,
     ...source,
     revision: CURRENT_REVISION,
@@ -221,12 +238,13 @@ function migrateConfig(stored: unknown): ConfigRecord {
     search: {
       ...DEFAULT_CONFIG.search,
       ...asRecord(source.search),
-      providerPriority: ['local', 'help', 'online'],
+      categories: DEFAULT_CONFIG.search.categories,
+      providerPriority: DEFAULT_CONFIG.search.providerPriority,
     },
     experiments: { ...DEFAULT_CONFIG.experiments, ...asRecord(source.experiments) },
     regions: { ...DEFAULT_CONFIG.regions, ...asRecord(source.regions) },
     runtime: { ...DEFAULT_CONFIG.runtime, ...asRecord(source.runtime) },
-  }
+  })
 }
 
 function validFirebaseCache(value: unknown): FirebaseCache | null {
@@ -318,6 +336,7 @@ export async function GET() {
   if (useFirebase && firebaseLayer?.config) {
     config = mergeFirebaseOwnedClientConfig(config, firebaseLayer.config)
   }
+  config = enforceProductScope(config)
 
   return NextResponse.json(
     {

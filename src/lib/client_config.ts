@@ -8,7 +8,6 @@ const CLIENT_FEATURE_KEYS = new Set([
   'trimmer',
   'whatsappTrimmer',
   'converter',
-  'onlineMusic',
   'onlineThemes',
   'googleSignIn',
   'driveBackup',
@@ -38,9 +37,9 @@ function pickFeatures(value: unknown): Record<string, unknown> {
 }
 
 /**
- * Firebase Remote Config owns only client presentation/experiment settings.
- * It never owns maintenance, minimum versions, backend runtime, secrets,
- * authentication policy, App Check enforcement, or push infrastructure.
+ * Firebase Remote Config owns only approved client presentation/experiment
+ * settings. Removed product surfaces (including Online Music) are deliberately
+ * absent from this allowlist and cannot be re-enabled remotely.
  */
 export function extractFirebaseOwnedClientConfig(
   fullConfig: Record<string, unknown>,

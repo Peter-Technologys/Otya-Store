@@ -9,24 +9,17 @@ import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
   title: 'Otya — Your media, your way',
-  description: 'Otya is an offline-first Android media experience with music discovery, nearby transfer, private media and Next, your intelligent assistant.',
+  description: 'Otya is an offline-first Android media experience for local music and video, nearby transfer, private media and Next, your intelligent assistant.',
   alternates: { canonical: 'https://petersmartlink.com' },
 }
 
 const CAPABILITIES = [
   ['Video', 'Local video with subtitles, audio tracks, gestures and Picture-in-Picture.'],
   ['Music', 'Songs, albums, artists, folders, playlists and background playback.'],
-  ['Transfer', 'Move files directly over nearby Wi-Fi or hotspot without uploading them.'],
+  ['Transfer', 'Move supported media directly over nearby Wi-Fi or hotspot without uploading it.'],
   ['Private', 'Protect supported media in app-private storage with device authentication.'],
   ['Tools', 'Trim, extract audio and use practical local media utilities.'],
   ['Next', 'Ask for help, answers and Otya guidance in a natural conversation.'],
-]
-
-const DISCOVERY = [
-  ['Uganda right now', 'uganda'],
-  ['Afrobeats', 'afrobeats'],
-  ['Gospel', 'gospel'],
-  ['R&B', 'rnb'],
 ]
 
 export default async function HomePage() {
@@ -84,23 +77,19 @@ export default async function HomePage() {
       <section className="border-y border-black/[.05] dark:border-white/[.07] bg-black/[.018] dark:bg-white/[.018]">
         <div className="otya-shell py-14 sm:py-20 grid lg:grid-cols-[1fr_.9fr] gap-10 lg:gap-16 items-center">
           <div>
-            <div className="otya-kicker">Music discovery</div>
-            <h2 className="mt-3 text-3xl sm:text-5xl font-black tracking-[-.055em]">Find something worth hearing.</h2>
-            <p className="mt-4 max-w-[620px] text-sm sm:text-base leading-7 otya-muted">Search the web music catalog, then keep your own local library separate and private inside the Android app.</p>
-            <form action="/music" className="mt-7 max-w-[680px] flex items-center gap-2 rounded-[22px] border border-black/[.07] dark:border-white/[.09] bg-white/75 dark:bg-white/[.035] p-1.5">
-              <input name="q" placeholder="Song, artist, album or mood" aria-label="Search music" className="min-h-12 min-w-0 flex-1 bg-transparent px-4 text-sm outline-none" />
-              <button className="cosmos-button min-h-12 rounded-[17px] px-5 font-black">Search</button>
-            </form>
-            <div className="mt-4 flex flex-wrap gap-2">{DISCOVERY.map(([label,q]) => <Link key={q} href={`/music?q=${encodeURIComponent(q)}`} className="rounded-full border border-black/[.06] dark:border-white/[.08] px-3.5 py-2 text-xs font-bold otya-muted hover:text-[color:var(--cosmos-text-primary)]">{label}</Link>)}</div>
+            <div className="otya-kicker">Local music</div>
+            <h2 className="mt-3 text-3xl sm:text-5xl font-black tracking-[-.055em]">The songs on your phone, organized clearly.</h2>
+            <p className="mt-4 max-w-[620px] text-sm sm:text-base leading-7 otya-muted">Browse songs, albums, artists, folders and playlists already on your Android device. Otya does not need a streaming catalog to make your library useful.</p>
+            <Link href="/music" className="mt-7 inline-flex min-h-12 items-center rounded-full border border-black/[.08] dark:border-white/[.10] px-5 text-sm font-black">See Otya Music</Link>
           </div>
           <div className="rounded-[30px] border border-black/[.06] dark:border-white/[.08] bg-[color:var(--cosmos-surface)] p-6 sm:p-8">
-            <div className="flex items-center justify-between"><div><div className="text-xs font-black otya-muted">OTYA MUSIC</div><div className="mt-1 text-2xl font-black">Listen without the clutter.</div></div><OtyaBrandMark size={44}/></div>
+            <div className="flex items-center justify-between"><div><div className="text-xs font-black otya-muted">Otya Music</div><div className="mt-1 text-2xl font-black">Local-first by design.</div></div><OtyaBrandMark size={44}/></div>
             <div className="mt-8 grid grid-cols-3 gap-3">
               <div className="aspect-square rounded-[24px] bg-[linear-gradient(145deg,#2979FF,#1767E8)]"/>
               <div className="aspect-square rounded-[24px] bg-[linear-gradient(145deg,#FF3B30,#D9251C)]"/>
               <div className="aspect-square rounded-[24px] bg-[linear-gradient(145deg,#FFD60A,#E9B900)]"/>
             </div>
-            <div className="mt-6 h-1.5 rounded-full bg-black/[.06] dark:bg-white/[.08] overflow-hidden"><div className="h-full w-[58%] rounded-full bg-[color:var(--cosmos-primary)]"/></div>
+            <p className="mt-6 text-sm leading-6 otya-muted">Search stays local while you type. Your library is not uploaded merely to browse or play it.</p>
           </div>
         </div>
       </section>

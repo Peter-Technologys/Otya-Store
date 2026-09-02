@@ -36,7 +36,7 @@ test('otya-core is the only public Telegram webhook gateway', () => {
   assert.match(bot, /ctx\?\.waitUntil/)
   assert.match(bot, /https:\/\/api\.telegram\.org/)
   assert.match(bot, /https:\/\/space\.petersmartlink\.com\/telegram/)
-  assert.match(bot, /text: 'Open OTYA'/)
+  assert.match(bot, /text: 'Open Otya'/)
 })
 
 test('Telegram bot command surface matches the approved package', () => {
@@ -62,7 +62,7 @@ test('Telegram Mini App validates raw initData server-side and creates or logs i
   assert.doesNotMatch(miniAuth, /initDataUnsafe/)
 })
 
-test('Mini App auth establishes shared secure OTYA browser cookies without exposing tokens', () => {
+test('Mini App auth establishes shared secure Otya browser cookies without exposing tokens', () => {
   assert.match(proxy, /endsWith\('\/miniapp'\)/)
   assert.match(proxy, /__Secure-otya_access/)
   assert.match(proxy, /__Secure-otya_refresh/)

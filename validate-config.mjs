@@ -11,7 +11,9 @@ const next = read('ai-worker/wrangler.toml')
 const fcm = read('src/lib/fcm.ts')
 const appCheck = read('src/lib/firebase_app_check.ts')
 const googleWrapper = read('auth-worker/src/production-entrypoint.ts')
-const jamendoCatalog = read('src/app/api/music/jamendo/route.ts')
+const appConfig = read('src/app/api/app-config/route.ts')
+const clientConfig = read('src/lib/client_config.ts')
+const musicPage = read('src/app/music/page.tsx')
 const telegramProxy = read('src/app/api/auth/telegram/[...path]/route.ts')
 const telegramCore = read('src/lib/telegram-bot.mjs')
 const telegramMini = read('auth-worker/src/telegram-miniapp.ts')
@@ -82,18 +84,35 @@ requireMatch('Next physical v1 D1 name must remain unchanged during cutover', ne
 requireMatch('FCM must use HTTP v1', fcm, /https:\/\/fcm\.googleapis\.com\/v1\/projects\/\$\{projectId\}\/messages:send/)
 forbidMatch('Legacy FCM endpoint is forbidden', fcm, /fcm\.googleapis\.com\/fcm\/send/)
 requireMatch('App Check implementation must support monitor/enforce switch', appCheck, /FIREBASE_APP_CHECK_MODE/)
-requireMatch('Jamendo catalog must use Cloudflare runtime context', jamendoCatalog, /getCloudflareContext/)
-requireMatch('Jamendo catalog must read JAMENDO_CLIENT_ID', jamendoCatalog, /JAMENDO_CLIENT_ID/)
-forbidMatch('Jamendo Client Secret must never enter public catalog code', jamendoCatalog, /JAMENDO_CLIENT_SECRET/)
-forbidMatch('Jamendo credentials must not be hard-coded in public catalog code', jamendoCatalog, /3bb1fe8d|606b6f72bdd754bcbacaddd50c8b2e19/)
 
-const scanned = [core, auth, next, fcm, appCheck, googleWrapper, jamendoCatalog, telegramProxy, telegramCore, telegramMini].join('\n')
+forbidMatch('Online Music must not return to canonical app config', appConfig, /onlineMusic\s*:\s*true/)
+requireMatch('Search provider priority must remain local/help only', appConfig, /providerPriority:\s*\['local',\s*'help'\]/)
+forbidMatch('Firebase client config must not re-enable Online Music', clientConfig, /'onlineMusic'/)
+forbidMatch('Music web page must not call Jamendo', musicPage, /api\/music\/jamendo|JAMENDO_/i)
+forbidMatch('Music web page must not embed remote stream playback', musicPage, /streamUrl|<audio/i)
+requireMatch('Music web page must describe local-first scope', musicPage, /Local-first music/)
+
+const scanned = [
+  core,
+  auth,
+  next,
+  fcm,
+  appCheck,
+  googleWrapper,
+  appConfig,
+  clientConfig,
+  musicPage,
+  telegramProxy,
+  telegramCore,
+  telegramMini,
+].join('\n')
 forbidMatch('Firebase Admin private key material must not be committed', scanned, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/)
 forbidMatch('Resend API key values must not be committed', scanned, /\bre_[A-Za-z0-9_-]{20,}\b/)
+forbidMatch('Jamendo credentials must not be committed after provider retirement', scanned, /JAMENDO_CLIENT_SECRET\s*=|JAMENDO_CLIENT_ID\s*=/)
 
 if (failures.length) {
-  console.error('OTYA production configuration validation failed:')
+  console.error('Otya production configuration validation failed:')
   for (const failure of failures) console.error(`- ${failure}`)
   process.exit(1)
 }
-console.log('OTYA production configuration validation passed.')
+console.log('Otya production configuration validation passed.')

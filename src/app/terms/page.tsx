@@ -5,22 +5,21 @@ import { SiteFooter } from '@/components/SiteFooter'
 
 export const metadata: Metadata = {
   title: 'Terms | Otya',
-  description: 'Terms for using Otya accounts, AI, online music and connected services.',
+  description: 'Terms for using Otya accounts, Next and connected services.',
   alternates: { canonical: 'https://petersmartlink.com/terms' },
 }
 
 const SECTIONS = [
   ['Acceptance', 'By accessing or using Otya websites, accounts, applications or connected services, you agree to these Terms and applicable product-specific policies.'],
-  ['Otya account', 'One Otya account may be used across connected Otya services. Product-specific data and permissions remain separately scoped. Core local Otya Player playback does not require an account.'],
+  ['Otya account', 'One Otya account may be used across connected Otya services. Product-specific data and permissions remain separately scoped. Core local Otya playback does not require an account.'],
   ['Verification and sign-in', 'Otya may offer email, Google, Telegram, phone or other approved verification methods for sign-in, security and recovery. Third-party providers may apply their own terms to those integrations.'],
-  ['Services', 'Otya includes Otya Player, website music, Ask Otya, downloads, support, account services and other official Otya features made available through approved channels.'],
-  ['Online music', 'Online music may display or stream tracks supplied by third-party providers. Those tracks remain subject to the creator’s license and provider terms. Otya does not claim ownership of third-party music.'],
-  ['Downloads', 'A music download action is offered only when the provider reports that downloading the selected track is permitted and supplies a valid download source. Users remain responsible for respecting the relevant license and provider terms.'],
-  ['AI features', 'Ask Otya may generate incorrect or incomplete information. Verify important information independently. Customer AI does not receive access to private administrator systems.'],
-  ['Prohibited use', 'Do not use Otya for fraud, abuse, unauthorized access, unlawful distribution, copyright infringement, circumvention of provider restrictions, interference with service operation or attempts to obtain secrets.'],
+  ['Services', 'Otya includes local music and video playback, nearby Transfer, Private, tools, Next, downloads, support, account services and other official Otya features made available through approved channels. The retired built-in Online Music/Jamendo catalog is not part of the current service.'],
+  ['Local media', 'You are responsible for media you store, play, organize, transfer or process with Otya and for complying with applicable copyright, privacy and other laws. Otya does not obtain ownership of your local media merely because the app accesses it for a feature you choose.'],
+  ['Next', 'Next may generate incorrect or incomplete information. Verify important information independently. Customer-facing Next does not receive access to private administrator systems.'],
+  ['Prohibited use', 'Do not use Otya for fraud, abuse, unauthorized access, unlawful distribution, copyright infringement, interference with service operation, malware delivery or attempts to obtain secrets or bypass security controls.'],
   ['Software and updates', 'Features, availability and requirements may change over time. Updates may improve security, compatibility, performance and functionality.'],
-  ['Third-party services', 'Optional features may interact with services such as Google, Telegram, Firebase, Resend, Cloudflare and music providers. Their terms and privacy practices may apply when you use those integrations.'],
-  ['Liability', 'To the extent permitted by applicable law, Otya is not responsible for indirect, incidental or consequential losses resulting from use of the services or from third-party content or provider availability.'],
+  ['Third-party services', 'Optional features may interact with services such as Google, Telegram, Firebase, Resend and Cloudflare. Their terms and privacy practices may apply when you use those integrations.'],
+  ['Liability', 'To the extent permitted by applicable law, Otya is not responsible for indirect, incidental or consequential losses resulting from use of the services or from third-party service availability.'],
   ['Governing law', 'These terms are governed by the applicable laws of the Republic of Uganda.'],
   ['Contact', 'Questions about these terms can be sent to support@petersmartlink.com.'],
 ]
@@ -32,7 +31,7 @@ export default function TermsPage() {
       <header className="mb-7">
         <div className="otya-kicker mb-2">Otya · Terms</div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[-.04em]">Clear terms. Less scrolling.</h1>
-        <p className="mt-2 text-sm otya-muted">Last updated August 30, 2026. Expand only what you want to read.</p>
+        <p className="mt-2 text-sm otya-muted">Last updated September 2, 2026. Expand only what you want to read.</p>
       </header>
       <section className="overflow-hidden rounded-[24px] border backdrop-blur-xl" style={{ borderColor:'var(--cosmos-divider)', background:'color-mix(in srgb,var(--cosmos-card) 82%,transparent)' }}>
         {SECTIONS.map(([title, body]) => <details key={title} className="group border-b last:border-b-0" style={{ borderColor:'var(--cosmos-divider)' }}>

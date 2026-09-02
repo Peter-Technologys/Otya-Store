@@ -13,8 +13,8 @@ const ADSENSE_ID = 'ca-pub-2517163652161686'
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'Otya — Your media, your way', template: '%s | Otya' },
-  description: 'Otya is an offline-first Android and web media experience for music, video, nearby transfer and private content, with Next as the intelligent assistant.',
-  keywords: ['Otya', 'Next assistant', 'Otya Android', 'offline music player', 'offline video player', 'music discovery', 'file transfer Android', 'private media', 'Uganda technology'],
+  description: 'Otya is an offline-first Android and web media experience for local music, video, nearby transfer and private content, with Next as the intelligent assistant.',
+  keywords: ['Otya', 'Next assistant', 'Otya Android', 'offline music player', 'offline video player', 'local music player', 'file transfer Android', 'private media', 'Uganda technology'],
   authors: [{ name: 'Otya', url: SITE_URL }],
   creator: 'Otya',
   publisher: 'Otya',
@@ -24,10 +24,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website', locale: 'en_UG', url: SITE_URL, siteName: 'Otya',
     title: 'Otya — Your media, your way',
-    description: 'Offline-first Android media, music discovery, nearby transfer, private content and Next, the Otya assistant.',
+    description: 'Offline-first Android media, local music and video, nearby transfer, private content and Next, the Otya assistant.',
     images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Otya', type: 'image/jpeg' }],
   },
-  twitter: { card: 'summary_large_image', title: 'Otya — Your media, your way', description: 'Media, music discovery, nearby transfer, private content and Next.', images: ['/og-image.jpg'] },
+  twitter: { card: 'summary_large_image', title: 'Otya — Your media, your way', description: 'Local media, nearby transfer, private content and Next.', images: ['/og-image.jpg'] },
   icons: {
     icon: [
       { url: '/otya-icon.svg', type: 'image/svg+xml' },
@@ -81,7 +81,6 @@ const schemaOrg = {
       url: SITE_URL,
       name: 'Otya',
       publisher: { '@id': `${SITE_URL}/#organization` },
-      potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/music?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
     },
   ],
 }
