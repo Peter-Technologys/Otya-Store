@@ -32,9 +32,8 @@ test('high-severity dependency audits are deployment gates', () => {
   assert.match(securityWorkflow, /actions\/setup-node@v6/)
 })
 
-test('public web security headers include transport and browser isolation defenses', () => {
-  assert.match(nextConfig, /Strict-Transport-Security/)
-  assert.match(nextConfig, /max-age=31536000; includeSubDomains/)
+test('public web security headers keep HSTS at Cloudflare and browser isolation in app', () => {
+  assert.doesNotMatch(nextConfig, /Strict-Transport-Security/)
   assert.match(nextConfig, /X-Content-Type-Options/)
   assert.match(nextConfig, /X-Permitted-Cross-Domain-Policies/)
   assert.match(nextConfig, /Cross-Origin-Opener-Policy/)
