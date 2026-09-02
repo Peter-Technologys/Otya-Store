@@ -118,7 +118,10 @@ export async function deliverNewDeviceAlert(request: Request, response: Response
   if (!userId || !email) return
 
   const ip = clientIp(request)
-  const key = `last_login_ip:${userId}`
+  // Keep this state separate until the obsolete env.EMAIL implementation is
+  // removed. The legacy helper updates last_login_ip even when it cannot send,
+  // which would otherwise suppress the first real Resend alert.
+  const key = `resend_last_login_ip:${userId}`
   let previous: string | null = null
   try {
     previous = await env.AUTH_KV.get(key)
