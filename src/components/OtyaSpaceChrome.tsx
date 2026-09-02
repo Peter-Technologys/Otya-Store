@@ -4,16 +4,15 @@ import Link from 'next/link'
 import { ReactNode, useEffect, useRef, useState } from 'react'
 import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
-type SpaceUser = {
+export type SpaceUser = {
   email?: string | null
   name?: string | null
   avatar_url?: string | null
   otya_id?: string | null
 }
 
-type SessionPayload = { authenticated?: boolean; user?: SpaceUser }
 type AdminState = { accountAdmin?: boolean; authenticated?: boolean }
-type NavItem = { label: string; href: string; icon: ReactNode; external?: boolean }
+type NavItem = { label: string; href: string; icon: ReactNode; external?: boolean; section?: string }
 type NavGroup = { label: string; items: NavItem[] }
 
 const iconClass = 'h-[19px] w-[19px] shrink-0'
@@ -40,25 +39,32 @@ const GROUPS: NavGroup[] = [
   {
     label: 'Account',
     items: [
-      { label: 'Account overview', href: '/account/', icon: icons.person },
-      { label: 'Sign-in methods', href: '/account/sign-in-methods/', icon: icons.connected },
-      { label: 'Security', href: '/account#security', icon: icons.security },
-      { label: 'Devices & sessions', href: '/account#sessions', icon: icons.devices },
-      { label: 'Preferences', href: '/account#settings', icon: icons.settings },
+      { label: 'Account overview', href: '/account/overview/', section: 'account', icon: icons.person },
+      { label: 'Sign-in methods', href: '/account/sign-in-methods/', section: 'account/sign-in-methods', icon: icons.connected },
+      { label: 'Security', href: '/account/security/', section: 'security', icon: icons.security },
+      { label: 'Devices & sessions', href: '/account/devices/', section: 'devices', icon: icons.devices },
+      { label: 'Connected accounts', href: '/account/sign-in-methods/', section: 'providers', icon: icons.connected },
+      { label: 'Activity', href: '/account/activity/', section: 'activity', icon: icons.activity },
+      { label: 'Notifications', href: '/account/notifications/', section: 'notifications', icon: icons.bell },
+      { label: 'Preferences', href: '/account/settings/', section: 'settings', icon: icons.settings },
     ],
   },
   {
     label: 'OTYA services',
     items: [
-      { label: 'Next', href: '/ask', icon: icons.ai },
-      { label: 'Telegram', href: '/telegram/', icon: icons.connected },
-      { label: 'Playlist recovery', href: '/', icon: icons.storage },
+      { label: 'Next', href: '/ask', section: 'next', icon: icons.ai },
+      { label: 'Telegram', href: '/telegram/', section: 'telegram', icon: icons.connected },
+      { label: 'Playlist recovery', href: '/account/storage/', section: 'storage', icon: icons.storage },
     ],
   },
 ]
 
-export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SpaceUser | null>(null)
+function publicHref(publicId: string | null | undefined, section: string, fallback: string) {
+  const id = publicId?.trim().toUpperCase() ?? ''
+  return /^2IS\d{8}$/.test(id) ? `/u/${id}/${section}` : fallback
+}
+
+export function OtyaSpaceChrome({ children, user }: { children: ReactNode; user: SpaceUser }) {
   const [admin, setAdmin] = useState<AdminState>({})
   const [profileOpen, setProfileOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -69,16 +75,10 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all([
-      fetch('/api/account-session/session', { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } }),
-      fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => null),
-    ]).then(async ([sessionResponse, adminResponse]) => {
-      const session = await sessionResponse.json().catch(() => ({})) as SessionPayload
-      const adminData = adminResponse ? await adminResponse.json().catch(() => ({})) as AdminState : {}
-      if (cancelled) return
-      if (sessionResponse.ok && session.authenticated === true) setUser(session.user ?? {})
-      setAdmin(adminData)
-    }).catch(() => undefined)
+    void fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(response => response.json().catch(() => ({})) as Promise<AdminState>)
+      .then(data => { if (!cancelled) setAdmin(data) })
+      .catch(() => undefined)
     return () => { cancelled = true }
   }, [])
 
@@ -92,8 +92,11 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('mousedown', closeOnOutside)
   }, [profileOpen, notificationsOpen])
 
-  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || user?.otya_id || 'OTYA user'
+  const displayName = user.name?.trim() || user.email?.split('@')[0] || user.otya_id || 'OTYA user'
   const initials = displayName.slice(0, 2).toUpperCase()
+  const homeHref = publicHref(user.otya_id, 'overview', '/')
+  const nextHref = publicHref(user.otya_id, 'next', '/ask')
+  const notificationsHref = publicHref(user.otya_id, 'notifications', '/account/notifications/')
 
   return <div className="min-h-screen" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
     <header className="sticky top-0 z-50 h-16 border-b" style={{ background: 'color-mix(in srgb,var(--cosmos-scaffold) 94%,transparent)', borderColor: 'var(--cosmos-divider)', backdropFilter: 'blur(18px)' }}>
@@ -101,19 +104,19 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
         <button type="button" aria-label="Open Space menu" onClick={() => setMobileNavOpen(true)} className="lg:hidden h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5">
           <Icon><path d="M4 7h16M4 12h16M4 17h16"/></Icon>
         </button>
-        <Link href="/" className="flex items-center gap-2.5 min-w-0" aria-label="OTYA Space home">
+        <Link href={homeHref} className="flex items-center gap-2.5 min-w-0" aria-label="OTYA Space home">
           <OtyaBrandMark size={36} />
           <div className="hidden sm:block leading-tight"><div className="font-black tracking-[-.025em]">OTYA</div><div className="text-[11px] otya-muted">Space</div></div>
         </Link>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-          <Link href="/ask" aria-label="Next" title="Next" className="h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"><OtyaBrandMark ai size={27} /></Link>
+          <Link href={nextHref} aria-label="Next" title="Next" className="h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"><OtyaBrandMark ai size={27} /></Link>
 
           <div className="relative" ref={notificationRef}>
             <button type="button" aria-label="Notifications" title="Notifications" onClick={() => { setNotificationsOpen(value => !value); setProfileOpen(false) }} className="relative h-10 w-10 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5">{icons.bell}<span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full" style={{ background: 'var(--cosmos-primary)' }} /></button>
             {notificationsOpen && <FloatingPanel>
               <div className="font-black px-2 py-1">Notifications</div>
-              <div className="mt-3 rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}><div className="font-semibold">All caught up</div><p className="mt-1 text-xs otya-muted">Account and product alerts will appear here when there is something to review.</p></div>
+              <div className="mt-3 rounded-xl border p-4 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}><div className="font-semibold">All caught up</div><p className="mt-1 text-xs otya-muted">Account and product alerts will appear here when there is something to review.</p><Link href={notificationsHref} onClick={()=>setNotificationsOpen(false)} className="inline-flex mt-3 text-sm font-bold">Open notifications</Link></div>
             </FloatingPanel>}
           </div>
 
@@ -121,17 +124,17 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
 
           <div className="relative" ref={profileRef}>
             <button type="button" aria-label="Profile" title="Profile" onClick={() => { setProfileOpen(value => !value); setNotificationsOpen(false) }} className="h-10 min-w-10 rounded-full border grid place-items-center text-xs font-black overflow-hidden" style={{ borderColor: profileOpen ? 'var(--cosmos-primary)' : 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
-              {user?.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : initials}
+              {user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : initials}
             </button>
             {profileOpen && <FloatingPanel>
               <div className="flex items-center gap-3 p-2.5">
                 <div className="h-11 w-11 shrink-0 rounded-full grid place-items-center font-black" style={{ background: 'color-mix(in srgb,var(--cosmos-primary) 14%,var(--cosmos-card))' }}>{initials}</div>
-                <div className="min-w-0"><div className="font-bold truncate">{displayName}</div><div className="text-xs otya-muted truncate">{user?.email || 'No primary email added'}</div>{user?.otya_id && <div className="mt-1 text-[11px] font-mono otya-muted">{user.otya_id}</div>}</div>
+                <div className="min-w-0"><div className="font-bold truncate">{displayName}</div><div className="text-xs otya-muted truncate">{user.email || 'No primary email added'}</div>{user.otya_id && <div className="mt-1 text-[11px] font-mono otya-muted">{user.otya_id}</div>}</div>
               </div>
               <Divider />
-              <PanelLink href="/account/" onClick={() => setProfileOpen(false)}>Account</PanelLink>
-              <PanelLink href="/account/sign-in-methods/" onClick={() => setProfileOpen(false)}>Sign-in methods</PanelLink>
-              <PanelLink href="/account#settings" onClick={() => setProfileOpen(false)}>Preferences</PanelLink>
+              <PanelLink href={publicHref(user.otya_id, 'account', '/account/overview/')} onClick={() => setProfileOpen(false)}>Account</PanelLink>
+              <PanelLink href={publicHref(user.otya_id, 'account/sign-in-methods', '/account/sign-in-methods/')} onClick={() => setProfileOpen(false)}>Sign-in methods</PanelLink>
+              <PanelLink href={publicHref(user.otya_id, 'settings', '/account/settings/')} onClick={() => setProfileOpen(false)}>Preferences</PanelLink>
               <Divider />
               <button type="button" onClick={() => void signOut()} className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">Sign out</button>
             </FloatingPanel>}
@@ -142,7 +145,7 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
 
     <div className="lg:grid lg:grid-cols-[270px_minmax(0,1fr)]">
       <aside className="hidden lg:block border-r min-h-[calc(100vh-64px)]" style={{ borderColor: 'var(--cosmos-divider)' }}>
-        <SpaceNav query={query} setQuery={setQuery} showAdmin={admin.accountAdmin === true || admin.authenticated === true} />
+        <SpaceNav query={query} setQuery={setQuery} showAdmin={admin.accountAdmin === true || admin.authenticated === true} publicId={user.otya_id} />
       </aside>
       <div className="min-w-0">{children}</div>
     </div>
@@ -151,7 +154,7 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
       <button type="button" aria-label="Close menu" onClick={() => setMobileNavOpen(false)} className="absolute inset-0 bg-black/45" />
       <aside className="relative h-full w-[88vw] max-w-[390px] border-r shadow-2xl" style={{ background: 'var(--cosmos-scaffold)', borderColor: 'var(--cosmos-divider)' }}>
         <div className="h-16 flex items-center gap-2 px-4 border-b" style={{ borderColor: 'var(--cosmos-divider)' }}><OtyaBrandMark size={34}/><strong className="tracking-[-.02em]">OTYA Space</strong><button type="button" aria-label="Close menu" onClick={() => setMobileNavOpen(false)} className="ml-auto h-9 w-9 grid place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"><Icon><path d="m6 6 12 12M18 6 6 18"/></Icon></button></div>
-        <SpaceNav query={query} setQuery={setQuery} showAdmin={admin.accountAdmin === true || admin.authenticated === true} onNavigate={() => setMobileNavOpen(false)} />
+        <SpaceNav query={query} setQuery={setQuery} showAdmin={admin.accountAdmin === true || admin.authenticated === true} publicId={user.otya_id} onNavigate={() => setMobileNavOpen(false)} />
       </aside>
     </div>}
   </div>
@@ -162,7 +165,7 @@ export function OtyaSpaceChrome({ children }: { children: ReactNode }) {
   }
 }
 
-function SpaceNav({ query, setQuery, showAdmin, onNavigate }: { query: string; setQuery: (value: string) => void; showAdmin: boolean; onNavigate?: () => void }) {
+function SpaceNav({ query, setQuery, showAdmin, publicId, onNavigate }: { query: string; setQuery: (value: string) => void; showAdmin: boolean; publicId?: string | null; onNavigate?: () => void }) {
   const normalized = query.trim().toLowerCase()
   const match = (label: string) => !normalized || label.toLowerCase().includes(normalized)
   return <nav className="sticky top-16 max-h-[calc(100dvh-64px)] overflow-y-auto px-3 py-4" aria-label="OTYA Space">
@@ -171,28 +174,29 @@ function SpaceNav({ query, setQuery, showAdmin, onNavigate }: { query: string; s
       <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Space" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-current placeholder:opacity-45" />
     </label>
 
-    {match('Space home') && <NavLink item={{ label: 'Space home', href: '/', icon: icons.overview }} onNavigate={onNavigate} strong />}
+    {match('Space home') && <NavLink item={{ label: 'Space home', href: '/', section: 'overview', icon: icons.overview }} publicId={publicId} onNavigate={onNavigate} strong />}
 
     {GROUPS.map(group => {
       const visible = group.items.filter(item => match(item.label))
       if (!visible.length) return null
       return <div key={group.label} className="mt-5">
         <div className="px-3 pb-2 text-[11px] font-semibold otya-muted">{group.label}</div>
-        <div className="space-y-0.5">{visible.map(item => <NavLink key={item.label} item={item} onNavigate={onNavigate} />)}</div>
+        <div className="space-y-0.5">{visible.map(item => <NavLink key={item.label} item={item} publicId={publicId} onNavigate={onNavigate} />)}</div>
       </div>
     })}
 
-    {showAdmin && match('Admin') && <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--cosmos-divider)' }}><NavLink item={{ label: 'Admin', href: 'https://petersmartlink.com/admin', icon: icons.admin, external: true }} onNavigate={onNavigate} /></div>}
+    {showAdmin && match('Admin') && <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--cosmos-divider)' }}><NavLink item={{ label: 'Admin', href: 'https://petersmartlink.com/admin', icon: icons.admin, external: true }} publicId={publicId} onNavigate={onNavigate} /></div>}
 
-    <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--cosmos-divider)' }}><NavLink item={{ label: 'Help & Docs', href: 'https://docs.petersmartlink.com', icon: icons.help, external: true }} onNavigate={onNavigate} /></div>
+    <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--cosmos-divider)' }}><NavLink item={{ label: 'Help & Docs', href: 'https://docs.petersmartlink.com', icon: icons.help, external: true }} publicId={publicId} onNavigate={onNavigate} /></div>
   </nav>
 }
 
-function NavLink({ item, onNavigate, strong = false }: { item: NavItem; onNavigate?: () => void; strong?: boolean }) {
+function NavLink({ item, publicId, onNavigate, strong = false }: { item: NavItem; publicId?: string | null; onNavigate?: () => void; strong?: boolean }) {
   const classes = `flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${strong ? 'font-black' : 'font-semibold'}`
   const content = <><span className="opacity-75">{item.icon}</span><span className="truncate">{item.label}</span></>
   if (item.external) return <a href={item.href} onClick={onNavigate} className={classes}>{content}</a>
-  return <Link href={item.href} onClick={onNavigate} className={classes}>{content}</Link>
+  const href = item.section ? publicHref(publicId, item.section, item.href) : item.href
+  return <Link href={href} onClick={onNavigate} className={classes}>{content}</Link>
 }
 
 function FloatingPanel({ children }: { children: ReactNode }) {
