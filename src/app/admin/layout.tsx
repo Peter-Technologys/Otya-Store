@@ -10,6 +10,8 @@ type AdminState = {
   accountAdmin?: boolean
 }
 
+const ADMIN_SESSION_TIMEOUT_MS = 9000
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [checking, setChecking] = useState(true)
@@ -21,6 +23,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       credentials: 'same-origin',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(ADMIN_SESSION_TIMEOUT_MS),
     }).then(async response => {
       const state = await response.json().catch(() => ({})) as AdminState
       if (cancelled) return
@@ -50,6 +53,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         window.location.replace('/admin')
         return
       }
+      // The Admin home must always settle to its sign-in/verification gate.
+      // A network or service-binding fault must never leave a permanent spinner.
       setChecking(false)
     })
 
