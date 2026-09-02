@@ -2,6 +2,7 @@ import authWorker from './entrypoint'
 import { assertSchemaReady } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
+import { handleGoogleLink } from './google-link'
 import {
   handleSecureOtpRoute,
   hardenRegistrationVerification,
@@ -183,6 +184,9 @@ export default {
       const response = await handleTelegramLogin(request, env)
       if (response) return response
     }
+
+    const googleLinkResponse = await handleGoogleLink(request, env)
+    if (googleLinkResponse) return googleLinkResponse
 
     const secureAccountResponse = await handleSecureAccountRoute(request, env)
     if (secureAccountResponse) return secureAccountResponse
