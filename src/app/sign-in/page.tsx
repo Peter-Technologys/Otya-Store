@@ -10,7 +10,7 @@ const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
 const DEFAULT_AFTER_AUTH = 'https://space.petersmartlink.com/'
 
-type Mode = 'signin' | 'register' | 'forgot' | 'reset' | 'twofactor'
+type Mode = 'signin' | 'register' | 'verify' | 'forgot' | 'reset' | 'twofactor'
 type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
 type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
@@ -55,12 +55,23 @@ export default function SignInPage() {
   const providerMode = mode === 'signin' || mode === 'register'
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const verifyingRegistration = params.get('verify') === 'email'
+    if (verifyingRegistration) setMode('verify')
+
     void authFetch('session').then(async response => {
       const data = await response.json().catch(() => ({})) as Json
-      if (response.ok && data.authenticated) window.location.replace(afterAuthDestination())
+      if (!response.ok || !data.authenticated) {
+        if (verifyingRegistration) {
+          window.history.replaceState(null, '', '/sign-in')
+          setMode('signin')
+        }
+        return
+      }
+      if (!verifyingRegistration) window.location.replace(afterAuthDestination())
     }).catch(() => undefined)
 
-    const telegram = new URLSearchParams(window.location.search).get('telegram')
+    const telegram = params.get('telegram')
     if (telegram === 'signed-in') void verifySessionAndOpen()
     else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your OTYA account first, then connect Telegram from your account.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
@@ -113,6 +124,9 @@ export default function SignInPage() {
   }
 
   async function verifySessionAndOpen() {
+    // Telegram returns from an external authorization page, so allow a very
+    // short propagation retry there. Email/Google/password flows set cookies in
+    // the same response and redirect directly without this extra round trip.
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await authFetch('session').catch(() => null)
       if (response?.ok) {
@@ -142,7 +156,7 @@ export default function SignInPage() {
         }
         throw new Error(data.error || 'Google Sign-In failed.')
       }
-      await verifySessionAndOpen()
+      window.location.replace(afterAuthDestination())
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
@@ -161,17 +175,45 @@ export default function SignInPage() {
     }
   }
 
+  async function resendVerification() {
+    if (busy) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const response = await authFetch('send-verification', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not send another verification code.')
+      setNotice('A new verification code was sent. Only the newest code will work.')
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  async function restartSignIn() {
+    if (busy) return
+    setBusy(true)
+    await authFetch('logout', { method: 'POST' }).catch(() => undefined)
+    window.history.replaceState(null, '', '/sign-in')
+    setPassword(''); setOtp(''); setBusy(false); switchMode('signin')
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!email.trim()) return setError('Enter your email address.')
+    if (mode !== 'verify' && !email.trim()) return setError('Enter your email address.')
     if ((mode === 'signin' || mode === 'register' || mode === 'twofactor') && !password) return setError('Enter your password.')
     if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your account.')
     if (mode === 'twofactor' && !secondFactor.trim()) return setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
+    if (mode === 'verify' && !/^[A-Za-z][0-9]{4}$/.test(otp.trim())) return setError('Enter the 5-character verification code from your email.')
     if (mode === 'reset' && (!otp.trim() || newPassword.length < 8)) return setError('Enter the reset code and a new password of at least 8 characters.')
     if (mode === 'reset' && newPassword !== confirmPassword) return setError('The new passwords do not match.')
 
     setBusy(true); setError(''); setNotice('')
     try {
+      if (mode === 'verify') {
+        const response = await authFetch('verify-email', { method: 'POST', body: JSON.stringify({ otp: otp.trim().toUpperCase() }) })
+        const data = await response.json().catch(() => ({})) as Json
+        if (!response.ok) throw new Error(data.error || 'That verification code is invalid or expired.')
+        window.location.replace(afterAuthDestination())
+        return
+      }
       if (mode === 'forgot') {
         const response = await authFetch('forgot-password', { method: 'POST', body: JSON.stringify({ email: email.trim() }) })
         const data = await response.json().catch(() => ({})) as Json
@@ -202,13 +244,22 @@ export default function SignInPage() {
         }
         throw new Error(data.error || (registration ? 'Account creation failed.' : 'Sign in failed.'))
       }
-      await verifySessionAndOpen()
+
+      if (registration) {
+        setOtp('')
+        setMode('verify')
+        setNotice('Account created. We sent one verification code to your email. Enter it below to finish setup.')
+        window.history.replaceState(null, '', '/sign-in?verify=email')
+        return
+      }
+
+      window.location.replace(afterAuthDestination())
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
 
-  const title = mode === 'register' ? 'Create your OTYA account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to OTYA'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for OTYA.' : 'Use your OTYA account.'
+  const title = mode === 'register' ? 'Create your OTYA account' : mode === 'verify' ? 'Verify your email' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to OTYA'
+  const subtitle = mode === 'verify' ? 'Enter the verification code we sent. This finishes email account setup before Space opens.' : mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for OTYA.' : 'Use your OTYA account.'
 
   return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
@@ -226,8 +277,9 @@ export default function SignInPage() {
 
         <form onSubmit={submit} className="space-y-3">
           {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
-          <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />
+          {mode !== 'verify' && <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />}
           {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
+          {mode === 'verify' && <Field value={otp} onChange={value => setOtp(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))} placeholder="A1234" autoComplete="one-time-code" autoFocus />}
           {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
           {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/><Field value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm new password" type="password" autoComplete="new-password"/></>}
 
@@ -237,12 +289,13 @@ export default function SignInPage() {
             <Check checked={marketing} onChange={setMarketing}>Send me optional OTYA product news.</Check>
           </div>}
 
-          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
+          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify email and continue' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
         </form>
 
         <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
           {mode === 'signin' && <><button type="button" onClick={() => switchMode('register')}>Create account</button><button type="button" onClick={() => switchMode('forgot')}>Forgot password?</button></>}
           {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
+          {mode === 'verify' && <><button type="button" onClick={() => void resendVerification()}>Send a new code</button><button type="button" onClick={() => void restartSignIn()}>Use a different account</button></>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>
 
