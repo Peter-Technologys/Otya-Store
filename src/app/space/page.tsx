@@ -25,6 +25,11 @@ async function accountFetch(path: string) {
   })
 }
 
+function spaceHref(publicId: string | null | undefined, section: string, fallback: string) {
+  const id = publicId?.trim().toUpperCase()
+  return id ? `/u/${id}/${section}` : fallback
+}
+
 export default function SpaceHomePage() {
   const [user, setUser] = useState<SpaceUser | null>(null)
   const [identities, setIdentities] = useState<Identity[]>([])
@@ -57,7 +62,7 @@ export default function SpaceHomePage() {
       setSessions(Array.isArray(sessionData.sessions) ? sessionData.sessions : [])
       setTwoFactor(twoFactorData)
     }).catch(() => {
-      if (!cancelled) setError('OTYA Space could not load your account summary. Your account has not been changed.')
+      if (!cancelled) setError('Otya Space could not load your account summary. Your account has not been changed.')
     }).finally(() => {
       if (!cancelled) setLoading(false)
     })
@@ -68,21 +73,30 @@ export default function SpaceHomePage() {
   const google = identities.find(identity => identity.provider === 'google')
   const telegram = identities.find(identity => identity.provider === 'telegram')
   const connectedCount = [Boolean(user?.email), Boolean(google), Boolean(telegram)].filter(Boolean).length
-  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || user?.otya_id || 'OTYA user'
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || user?.otya_id || 'Otya user'
   const lastActivity = useMemo(() => sessions[0]?.last_used_at ? formatDate(sessions[0].last_used_at) : 'No recent session activity', [sessions])
+
+  const accountHref = spaceHref(user?.otya_id, 'account', '/account/')
+  const providersHref = spaceHref(user?.otya_id, 'providers', '/account/sign-in-methods/')
+  const securityHref = spaceHref(user?.otya_id, 'security', '/account/security/')
+  const devicesHref = spaceHref(user?.otya_id, 'devices', '/account/devices/')
+  const storageHref = spaceHref(user?.otya_id, 'storage', '/account/storage/')
+  const settingsHref = spaceHref(user?.otya_id, 'settings', '/account/settings/')
+  const nextHref = spaceHref(user?.otya_id, 'next', '/ask')
+  const telegramHref = spaceHref(user?.otya_id, 'telegram', '/telegram/')
 
   return <main className="px-4 sm:px-7 lg:px-10 py-7 sm:py-9 max-w-[1240px]">
     <section className="relative overflow-hidden rounded-[28px] border p-6 sm:p-8 lg:p-10" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(135deg,color-mix(in srgb,var(--cosmos-primary) 13%,var(--cosmos-card)),var(--cosmos-card) 58%)' }}>
       <div className="max-w-3xl">
-        <div className="text-[11px] font-black uppercase tracking-[.18em] otya-muted">OTYA Space</div>
+        <div className="text-[11px] font-black uppercase tracking-[.18em] otya-muted">Otya Space</div>
         <h1 className="mt-3 text-3xl sm:text-5xl font-black tracking-[-.05em]">Welcome, {displayName}</h1>
-        <p className="mt-4 text-sm sm:text-base leading-7 otya-muted">Your signed-in OTYA environment. One OTYA ID connects your app account, email, Google, Telegram, security and supported recovery services.</p>
-        {user?.otya_id && <div className="mt-4 inline-flex rounded-xl border px-3 py-2 font-mono text-xs font-bold" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>OTYA ID · {user.otya_id}</div>}
+        <p className="mt-4 text-sm sm:text-base leading-7 otya-muted">Your signed-in Otya environment. One Otya ID connects your app account, email, Google, Telegram, security and supported recovery services.</p>
+        {user?.otya_id && <div className="mt-4 inline-flex rounded-xl border px-3 py-2 font-mono text-xs font-bold" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>Otya ID · {user.otya_id}</div>}
         <div className="mt-6 flex flex-wrap gap-2">
-          <PrimaryLink href="/account/">Manage account</PrimaryLink>
-          <QuietLink href="/account/sign-in-methods/">Sign-in methods</QuietLink>
-          <QuietLink href="/ask">Open Next</QuietLink>
-          <QuietLink href="/telegram/">Telegram</QuietLink>
+          <PrimaryLink href={accountHref}>Manage account</PrimaryLink>
+          <QuietLink href={providersHref}>Sign-in methods</QuietLink>
+          <QuietLink href={nextHref}>Open Next</QuietLink>
+          <QuietLink href={telegramHref}>Telegram</QuietLink>
         </div>
       </div>
     </section>
@@ -90,7 +104,7 @@ export default function SpaceHomePage() {
     {error && <div className="mt-5 rounded-2xl border border-red-500/25 px-4 py-3 text-sm text-red-700 dark:text-red-200">{error}</div>}
 
     <section className="mt-7 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <SpaceCard title="Account & security" eyebrow="Identity" action={<Link href="/account/" className="text-xs font-black otya-muted">Open</Link>}>
+      <SpaceCard title="Account & security" eyebrow="Identity" action={<Link href={securityHref} className="text-xs font-black otya-muted">Open</Link>}>
         {loading ? <LoadingLine /> : <>
           <StatusRow label="Primary email" value={!user?.email ? 'Not added' : user.is_verified ? 'Verified' : 'Needs verification'} />
           <StatusRow label="Two-step verification" value={twoFactor.enabled ? 'On' : 'Off'} />
@@ -98,7 +112,7 @@ export default function SpaceHomePage() {
         </>}
       </SpaceCard>
 
-      <SpaceCard title="Sign-in methods" eyebrow="One OTYA ID" action={<Link href="/account/sign-in-methods/" className="text-xs font-black otya-muted">Manage</Link>}>
+      <SpaceCard title="Sign-in methods" eyebrow="One Otya ID" action={<Link href={providersHref} className="text-xs font-black otya-muted">Manage</Link>}>
         {loading ? <LoadingLine /> : <>
           <div className="text-4xl font-black">{connectedCount}</div>
           <p className="mt-1 text-sm otya-muted">connected way{connectedCount === 1 ? '' : 's'} to access this same account</p>
@@ -108,44 +122,44 @@ export default function SpaceHomePage() {
         </>}
       </SpaceCard>
 
-      <SpaceCard title="Devices & activity" eyebrow="Sessions" action={<Link href="/account#sessions" className="text-xs font-black otya-muted">Review</Link>}>
+      <SpaceCard title="Devices & activity" eyebrow="Sessions" action={<Link href={devicesHref} className="text-xs font-black otya-muted">Review</Link>}>
         <div className="text-sm font-bold">{lastActivity}</div>
         <p className="mt-2 text-sm otya-muted">Review recorded sign-ins and revoke sessions you no longer trust.</p>
       </SpaceCard>
 
-      <SpaceCard title="Playlist recovery" eyebrow="Google Drive" action={<Link href="/account/" className="text-xs font-black otya-muted">Account</Link>}>
+      <SpaceCard title="Playlist recovery" eyebrow="Google Drive" action={<Link href={storageHref} className="text-xs font-black otya-muted">Details</Link>}>
         <div className="text-lg font-black">Available in the Android app</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">OTYA can back up playlist names and saved media references to your private Google Drive app folder. Media files and Private files stay on your device.</p>
+        <p className="mt-2 text-sm leading-6 otya-muted">Otya can back up playlist names and saved media references to your private Google Drive app folder. Media files and Private files stay on your device.</p>
       </SpaceCard>
 
-      <SpaceCard title="Your OTYA data" eyebrow="Device-first">
+      <SpaceCard title="Your Otya data" eyebrow="Device-first" action={<Link href={storageHref} className="text-xs font-black otya-muted">Review</Link>}>
         <StatusRow label="Playlists" value="Recovery supported" />
         <StatusRow label="Favorites" value="Device-first in v1" />
         <StatusRow label="History" value="Device-first in v1" />
-        <p className="mt-3 text-xs leading-5 otya-muted">Space does not pretend local-only data is already cloud-synced. More account-backed data can appear here only when the product actually supports it.</p>
+        <p className="mt-3 text-xs leading-5 otya-muted">Space does not pretend local-only data is already cloud-synced.</p>
       </SpaceCard>
 
-      <SpaceCard title="Next" eyebrow="OTYA AI" action={<Link href="/ask" className="text-xs font-black otya-muted">Open</Link>}>
-        <div className="text-lg font-black">Ask OTYA</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">Use Next from the same OTYA environment. Conversation storage remains governed by the current privacy and product rules.</p>
+      <SpaceCard title="Next" eyebrow="Otya AI" action={<Link href={nextHref} className="text-xs font-black otya-muted">Open</Link>}>
+        <div className="text-lg font-black">Ask Next</div>
+        <p className="mt-2 text-sm leading-6 otya-muted">Use Next from the same Otya environment. Conversation storage remains governed by the current privacy and product rules.</p>
       </SpaceCard>
 
-      <SpaceCard title="Telegram" eyebrow="Connected service" action={<Link href="/telegram/" className="text-xs font-black otya-muted">Open</Link>}>
-        <div className="text-lg font-black">{telegram ? 'Connected to your OTYA ID' : 'Available to connect'}</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">Telegram is a first-class OTYA identity and Mini App surface, not a separate user database.</p>
+      <SpaceCard title="Telegram" eyebrow="Connected service" action={<Link href={telegramHref} className="text-xs font-black otya-muted">Open</Link>}>
+        <div className="text-lg font-black">{telegram ? 'Connected to your Otya ID' : 'Available to connect'}</div>
+        <p className="mt-2 text-sm leading-6 otya-muted">Telegram is a first-class Otya identity and Mini App surface, not a separate user database.</p>
       </SpaceCard>
 
-      <SpaceCard title="OTYA products" eyebrow="Account history">
+      <SpaceCard title="Otya products" eyebrow="Account history">
         <div className="text-4xl font-black">{products.length}</div>
-        <p className="mt-1 text-sm otya-muted">product record{products.length === 1 ? '' : 's'} associated with this OTYA account</p>
+        <p className="mt-1 text-sm otya-muted">product record{products.length === 1 ? '' : 's'} associated with this Otya account</p>
       </SpaceCard>
 
       <SpaceCard title="Privacy & help" eyebrow="Control">
         <div className="flex flex-col gap-2 text-sm font-black">
           <a href="https://petersmartlink.com/privacy">Privacy Policy</a>
           <a href="https://petersmartlink.com/terms">Terms of Service</a>
-          <a href="https://docs.petersmartlink.com">OTYA Help & Docs</a>
-          <Link href="/account#settings">Account preferences</Link>
+          <a href="https://docs.petersmartlink.com">Otya Help & Docs</a>
+          <Link href={settingsHref}>Account preferences</Link>
         </div>
       </SpaceCard>
     </section>
