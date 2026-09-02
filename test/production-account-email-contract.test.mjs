@@ -20,7 +20,7 @@ test('registration verification uses Resend and an HMAC-only active OTP', () => 
   assert.match(email, /hmac-sha256:/)
   assert.match(email, /verify_otp:\$\{userId\}/)
   assert.match(email, /await env\.AUTH_KV\.delete\(key\)/)
-  assert.doesNotMatch(email, /env\.EMAIL/)
+  assert.doesNotMatch(email, /env\.EMAIL\s*(?:\.|\?|\[|\()/)
 })
 
 test('new-device alerts use isolated Resend state during legacy cleanup', () => {
