@@ -20,6 +20,8 @@ export interface SecureAccountEnv {
   INTERNAL_SECRET?: string
 }
 
+const CANONICAL_STORE_URL = 'https://petersmartlink.com'
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -73,25 +75,25 @@ async function revokeEveryRefreshSession(env: SecureAccountEnv, userId: string):
   return revoked
 }
 
-async function notifyStoreDeletion(env: SecureAccountEnv, userId: string): Promise<void> {
-  if (!env.OTYA_STORE_INTERNAL_URL || !env.INTERNAL_SECRET) return
+async function deleteStoreData(
+  env: SecureAccountEnv,
+  user: { id: string; email: string | null },
+): Promise<void> {
+  if (!env.INTERNAL_SECRET) throw new Error('Account deletion service is not configured')
+  const base = (env.OTYA_STORE_INTERNAL_URL?.trim() || CANONICAL_STORE_URL).replace(/\/$/, '')
 
-  const base = env.OTYA_STORE_INTERNAL_URL.replace(/\/$/, '')
-  try {
-    const response = await fetch(`${base}/api/internal/delete-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Secret': env.INTERNAL_SECRET,
-      },
-      body: JSON.stringify({ user_id: userId }),
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!response.ok) {
-      console.error('[auth/delete-account] OTYA Store cleanup failed:', response.status)
-    }
-  } catch (error) {
-    console.error('[auth/delete-account] OTYA Store cleanup unavailable:', (error as Error)?.message)
+  const response = await fetch(`${base}/api/internal/delete-user`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': env.INTERNAL_SECRET,
+    },
+    body: JSON.stringify({ user_id: user.id, user_email: user.email }),
+    signal: AbortSignal.timeout(8000),
+  })
+  const data = await response.json().catch(() => ({})) as { ok?: boolean }
+  if (!response.ok || data.ok !== true) {
+    throw new Error(`Otya product-data cleanup failed (${response.status})`)
   }
 }
 
@@ -116,16 +118,25 @@ export async function handleSecureAccountRoute(
   const user = await getUserById(env.AUTH_DB, payload.sub)
   if (!user) return json({ error: 'User not found' }, 404)
 
-  // Revoke first. If D1 deletion later fails, the account remains recoverable but
-  // its old sessions are no longer usable. This is safer than deleting the D1
-  // user first and potentially leaving refresh/session credentials alive.
+  // Product cleanup comes first and is idempotent. If the core service cannot
+  // prove cleanup succeeded, keep the identity intact and return a retryable
+  // failure instead of claiming the account was fully deleted.
+  try {
+    await deleteStoreData(env, { id: user.id, email: user.email })
+  } catch (error) {
+    console.error('[auth/delete-account] Product cleanup incomplete:', (error as Error)?.message)
+    return json({
+      error: 'Account deletion could not be completed. Please try again.',
+      code: 'ACCOUNT_DELETION_INCOMPLETE',
+    }, 503)
+  }
+
+  // After product cleanup is proven, revoke every refresh/session record before
+  // deleting the identity. Retrying remains safe because core cleanup is
+  // idempotent and all deletes below are naturally repeatable.
   await revokeEveryRefreshSession(env, payload.sub)
   await deleteUser(env.AUTH_DB, payload.sub)
   await env.AUTH_KV.delete(`drive_file:${payload.sub}`)
-
-  // Product-data cleanup is best effort here so a temporary store outage does
-  // not resurrect the auth account. The store owns its own deletion auditing.
-  await notifyStoreDeletion(env, payload.sub)
 
   return json({ ok: true, message: 'Account deleted.' })
 }
