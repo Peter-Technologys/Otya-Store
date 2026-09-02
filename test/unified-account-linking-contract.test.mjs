@@ -6,9 +6,11 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 const profile = read('auth-worker/src/account-profile.ts')
 const methods = read('src/app/account/sign-in-methods/page.tsx')
 const layout = read('src/app/account/layout.tsx')
+const chrome = read('src/components/OtyaSpaceChrome.tsx')
+const account = read('src/app/account/page.tsx')
 const proxy = read('src/app/api/account-session/[...path]/route.ts')
 
-test('Telegram-first OTYA identities can add a unique primary email without replacing an existing one', () => {
+test('Telegram-first Otya identities can add a unique primary email without replacing an existing one', () => {
   assert.match(profile, /const allowed = \['email'/)
   assert.match(profile, /EMAIL_IN_USE/)
   assert.match(profile, /EMAIL_CHANGE_REQUIRES_VERIFICATION/)
@@ -16,7 +18,7 @@ test('Telegram-first OTYA identities can add a unique primary email without repl
   assert.match(profile, /getUserByEmail/)
 })
 
-test('OTYA Space exposes one sign-in-method manager for email Google and Telegram', () => {
+test('Otya Space exposes one sign-in-method manager for email Google and Telegram', () => {
   assert.match(methods, /Telegram, Google and email can all belong to one OTYA ID/)
   assert.match(methods, /accountFetch\('google\/link'/)
   assert.match(methods, /accountFetch\('account', \{ method: 'PATCH', body: JSON\.stringify\(\{ email \}\) \}\)/)
@@ -32,7 +34,9 @@ test('Google linking stays a protected account action instead of a session-creat
   assert.doesNotMatch(proxy, /\['login', 'register', 'google'\]\.includes\(first\)/)
 })
 
-test('account workspace makes sign-in methods discoverable', () => {
-  assert.match(layout, /href="\/account\/sign-in-methods"/)
-  assert.match(layout, />\s*Sign-in methods\s*</)
+test('account workspace makes sign-in methods discoverable without a duplicate layout nav', () => {
+  assert.match(layout, /<OtyaSpaceGate>\{children\}<\/OtyaSpaceGate>/)
+  assert.match(chrome, /label: 'Sign-in methods', section: 'providers', fallback: '\/account\/sign-in-methods\/'/)
+  assert.match(account, /title="Sign-in methods"/)
+  assert.match(account, /href=\{`\$\{base\}\/providers`\}/)
 })
