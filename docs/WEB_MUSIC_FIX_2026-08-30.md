@@ -1,11 +1,7 @@
-# OTYA Web Music Fix — 2026-08-30
+# Historical Web Music Fix — 2026-08-30
 
-This change fixes the current production website music experience without changing OTYA's offline-first product identity.
+> **Superseded on 2026-09-02.** This file is retained only as project history. It is not a current Otya product or security contract. The Online Music/Jamendo catalog, OAuth, status and download-proxy routes were subsequently retired. Current Music behavior is local-first; see `docs/V1_SYSTEM_CONTRACT.md`.
 
-- Website navigation now uses the canonical OTYA SVG mark.
-- `/music` uses a persistent browser audio element so play actions remain inside the user's click gesture on mobile browsers.
-- Online music is presented as a responsive artwork-first discovery grid with clear Play and Download states.
-- A sticky Now Playing bar remains accessible while scrolling.
-- Provider-authorized Jamendo downloads go through `/api/music/jamendo/download/[id]` and are returned as `audio/mpeg` with a real `.mp3` attachment filename.
-- Downloads remain disabled when Jamendo reports `audiodownload_allowed !== true`.
-- The server still uses Jamendo's server-side client ID and does not expose the client secret.
+At the time of this historical change, the website music experiment used a browser audio element, an artwork-first online discovery grid, a Now Playing bar and provider-authorized Jamendo downloads through `/api/music/jamendo/download/[id]`.
+
+Those implementation details must not be treated as active requirements and must not be restored merely to satisfy old documentation or tests.
