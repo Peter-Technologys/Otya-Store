@@ -13,16 +13,18 @@ test('public server version remains Otya 1.0.0 during first-release evolution', 
 
 test('critical deployment stack is pinned instead of floating across deploys', () => {
   assert.equal(pkg.engines.node, '>=22 <23')
-  assert.equal(pkg.dependencies.next, '15.5.24')
+  assert.equal(pkg.dependencies.next, '15.5.25')
   assert.equal(pkg.dependencies.react, '19.2.8')
   assert.equal(pkg.dependencies['react-dom'], '19.2.8')
   assert.equal(pkg.devDependencies['@opennextjs/cloudflare'], '1.20.5')
   assert.equal(pkg.devDependencies.wrangler, '4.128.0')
   assert.equal(pkg.devDependencies.typescript, '5.9.3')
+  assert.equal(pkg.devDependencies.postcss, '^8.5.25')
   assert.doesNotMatch(pkg.dependencies.next, /^16\./)
 })
 
 test('high-severity dependency audits are deployment gates', () => {
+  assert.match(securityWorkflow, /npm install --package-lock-only --ignore-scripts/)
   assert.match(securityWorkflow, /npm run audit:all/)
   assert.match(securityWorkflow, /npm audit --audit-level=high/)
   assert.match(securityWorkflow, /actions\/checkout@v6/)
