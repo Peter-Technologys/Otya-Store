@@ -3,26 +3,30 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { OtyaSpaceChrome } from '@/components/OtyaSpaceChrome'
 
+type SpaceUser = {
+  email?: string | null
+  name?: string | null
+  avatar_url?: string | null
+  otya_id?: string | null
+}
+
 type SessionState = {
   authenticated?: boolean
-  user?: { otya_id?: string | null }
+  user?: SpaceUser
 }
 
 const PUBLIC_OTYA_ID = /^2IS\d{8}$/i
 
 function sectionForLegacyPath(pathname: string, hash: string) {
   if (pathname === '/' || pathname === '/space' || pathname === '/space/') return 'overview'
-  if (pathname === '/account/sign-in-methods' || pathname === '/account/sign-in-methods/') return 'account/sign-in-methods'
-  if (pathname === '/account' || pathname === '/account/') {
-    if (hash === '#security') return 'security'
-    if (hash === '#sessions') return 'devices'
-    if (hash === '#connected') return 'providers'
-    if (hash === '#storage') return 'storage'
-    if (hash === '#activity') return 'activity'
-    if (hash === '#notifications') return 'notifications'
-    if (hash === '#settings') return 'settings'
-    return 'account'
-  }
+  if (pathname === '/account' || pathname === '/account/') return 'account'
+  if (pathname === '/account/sign-in-methods' || pathname === '/account/sign-in-methods/') return 'providers'
+  if (pathname === '/account/security' || pathname === '/account/security/' || hash === '#security') return 'security'
+  if (pathname === '/account/devices' || pathname === '/account/devices/' || hash === '#sessions') return 'devices'
+  if (pathname === '/account/storage' || pathname === '/account/storage/' || hash === '#storage') return 'storage'
+  if (pathname === '/account/activity' || pathname === '/account/activity/' || hash === '#activity') return 'activity'
+  if (pathname === '/account/notifications' || pathname === '/account/notifications/' || hash === '#notifications') return 'notifications'
+  if (pathname === '/account/settings' || pathname === '/account/settings/' || hash === '#settings') return 'settings'
   return null
 }
 
@@ -45,12 +49,12 @@ function canonicalizeSpaceLocation(publicId: string) {
 
   const section = sectionForLegacyPath(pathname, hash)
   if (!section) return false
-  window.location.replace(`/u/${canonicalId}/${section}${search}${hash}`)
+  window.location.replace(`/u/${canonicalId}/${section}${search}`)
   return true
 }
 
 export function OtyaSpaceGate({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false)
+  const [user, setUser] = useState<SpaceUser | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -67,10 +71,10 @@ export function OtyaSpaceGate({ children }: { children: ReactNode }) {
         return
       }
 
-      const publicId = session.user?.otya_id?.trim()
+      const verifiedUser = session.user ?? {}
+      const publicId = verifiedUser.otya_id?.trim()
       if (publicId && canonicalizeSpaceLocation(publicId)) return
-
-      setReady(true)
+      setUser(verifiedUser)
     }).catch(() => {
       if (!cancelled) window.location.replace('/sign-in')
     })
@@ -78,14 +82,14 @@ export function OtyaSpaceGate({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [])
 
-  if (!ready) {
-    return <div className="min-h-screen grid place-items-center" style={{ background: 'radial-gradient(circle at 30% 20%,rgba(116,80,255,.22),transparent 35%),#0b0914', color: '#f7f4ff' }}>
+  if (!user) {
+    return <div className="min-h-screen grid place-items-center" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
       <div className="text-center">
-        <div className="w-11 h-11 rounded-2xl mx-auto mb-4 animate-pulse" style={{ background: 'linear-gradient(145deg,#8269ff,#3ebcf4)' }} />
-        <p className="text-sm opacity-60">Opening OTYA Space…</p>
+        <div className="w-10 h-10 rounded-2xl mx-auto mb-4 animate-pulse" style={{ background: 'var(--cosmos-primary)' }} />
+        <p className="text-sm otya-muted">Opening Otya Space…</p>
       </div>
     </div>
   }
 
-  return <OtyaSpaceChrome>{children}</OtyaSpaceChrome>
+  return <OtyaSpaceChrome initialUser={user}>{children}</OtyaSpaceChrome>
 }
