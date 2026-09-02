@@ -10,7 +10,7 @@ test('production auth fails closed when identity schema is unavailable', () => {
   assert.match(source, /identitySchemaReady = assertSchemaReady\(env\.AUTH_DB\)\.catch/)
   assert.match(source, /identitySchemaReady = null/)
   assert.match(source, /AUTH_SCHEMA_UNAVAILABLE/)
-  assert.match(source, /OTYA Account is temporarily unavailable/)
+  assert.match(source, /Otya Account is temporarily unavailable/)
   assert.match(source, /503/)
 })
 
