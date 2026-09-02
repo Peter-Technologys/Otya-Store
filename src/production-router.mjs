@@ -39,9 +39,17 @@ function isSharedAppAssetPath(pathname) {
     || /\.(?:svg|png|webp|jpg|jpeg|gif|ico|css|js|woff2?)$/i.test(pathname)
 }
 
-function isSpaceAppPath(pathname) {
-  return pathname === '/telegram'
+function isSpaceSurfacePath(pathname) {
+  return pathname === '/space'
+    || pathname === '/space/'
+    || pathname === '/telegram'
     || pathname === '/telegram/'
+    || pathname === '/ask'
+    || pathname.startsWith('/ask/')
+    || pathname === '/account'
+    || pathname.startsWith('/account/')
+    || pathname === '/sign-in'
+    || pathname === '/sign-in/'
     || pathname.startsWith('/api/')
     || isSharedAppAssetPath(pathname)
 }
@@ -113,13 +121,18 @@ export default {
     }
 
     if (host === SPACE_HOST) {
-      if (url.pathname === '/' || url.pathname === '/account' || url.pathname === '/account/') {
+      // The canonical Space root is the signed-in product home. Account is a
+      // section inside Space, not the definition of Space itself.
+      if (url.pathname === '/' || url.pathname === '/space' || url.pathname === '/space/') {
+        return dispatchSurface(request, url, env, ctx, '/space/')
+      }
+      if (url.pathname === '/account') {
         return dispatchSurface(request, url, env, ctx, '/account/')
       }
-      if (url.pathname === '/sign-in' || url.pathname === '/sign-in/') {
+      if (url.pathname === '/sign-in') {
         return dispatchSurface(request, url, env, ctx, '/sign-in/')
       }
-      if (isSpaceAppPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
+      if (isSpaceSurfacePath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, SPACE_HOST, '/')
       return dispatchSurface(request, url, env, ctx)
     }
@@ -144,7 +157,7 @@ export default {
 
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) {
-        return redirectToHost(url, SPACE_HOST, '/')
+        return redirectToHost(url, SPACE_HOST, '/account/')
       }
       if (host === APP_HOST && (url.pathname === '/sign-in' || url.pathname === '/sign-in/')) {
         return redirectToHost(url, SPACE_HOST, '/sign-in/')
