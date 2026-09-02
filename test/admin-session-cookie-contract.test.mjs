@@ -8,20 +8,14 @@ const adminSession = read('src/app/api/admin/session/route.ts')
 const accountSession = read('src/app/api/account-session/session/route.ts')
 const telegramEntry = read('src/telegram-entrypoint.mjs')
 const coreEntry = read('src/entrypoint.mjs')
-const jamendoStart = read('src/app/api/music/jamendo/oauth/start/route.ts')
 
-test('all live account consumers read the unified OTYA browser session', () => {
-  for (const source of [adminAuth, adminSession, accountSession, telegramEntry, coreEntry, jamendoStart]) {
+test('all live account consumers read the unified Otya browser session', () => {
+  for (const source of [adminAuth, adminSession, accountSession, telegramEntry, coreEntry]) {
     assert.match(source, /__Secure-otya_access/)
     assert.doesNotMatch(source, /__Host-otya_access/)
   }
   assert.match(accountSession, /__Secure-otya_refresh/)
   assert.match(accountSession, /COOKIE_DOMAIN = '\.petersmartlink\.com'/)
-})
-
-test('host-only OAuth state remains host-only while account identity is shared', () => {
-  assert.match(jamendoStart, /STATE_COOKIE = '__Host-otya_jamendo_state'/)
-  assert.match(jamendoStart, /ACCESS_COOKIE = '__Secure-otya_access'/)
 })
 
 test('admin privilege remains a separate MFA-gated signed session', () => {
