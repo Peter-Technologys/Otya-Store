@@ -80,6 +80,8 @@ requireMatch('Next gateway id must use canonical name', next, /^AI_GATEWAY_ID\s*
 requireMatch('Next product name must be canonical', next, /^APP_NAME\s*=\s*"Next by OTYA"$/m)
 requireMatch('Next guest model remains low-cost default', next, /^AI_GUEST_MODEL\s*=\s*"llama-fast"$/m)
 requireMatch('Next physical v1 D1 name must remain unchanged during cutover', next, /^database_name\s*=\s*"otya-store-db"$/m)
+requireMatch('Next Gmail OAuth must use the verified Web client id', next, /^GMAIL_GOOGLE_CLIENT_ID\s*=\s*"82776565585-obr8k53b8n6djsggissv8qne81cm3u5u\.apps\.googleusercontent\.com"$/m)
+forbidMatch('Next Gmail OAuth must not use the Android client id', next, /^GMAIL_GOOGLE_CLIENT_ID\s*=\s*"82776565585-77b1t8epvmn3mpdvstdg1rtprlju4suv\.apps\.googleusercontent\.com"$/m)
 
 requireMatch('FCM must use HTTP v1', fcm, /https:\/\/fcm\.googleapis\.com\/v1\/projects\/\$\{projectId\}\/messages:send/)
 forbidMatch('Legacy FCM endpoint is forbidden', fcm, /fcm\.googleapis\.com\/fcm\/send/)

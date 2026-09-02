@@ -1,6 +1,6 @@
 import aiWorker from './index.mjs'
 import { handleSupportEmailAdmin } from './support-email.mjs'
-import { handleGmailConnector } from './gmail-connector.mjs'
+import { gmailStatus, handleGmailConnector, listGmailMessages } from './gmail-connector.mjs'
 import { handlePublicChat, handleSharedTelegram } from './client-chat.mjs'
 import { handlePublicChatStream } from './client-chat-stream.mjs'
 import { handleOwnerActions } from './owner-actions.mjs'
@@ -66,12 +66,10 @@ async function rows(env,sql,bindings=[]){
 }
 
 async function supportInbox(env,limit=8){
-  if(!env.RESEND_API_KEY)return[]
+  if(!(await gmailStatus(env)).connected)return[]
   try{
-    const r=await fetch(`https://api.resend.com/emails/receiving?limit=${Math.max(1,Math.min(limit,20))}`,{headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'}})
-    if(!r.ok)return[]
-    const data=await r.json()
-    return Array.isArray(data?.data)?data.data.map(x=>({from:clean(x.from,180),subject:clean(x.subject,220),created_at:x.created_at})):[]
+    const messages=await listGmailMessages(env,'to:support@petersmartlink.com in:inbox',Math.max(1,Math.min(limit,20)))
+    return messages.map(x=>({from:clean(x.from,180),subject:clean(x.subject,220),created_at:x.date,provider:'gmail'}))
   }catch{return[]}
 }
 
@@ -175,7 +173,7 @@ export default {
     if(url.pathname.startsWith('/api/admin/ai/actions/')) return handleOwnerActions(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/support/')) return handleSupportEmailAdmin(request,runtimeEnv)
     if(url.pathname.startsWith('/api/admin/ai/console/')) return handleOwnerConsole(request,runtimeEnv)
-    if(url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,runtimeEnv)
+    if(url.pathname==='/api/admin/ai/connectors/status'||url.pathname.startsWith('/api/admin/ai/connectors/gmail/')||url.pathname==='/api/ai/oauth/google/callback') return handleGmailConnector(request,runtimeEnv)
     if(url.pathname==='/api/ai/chat'){
       const streamed=await handlePublicChatStream(request,runtimeEnv)
       if(streamed)return streamed

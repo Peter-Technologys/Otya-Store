@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import ConnectionsClient from './ConnectionsClient'
 
 export const metadata: Metadata = {
   title: 'Command Center Settings · Otya',
@@ -41,6 +42,8 @@ export default function CommandCenterSettingsPage() {
           <p className="mt-2 text-sm leading-relaxed otya-muted">{text}</p>
         </section>)}
       </div>
+
+      <ConnectionsClient />
 
       <div className="mt-10 border rounded-2xl p-5 sm:p-6" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }}>
         <div className="otya-kicker mb-2">Action rule</div>

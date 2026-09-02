@@ -1,4 +1,4 @@
-import { gmailStatus } from './gmail-connector.mjs'
+import { gmailStatus, listGmailMessages } from './gmail-connector.mjs'
 import { controlPlaneStatus } from './control-plane.mjs'
 import {
   appendMessage,
@@ -10,7 +10,6 @@ import {
 } from './conversations.mjs'
 
 const DEFAULT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
-const RESEND_API = 'https://api.resend.com'
 
 const clean = (v, max = 5000) => String(v ?? '')
   .replace(/[\u0000-\u001f]/g, ' ')
@@ -59,7 +58,7 @@ async function pluginRegistry(env) {
       name: 'Resend',
       category: 'Email',
       status: env.RESEND_API_KEY ? 'connected' : 'setup_required',
-      capabilities: ['support inbox', 'personal replies', 'transactional email'],
+      capabilities: ['transactional email', 'outbound support replies', 'operational alerts'],
       write: true,
     },
     {
@@ -113,7 +112,7 @@ async function pluginRegistry(env) {
       name: 'Gmail',
       category: 'Email',
       status: gmail.connected ? 'connected' : gmail.configured ? 'ready_to_connect' : 'setup_required',
-      capabilities: ['read mailbox', 'search threads', 'read messages', 'send approved mail'],
+      capabilities: ['support inbox', 'read mailbox', 'search threads', 'read messages', 'send approved mail'],
       write: true,
       setup_hint: gmail.connected
         ? 'Connected through encrypted OAuth tokens.'
@@ -217,31 +216,16 @@ async function recentReleases(env) {
   }
 }
 
-async function resend(env, path) {
-  if (!env.RESEND_API_KEY) return null
-  try {
-    const r = await fetch(`${RESEND_API}${path}`, {
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    })
-    if (!r.ok) return null
-    return await r.json()
-  } catch {
-    return null
-  }
-}
-
 async function supportInbox(env, limit = 12) {
-  const data = await resend(env, `/emails/receiving?limit=${Math.max(1, Math.min(limit, 20))}`)
-  const rows = Array.isArray(data?.data) ? data.data : []
+  const gmail = await gmailStatus(env)
+  if (!gmail.connected) return []
+  const rows = await listGmailMessages(env, 'to:support@petersmartlink.com in:inbox', Math.max(1, Math.min(limit, 20)))
   return rows.map((x) => ({
     id: x.id,
     from: clean(x.from, 300),
     subject: clean(x.subject, 300),
-    created_at: x.created_at,
-    attachments: Array.isArray(x.attachments) ? x.attachments.length : 0,
+    created_at: x.date,
+    provider: 'gmail',
   }))
 }
 

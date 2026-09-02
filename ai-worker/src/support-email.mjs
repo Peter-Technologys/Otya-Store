@@ -1,3 +1,5 @@
+import { getGmailMessage, gmailStatus, listGmailMessages } from './gmail-connector.mjs'
+
 const RESEND_API = 'https://api.resend.com'
 const SUPPORT_FROM = 'Otya Support <support@petersmartlink.com>'
 const SUPPORT_ADDRESS = 'support@petersmartlink.com'
@@ -45,7 +47,6 @@ async function resend(env, path, init = {}) {
   return data
 }
 function extractAddress(value) { const raw=String(value??'').trim(); const bracket=raw.match(/<([^<>\s]+@[^<>\s]+)>/); const candidate=bracket?.[1]||raw; const match=candidate.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i); return match?.[0]?.toLowerCase()||'' }
-function stripHtml(html) { return clean(String(html??'').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>'),12000) }
 async function runAi(env,messages){ if(!env.AI?.run)throw new Error('AI binding unavailable'); const result=await env.AI.run(env.OTYA_AI_MODEL||DEFAULT_MODEL,{messages}); return clean(aiText(result),10000) }
 
 async function ensureAuditSchema(env) {
@@ -56,8 +57,9 @@ async function ensureAuditSchema(env) {
 }
 async function audit(env,row){try{await ensureAuditSchema(env);await env.DB.prepare(`INSERT INTO ai_support_audit (received_email_id,sender_email,subject,action,risk,draft_text,resend_email_id) VALUES (?,?,?,?,?,?,?)`).bind(row.emailId||null,row.sender||null,clean(row.subject,500)||null,clean(row.action,40),clean(row.risk,30)||null,clean(row.draft,8000)||null,row.resendId||null).run()}catch(error){console.warn('[support-email] audit failed:',error?.message)}}
 
-async function listInbox(env,url){const requested=Number.parseInt(url.searchParams.get('limit')||'20',10);const limit=Math.max(1,Math.min(Number.isFinite(requested)?requested:20,50));const data=await resend(env,`/emails/receiving?limit=${limit}`);const emails=Array.isArray(data?.data)?data.data.map((email)=>({id:email.id,from:clean(email.from,500),from_email:extractAddress(email.from),to:Array.isArray(email.to)?email.to:[],subject:clean(email.subject,500),created_at:email.created_at,message_id:clean(email.message_id,500),attachments:Array.isArray(email.attachments)?email.attachments.map((a)=>({id:a.id,filename:clean(a.filename,300),content_type:clean(a.content_type,150),size:a.size??null})):[]})):[];return json({ok:true,emails,has_more:Boolean(data?.has_more)})}
-async function getReceivedEmail(env,emailId){const data=await resend(env,`/emails/receiving/${encodeURIComponent(emailId)}`);const text=clean(data?.text,12000)||stripHtml(data?.html);return{id:data.id,from:clean(data.from,500),from_email:extractAddress(data.from),to:Array.isArray(data.to)?data.to:[],subject:clean(data.subject,500),text,created_at:data.created_at,message_id:clean(data.message_id,500),reply_to:Array.isArray(data.reply_to)?data.reply_to:[],attachments:Array.isArray(data.attachments)?data.attachments.map((a)=>({id:a.id,filename:clean(a.filename,300),content_type:clean(a.content_type,150)})):[]}}
+async function requireSupportInbox(env){const status=await gmailStatus(env);if(!status.connected)throw new Error('Connect the support Gmail account in Next settings before reading support mail')}
+async function listInbox(env,url){await requireSupportInbox(env);const requested=Number.parseInt(url.searchParams.get('limit')||'20',10);const limit=Math.max(1,Math.min(Number.isFinite(requested)?requested:20,50));const rows=await listGmailMessages(env,`to:${SUPPORT_ADDRESS} in:inbox`,limit);const emails=rows.map((email)=>({id:email.id,thread_id:email.threadId,from:email.from,from_email:extractAddress(email.from),to:[email.to].filter(Boolean),subject:email.subject,created_at:email.date,message_id:'',attachments:[]}));return json({ok:true,provider:'gmail',emails,has_more:false})}
+async function getReceivedEmail(env,emailId){await requireSupportInbox(env);const data=await getGmailMessage(env,emailId);return{id:data.id,thread_id:data.threadId,from:data.from,from_email:extractAddress(data.reply_to)||extractAddress(data.from),to:[data.to].filter(Boolean),subject:data.subject,text:clean(data.text,12000),created_at:data.date,message_id:data.message_id,reply_to:[data.reply_to].filter(Boolean),attachments:data.attachments||[]}}
 
 async function draftReply(env,email,instruction=''){
   if(!email.from_email)throw new Error('Could not determine sender email address')
