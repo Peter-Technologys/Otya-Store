@@ -12,7 +12,6 @@ const PUBLIC_OTYA_ID = /^2IS\d{8}$/i
 
 function sectionForLegacyPath(pathname: string, hash: string) {
   if (pathname === '/' || pathname === '/space' || pathname === '/space/') return 'overview'
-  if (pathname === '/account' || pathname === '/account/' || pathname === '/account/overview' || pathname === '/account/overview/') return 'account'
   if (pathname === '/account/sign-in-methods' || pathname === '/account/sign-in-methods/') return 'account/sign-in-methods'
   if (pathname === '/account/security' || pathname === '/account/security/') return 'security'
   if (pathname === '/account/devices' || pathname === '/account/devices/') return 'devices'
@@ -30,6 +29,7 @@ function sectionForLegacyPath(pathname: string, hash: string) {
     if (hash === '#settings') return 'settings'
     return 'account'
   }
+  if (pathname === '/account/overview' || pathname === '/account/overview/') return 'account'
   return null
 }
 
