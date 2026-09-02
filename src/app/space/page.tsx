@@ -17,8 +17,6 @@ type Product = { product_id?: string; status?: string }
 type AccountPayload = { user?: SpaceUser; identities?: Identity[]; products?: Product[] }
 type TwoFactor = { enabled?: boolean }
 
-type Json = Record<string, unknown>
-
 async function accountFetch(path: string) {
   return fetch(`/api/account-session/${path}`, {
     cache: 'no-store',
