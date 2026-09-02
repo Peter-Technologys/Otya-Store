@@ -67,7 +67,7 @@ function validateRecoverySnapshot(data: unknown): string | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return 'Backup data must be an object'
   const value = data as Record<string, unknown>
   if (value.schema_version !== 1 || value.payload_type !== 'otya_recovery_snapshot') {
-    return 'Unsupported OTYA backup schema'
+    return 'Unsupported Otya backup schema'
   }
   const forbidden = [
     'password', 'password_hash', 'otp', 'jwt', 'access_token', 'refresh_token',
@@ -99,10 +99,30 @@ export async function handleBackupRoute(
   env: BackupRouteEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url)
-  if (url.pathname !== '/auth/backup') return null
+  const isBackup = url.pathname === '/auth/backup'
+  const isStatus = url.pathname === '/auth/backup/status'
+  if (!isBackup && !isStatus) return null
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: headers(env) })
+  }
 
   const userId = await authenticatedUserId(request, env)
   if (!userId) return json({ error: 'Unauthorized' }, env, 401)
+
+  if (isStatus) {
+    if (request.method !== 'GET') return json({ error: 'Method not allowed' }, env, 405)
+    const [fileId, lastBackupAt] = await Promise.all([
+      env.AUTH_KV.get(`drive_file:${userId}`),
+      env.AUTH_KV.get(`drive_backup_at:${userId}`),
+    ])
+    return json({
+      ok: true,
+      has_backup: Boolean(fileId),
+      last_backup_at: lastBackupAt,
+      scope: 'recovery-metadata-only',
+    }, env)
+  }
 
   if (request.method === 'POST') {
     let body: BackupPostBody
