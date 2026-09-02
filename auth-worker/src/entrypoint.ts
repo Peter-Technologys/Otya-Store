@@ -162,6 +162,7 @@ function legalAcceptanceError(env: ResendEnv): Response {
 }
 
 interface GoogleTokenPayload {
+  sub?: string
   aud?: string
   iss?: string
   exp?: string | number
@@ -207,14 +208,26 @@ async function validateGoogleRequest(
     const issuerOk = payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com'
     const expiry = Number(payload.exp ?? 0)
     const now = Math.floor(Date.now() / 1000)
-    if (payload.aud !== env.GOOGLE_CLIENT_ID || !issuerOk || expiry <= now || !verified || !payload.email) {
+    if (payload.aud !== env.GOOGLE_CLIENT_ID || !issuerOk || expiry <= now || !verified || !payload.email || !payload.sub) {
       return { error: jsonError('Google account verification failed', 401, env) }
     }
 
     const normalizedEmail = payload.email.toLowerCase().trim()
-    const existing = await env.AUTH_DB.prepare(
+    const bySubject = await env.AUTH_DB.prepare(
+      'SELECT id FROM users WHERE google_id = ? LIMIT 1',
+    ).bind(payload.sub).first<{ id?: string }>()
+    const byEmail = await env.AUTH_DB.prepare(
       'SELECT id FROM users WHERE lower(email) = ? LIMIT 1',
     ).bind(normalizedEmail).first<{ id?: string }>()
+
+    if (bySubject?.id && byEmail?.id && bySubject.id !== byEmail.id) {
+      return { error: jsonError('This Google identity conflicts with another OTYA account.', 409, env, { code: 'GOOGLE_IDENTITY_CONFLICT' }) }
+    }
+
+    // Google `sub` is the immutable provider identity. A previously linked
+    // Google account is therefore an existing OTYA identity even when its
+    // Google email differs from the user's chosen primary OTYA email.
+    const existing = bySubject ?? byEmail
     const newUser = !existing?.id
 
     if (newUser && !hasCurrentLegalAcceptance(body)) {
