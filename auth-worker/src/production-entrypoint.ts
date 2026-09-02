@@ -3,10 +3,13 @@ import { assertSchemaReady } from './db'
 import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import { handleGoogleLink } from './google-link'
-import { deliverNewDeviceAlert, deliverRegistrationEmails } from './production-email'
+import {
+  deliverNewDeviceAlert,
+  deliverRegistrationVerification,
+  deliverVerifiedWelcome,
+} from './production-email'
 import {
   handleSecureOtpRoute,
-  hardenRegistrationVerification,
   type SecureOtpEnv,
 } from './secure-otp'
 import {
@@ -25,6 +28,10 @@ interface GoogleTokenPayload {
 type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & SecureOtpEnv & SecureAccountEnv & {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_WEB_CLIENT_ID?: string
+}
+
+type ExecutionContextLike = {
+  waitUntil(promise: Promise<unknown>): void
 }
 
 let identitySchemaReady: Promise<void> | null = null
@@ -57,6 +64,38 @@ function googleError(message: string, status: number): Response {
   return authError(message, status)
 }
 
+function scheduleNonCritical(
+  ctx: ExecutionContextLike | undefined,
+  work: Promise<unknown>,
+  label: string,
+): void {
+  const guarded = work.catch(error => {
+    console.error(`[auth/background] ${label} failed:`, (error as Error)?.message)
+  })
+  if (ctx?.waitUntil) ctx.waitUntil(guarded)
+  else void guarded
+}
+
+async function augmentJsonResponse(
+  response: Response,
+  fields: Record<string, unknown>,
+): Promise<Response> {
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) return response
+  try {
+    const data = await response.clone().json() as Record<string, unknown>
+    const headers = new Headers(response.headers)
+    headers.set('Cache-Control', 'no-store')
+    return new Response(JSON.stringify({ ...data, ...fields }), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+  } catch {
+    return response
+  }
+}
+
 async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
   try {
     if (!identitySchemaReady) {
@@ -70,7 +109,7 @@ async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null
   } catch (error) {
     console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
     return authError(
-      'OTYA Account is temporarily unavailable. Please try again shortly.',
+      'Otya Account is temporarily unavailable. Please try again shortly.',
       503,
       'AUTH_SCHEMA_UNAVAILABLE',
     )
@@ -170,7 +209,11 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
 }
 
 export default {
-  async fetch(request: Request, env: ProductionEnv): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: ProductionEnv,
+    ctx?: ExecutionContextLike,
+  ): Promise<Response> {
     const url = new URL(request.url)
 
     // Security and provider-specific wrapper routes run before storage readiness.
@@ -193,13 +236,25 @@ export default {
     if (secureAccountResponse) return secureAccountResponse
 
     const secureOtpResponse = await handleSecureOtpRoute(request, env)
-    if (secureOtpResponse) return secureOtpResponse
+    if (secureOtpResponse) {
+      if (
+        request.method === 'POST'
+        && url.pathname === '/auth/verify-email'
+        && secureOtpResponse.ok
+      ) {
+        scheduleNonCritical(
+          ctx,
+          deliverVerifiedWelcome(request, env),
+          'verified-account welcome email',
+        )
+      }
+      return secureOtpResponse
+    }
 
-    // Registration, password login and Google sign-in are the compatibility
-    // paths that create a complete identity session and depend on the legacy
-    // users schema. Fail those writes clearly if D1 schema preparation fails,
-    // while leaving token verification, MFA and provider-security responses
-    // independent of schema health.
+    // Registration, password login and Google sign-in create complete sessions
+    // and depend on the users schema. Fail those writes clearly if D1 schema
+    // preparation fails, while token verification/MFA/provider-security routes
+    // remain independent of schema readiness.
     if (createsIdentitySession(request, url)) {
       const schemaError = await ensureIdentitySchema(env)
       if (schemaError) return schemaError
@@ -217,32 +272,41 @@ export default {
         requestEnv as Parameters<typeof authWorker.fetch>[1],
       )
       if (response.ok) {
-        await deliverNewDeviceAlert(request, response, env).catch(error => {
-          console.error('[auth/email] Google new-device alert failed:', (error as Error)?.message)
-        })
+        scheduleNonCritical(
+          ctx,
+          deliverNewDeviceAlert(request, response, env),
+          'Google new-device alert',
+        )
       }
       return normalizeAccountResponse(response, env)
     }
 
     const compatibilityEnv = { ...env, EMAIL: undefined }
-    const response = await authWorker.fetch(
+    let response = await authWorker.fetch(
       request,
       compatibilityEnv as Parameters<typeof authWorker.fetch>[1],
     )
 
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
-      // Convert any compatibility OTP immediately, then replace it with the
-      // Resend-delivered HMAC code. Delivery failure removes the active code.
-      await hardenRegistrationVerification(response, env)
-      await deliverRegistrationEmails(response, env).catch(error => {
-        console.error('[auth/email] Registration delivery pipeline failed:', (error as Error)?.message)
+      let verificationSent = true
+      try {
+        await deliverRegistrationVerification(response, env)
+      } catch (error) {
+        verificationSent = false
+        console.error('[auth/email] Initial verification delivery failed:', (error as Error)?.message)
+      }
+      response = await augmentJsonResponse(response, {
+        verification_required: true,
+        verification_sent: verificationSent,
       })
     }
 
     if (request.method === 'POST' && url.pathname === '/auth/login' && response.ok) {
-      await deliverNewDeviceAlert(request, response, env).catch(error => {
-        console.error('[auth/email] Password new-device alert failed:', (error as Error)?.message)
-      })
+      scheduleNonCritical(
+        ctx,
+        deliverNewDeviceAlert(request, response, env),
+        'password new-device alert',
+      )
     }
 
     return normalizeAccountResponse(response, env)
