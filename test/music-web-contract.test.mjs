@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('website navigation uses the canonical OTYA mark', () => {
+test('website navigation uses the canonical Otya mark', () => {
   const nav = read('src/components/SiteNav.tsx')
   const mark = read('src/components/OtyaBrandMark.tsx')
   const icon = read('public/otya-icon.svg')
@@ -15,9 +15,6 @@ test('website navigation uses the canonical OTYA mark', () => {
   assert.match(mark, /otya-icon-dark\.svg/)
   assert.doesNotMatch(nav, /web-app-manifest-192x192\.png/)
 
-  // Protect OTYA's recognizable folded-O geometry. Product polish may tune
-  // rendering, contrast and spacing, but must not replace this with a generic
-  // ring/play mark. Next keeps its own separate three-ball assistant mark.
   for (const source of [icon, darkIcon]) {
     assert.match(source, /M160 98 138 117 116 146/)
     assert.match(source, /M180 142 159 147 139 157/)
@@ -29,17 +26,29 @@ test('website navigation uses the canonical OTYA mark', () => {
   }
 })
 
-test('music page keeps a persistent audio element and uses OTYA download route', () => {
+test('Music web page describes the local product and has no streaming catalog runtime', () => {
   const page = read('src/app/music/page.tsx')
-  assert.match(page, /ref=\{audioRef\}/)
-  assert.match(page, /audio\.src = track\.streamUrl/)
-  assert.match(page, /\/api\/music\/jamendo\/download\//)
+  assert.match(page, /Local-first music/)
+  assert.match(page, /No Online Music catalog/)
+  assert.match(page, /songs already on your Android device/i)
+  assert.doesNotMatch(page, /api\/music\/jamendo/i)
+  assert.doesNotMatch(page, /streamUrl|audioRef|<audio/i)
 })
 
-test('Jamendo download route forces mp3 content type and filename', () => {
-  const route = read('src/app/api/music/jamendo/download/[id]/route.ts')
-  assert.match(route, /Content-Type', 'audio\/mpeg'/)
-  assert.match(route, /Content-Disposition'/)
-  assert.match(route, /\.mp3`/)
-  assert.match(route, /audiodownload_allowed !== true/)
+test('retired Online Music provider endpoints stay physically absent', () => {
+  for (const path of [
+    'src/app/api/music/jamendo/route.ts',
+    'src/app/api/music/jamendo/status/route.ts',
+    'src/app/api/music/jamendo/download/[id]/route.ts',
+    'src/app/api/music/jamendo/oauth/start/route.ts',
+    'src/app/api/music/jamendo/oauth/callback/route.ts',
+  ]) {
+    assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, `${path} must stay removed`)
+  }
+})
+
+test('legacy Online Music documentation redirects to the current local Music page', () => {
+  const docs = read('src/app/docs/online-music/page.tsx')
+  assert.match(docs, /permanentRedirect\('\/music'\)/)
+  assert.doesNotMatch(docs, /Jamendo|streamed from the provider/i)
 })
