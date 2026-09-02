@@ -21,33 +21,22 @@ function toHex(bytes: Uint8Array): string {
 }
 
 async function verificationDigest(env: ProductionEmailEnv, userId: string, code: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(env.AUTH_JWT_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(`otya-otp:verify-email:${userId}:${code.trim().toUpperCase()}`),
-  )
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.AUTH_JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`otya-otp:verify-email:${userId}:${code.trim().toUpperCase()}`))
   return `hmac-sha256:${toHex(new Uint8Array(signature))}`
 }
 
 function userFromResponse(response: Response): Promise<{ id?: string; email?: string | null; name?: string | null } | null> {
-  return response.clone().json()
-    .then(data => {
-      if (!data || typeof data !== 'object' || Array.isArray(data)) return null
-      const user = (data as { user?: unknown }).user
-      return user && typeof user === 'object' && !Array.isArray(user)
-        ? user as { id?: string; email?: string | null; name?: string | null }
-        : null
-    })
-    .catch(() => null)
+  return response.clone().json().then(data => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    const user = (data as { user?: unknown }).user
+    return user && typeof user === 'object' && !Array.isArray(user)
+      ? user as { id?: string; email?: string | null; name?: string | null }
+      : null
+  }).catch(() => null)
 }
 
+/** Registration owns exactly one automatic email: the verification code. */
 export async function deliverRegistrationEmails(response: Response, env: ProductionEmailEnv): Promise<void> {
   if (!response.ok) return
   const user = await userFromResponse(response)
@@ -73,6 +62,7 @@ export async function deliverRegistrationEmails(response: Response, env: Product
         code,
         '',
         'This code expires in 10 minutes.',
+        'Only the newest verification code will work.',
         '',
         'If you did not create this Otya account, you can ignore this message.',
         '— The Otya Team',
@@ -81,26 +71,6 @@ export async function deliverRegistrationEmails(response: Response, env: Product
   } catch (error) {
     await env.AUTH_KV.delete(key)
     console.error('[auth/email] Registration verification delivery failed:', (error as Error)?.message)
-    return
-  }
-
-  try {
-    await sendResendEmail(env.RESEND_API_KEY, {
-      from: 'Otya <noreply@petersmartlink.com>',
-      to: [email],
-      subject: 'Welcome to Otya',
-      text: [
-        `Hi ${name},`,
-        '',
-        'Welcome to Otya. Your account is ready.',
-        '',
-        'Your local music and video remain usable without signing in; your Otya account adds connected services, security and recovery features you choose to use.',
-        '',
-        '— The Otya Team',
-      ].join('\n'),
-    })
-  } catch (error) {
-    console.error('[auth/email] Welcome email delivery failed:', (error as Error)?.message)
   }
 }
 
@@ -118,9 +88,6 @@ export async function deliverNewDeviceAlert(request: Request, response: Response
   if (!userId || !email) return
 
   const ip = clientIp(request)
-  // Keep this state separate until the obsolete env.EMAIL implementation is
-  // removed. The legacy helper updates last_login_ip even when it cannot send,
-  // which would otherwise suppress the first real Resend alert.
   const key = `resend_last_login_ip:${userId}`
   let previous: string | null = null
   try {

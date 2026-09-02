@@ -4,15 +4,8 @@ import { handleAdminMfa, type AdminMfaEnv } from './admin-mfa'
 import { handleTelegramLogin, type TelegramLoginEnv } from './telegram-login'
 import { handleGoogleLink } from './google-link'
 import { deliverNewDeviceAlert, deliverRegistrationEmails } from './production-email'
-import {
-  handleSecureOtpRoute,
-  hardenRegistrationVerification,
-  type SecureOtpEnv,
-} from './secure-otp'
-import {
-  handleSecureAccountRoute,
-  type SecureAccountEnv,
-} from './secure-account'
+import { handleSecureOtpRoute, type SecureOtpEnv } from './secure-otp'
+import { handleSecureAccountRoute, type SecureAccountEnv } from './secure-account'
 
 interface GoogleTokenPayload {
   aud?: string
@@ -32,7 +25,7 @@ let identitySchemaReady: Promise<void> | null = null
 function configuredGoogleAudiences(env: ProductionEnv): Set<string> {
   return new Set(
     [env.GOOGLE_CLIENT_ID, env.GOOGLE_WEB_CLIENT_ID]
-      .map((value) => typeof value === 'string' ? value.trim() : '')
+      .map(value => typeof value === 'string' ? value.trim() : '')
       .filter(Boolean),
   )
 }
@@ -60,7 +53,7 @@ function googleError(message: string, status: number): Response {
 async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null> {
   try {
     if (!identitySchemaReady) {
-      identitySchemaReady = assertSchemaReady(env.AUTH_DB).catch((error) => {
+      identitySchemaReady = assertSchemaReady(env.AUTH_DB).catch(error => {
         identitySchemaReady = null
         throw error
       })
@@ -69,17 +62,12 @@ async function ensureIdentitySchema(env: ProductionEnv): Promise<Response | null
     return null
   } catch (error) {
     console.error('[auth] Identity schema unavailable:', (error as Error)?.message)
-    return authError(
-      'OTYA Account is temporarily unavailable. Please try again shortly.',
-      503,
-      'AUTH_SCHEMA_UNAVAILABLE',
-    )
+    return authError('Otya Account is temporarily unavailable. Please try again shortly.', 503, 'AUTH_SCHEMA_UNAVAILABLE')
   }
 }
 
 function createsIdentitySession(request: Request, url: URL): boolean {
-  return request.method === 'POST'
-    && ['/auth/register', '/auth/login', '/auth/google'].includes(url.pathname)
+  return request.method === 'POST' && ['/auth/register', '/auth/login', '/auth/google'].includes(url.pathname)
 }
 
 async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Promise<string | Response> {
@@ -87,11 +75,8 @@ async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Pro
   if (audiences.size === 0) return googleError('Google auth not configured', 503)
 
   let body: Record<string, unknown>
-  try {
-    body = await request.clone().json() as Record<string, unknown>
-  } catch {
-    return googleError('Invalid JSON body', 400)
-  }
+  try { body = await request.clone().json() as Record<string, unknown> }
+  catch { return googleError('Invalid JSON body', 400) }
 
   const idToken = body.id_token
   if (typeof idToken !== 'string' || !idToken) return googleError('id_token is required', 400)
@@ -106,59 +91,36 @@ async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Pro
     const expiry = Number(payload.exp ?? 0)
     const now = Math.floor(Date.now() / 1000)
 
-    if (
-      !isAllowedGoogleAudience(payload.aud, env)
-      || !issuerOk
-      || !Number.isFinite(expiry)
-      || expiry <= now
-      || !verifiedEmail
-      || !payload.email
-    ) {
+    if (!isAllowedGoogleAudience(payload.aud, env) || !issuerOk || !Number.isFinite(expiry) || expiry <= now || !verifiedEmail || !payload.email) {
       return googleError('Google account verification failed', 401)
     }
-
     return payload.aud as string
   } catch {
     return googleError('Google verification service unavailable', 503)
   }
 }
 
-/**
- * Keep every production auth response on one account shape. The internal UUID
- * remains available for existing clients, but user-facing code should use the
- * immutable public `otya_id` (2IS########).
- */
 async function normalizeAccountResponse(response: Response, env: ProductionEnv): Promise<Response> {
   if (!response.ok) return response
   const contentType = response.headers.get('content-type') ?? ''
   if (!contentType.includes('application/json')) return response
 
   let data: Record<string, unknown>
-  try {
-    data = await response.clone().json() as Record<string, unknown>
-  } catch {
-    return response
-  }
+  try { data = await response.clone().json() as Record<string, unknown> }
+  catch { return response }
 
   const user = data.user
   if (!user || typeof user !== 'object' || Array.isArray(user)) return response
-
   const account = user as Record<string, unknown>
   const id = typeof account.id === 'string' ? account.id : ''
   if (!id || typeof account.otya_id === 'string') return response
 
   try {
-    const row = await env.AUTH_DB.prepare(
-      'SELECT otya_id FROM users WHERE id = ? LIMIT 1',
-    ).bind(id).first<{ otya_id?: string | null }>()
+    const row = await env.AUTH_DB.prepare('SELECT otya_id FROM users WHERE id = ? LIMIT 1').bind(id).first<{ otya_id?: string | null }>()
     if (!row?.otya_id) return response
-
     const headers = new Headers(response.headers)
     headers.set('Cache-Control', 'no-store')
-    return new Response(JSON.stringify({
-      ...data,
-      user: { ...account, otya_id: row.otya_id },
-    }), {
+    return new Response(JSON.stringify({ ...data, user: { ...account, otya_id: row.otya_id } }), {
       status: response.status,
       statusText: response.statusText,
       headers,
@@ -173,9 +135,6 @@ export default {
   async fetch(request: Request, env: ProductionEnv): Promise<Response> {
     const url = new URL(request.url)
 
-    // Security and provider-specific wrapper routes run before storage readiness.
-    // This preserves correct 401/403/configuration responses and avoids leaking
-    // D1 health to callers that are not authorized to reach identity storage.
     if (url.pathname.startsWith('/auth/admin/')) {
       const response = await handleAdminMfa(request, env)
       if (response) return response
@@ -195,11 +154,6 @@ export default {
     const secureOtpResponse = await handleSecureOtpRoute(request, env)
     if (secureOtpResponse) return secureOtpResponse
 
-    // Registration, password login and Google sign-in are the compatibility
-    // paths that create a complete identity session and depend on the legacy
-    // users schema. Fail those writes clearly if D1 schema preparation fails,
-    // while leaving token verification, MFA and provider-security responses
-    // independent of schema health.
     if (createsIdentitySession(request, url)) {
       const schemaError = await ensureIdentitySchema(env)
       if (schemaError) return schemaError
@@ -208,14 +162,8 @@ export default {
     if (request.method === 'POST' && url.pathname === '/auth/google') {
       const audience = await verifiedGoogleAudience(request, env)
       if (audience instanceof Response) return audience
-
-      // The compatibility worker still contains historical env.EMAIL code.
-      // Production deliberately suppresses that binding; Resend owns delivery.
       const requestEnv = { ...env, GOOGLE_CLIENT_ID: audience, EMAIL: undefined }
-      const response = await authWorker.fetch(
-        request,
-        requestEnv as Parameters<typeof authWorker.fetch>[1],
-      )
+      const response = await authWorker.fetch(request, requestEnv as Parameters<typeof authWorker.fetch>[1])
       if (response.ok) {
         await deliverNewDeviceAlert(request, response, env).catch(error => {
           console.error('[auth/email] Google new-device alert failed:', (error as Error)?.message)
@@ -225,17 +173,14 @@ export default {
     }
 
     const compatibilityEnv = { ...env, EMAIL: undefined }
-    const response = await authWorker.fetch(
-      request,
-      compatibilityEnv as Parameters<typeof authWorker.fetch>[1],
-    )
+    const response = await authWorker.fetch(request, compatibilityEnv as Parameters<typeof authWorker.fetch>[1])
 
     if (request.method === 'POST' && url.pathname === '/auth/register' && response.ok) {
-      // Convert any compatibility OTP immediately, then replace it with the
-      // Resend-delivered HMAC code. Delivery failure removes the active code.
-      await hardenRegistrationVerification(response, env)
+      // Production registration owns the verification code. The compatibility
+      // worker may create temporary legacy state, but no compatibility email is
+      // allowed and the Resend pipeline replaces the active code exactly once.
       await deliverRegistrationEmails(response, env).catch(error => {
-        console.error('[auth/email] Registration delivery pipeline failed:', (error as Error)?.message)
+        console.error('[auth/email] Registration verification delivery failed:', (error as Error)?.message)
       })
     }
 

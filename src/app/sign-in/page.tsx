@@ -10,7 +10,7 @@ const TERMS_VERSION = '2026-08-28'
 const PRIVACY_VERSION = '2026-08-28'
 const DEFAULT_AFTER_AUTH = 'https://space.petersmartlink.com/'
 
-type Mode = 'signin' | 'register' | 'forgot' | 'reset' | 'twofactor'
+type Mode = 'signin' | 'register' | 'verify' | 'forgot' | 'reset' | 'twofactor'
 type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
 type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
@@ -22,9 +22,7 @@ async function authFetch(path: string, init: RequestInit = {}) {
   return fetch(`${API}/${path}`, { ...init, headers, credentials: 'same-origin', cache: 'no-store' })
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
 
 function afterAuthDestination(): string {
   if (typeof window === 'undefined') return DEFAULT_AFTER_AUTH
@@ -62,7 +60,7 @@ export default function SignInPage() {
 
     const telegram = new URLSearchParams(window.location.search).get('telegram')
     if (telegram === 'signed-in') void verifySessionAndOpen()
-    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your OTYA account first, then connect Telegram from your account.')
+    else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then connect Telegram from Space.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
     else if (telegram === 'error') setError('Telegram sign-in could not be completed.')
     else if (telegram === 'cancelled') setNotice('Telegram sign-in was cancelled.')
@@ -76,12 +74,7 @@ export default function SignInPage() {
       if (cancelled || !window.google || !googleButtonRef.current) return
       googleButtonRef.current.replaceChildren()
       window.google.accounts.id.initialize({ client_id: GOOGLE_WEB_CLIENT_ID, callback: response => void completeGoogle(response), auto_select: false })
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        type: 'icon',
-        theme: 'outline',
-        size: 'large',
-        shape: 'circle',
-      })
+      window.google.accounts.id.renderButton(googleButtonRef.current, { type: 'icon', theme: 'outline', size: 'large', shape: 'circle' })
     }
     const existing = document.querySelector<HTMLScriptElement>('script[data-otya-google]')
     if (existing) {
@@ -102,14 +95,7 @@ export default function SignInPage() {
   }, [mode, terms, privacy, marketing])
 
   function switchMode(next: Mode) {
-    setMode(next)
-    setError('')
-    setNotice('')
-    setOtp('')
-    setNewPassword('')
-    setConfirmPassword('')
-    setSecondFactor('')
-    setUseRecovery(false)
+    setMode(next); setError(''); setNotice(''); setOtp(''); setNewPassword(''); setConfirmPassword(''); setSecondFactor(''); setUseRecovery(false)
   }
 
   async function verifySessionAndOpen() {
@@ -122,9 +108,9 @@ export default function SignInPage() {
           return true
         }
       }
-      if (attempt < 2) await sleep(180 * (attempt + 1))
+      if (attempt < 2) await sleep(120 * (attempt + 1))
     }
-    throw new Error('Your details were accepted, but OTYA could not open a secure session. Please try again.')
+    throw new Error('Your details were accepted, but Otya could not open a secure session. Please try again.')
   }
 
   async function completeGoogle(response: GoogleCredentialResponse) {
@@ -138,7 +124,7 @@ export default function SignInPage() {
       if (!result.ok) {
         if (result.status === 428 || data.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
           setMode('register')
-          throw new Error('This Google account is new to OTYA. Accept the Terms and Privacy Policy, then use Google again.')
+          throw new Error('This Google account is new to Otya. Accept the Terms and Privacy Policy, then use Google again.')
         }
         throw new Error(data.error || 'Google Sign-In failed.')
       }
@@ -155,10 +141,19 @@ export default function SignInPage() {
       const data = await response.json().catch(() => ({})) as Json
       if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is temporarily unavailable.')
       window.location.assign(data.authorization_url)
-    } catch (cause) {
-      setError((cause as Error).message)
-      setBusy(false)
-    }
+    } catch (cause) { setError((cause as Error).message); setBusy(false) }
+  }
+
+  async function resendVerification() {
+    if (busy) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const response = await authFetch('send-verification', { method: 'POST' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok) throw new Error(data.error || 'Could not send a new verification code.')
+      setNotice('A new verification code was sent. Only the newest code will work.')
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
   }
 
   async function submit(event: FormEvent) {
@@ -166,12 +161,21 @@ export default function SignInPage() {
     if (!email.trim()) return setError('Enter your email address.')
     if ((mode === 'signin' || mode === 'register' || mode === 'twofactor') && !password) return setError('Enter your password.')
     if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your account.')
+    if (mode === 'verify' && !otp.trim()) return setError('Enter the verification code from your email.')
     if (mode === 'twofactor' && !secondFactor.trim()) return setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
     if (mode === 'reset' && (!otp.trim() || newPassword.length < 8)) return setError('Enter the reset code and a new password of at least 8 characters.')
     if (mode === 'reset' && newPassword !== confirmPassword) return setError('The new passwords do not match.')
 
     setBusy(true); setError(''); setNotice('')
     try {
+      if (mode === 'verify') {
+        const response = await authFetch('verify-email', { method: 'POST', body: JSON.stringify({ otp: otp.trim().toUpperCase() }) })
+        const data = await response.json().catch(() => ({})) as Json
+        if (!response.ok) throw new Error(data.error || 'The verification code is invalid or expired.')
+        setOtp('')
+        await verifySessionAndOpen()
+        return
+      }
       if (mode === 'forgot') {
         const response = await authFetch('forgot-password', { method: 'POST', body: JSON.stringify({ email: email.trim() }) })
         const data = await response.json().catch(() => ({})) as Json
@@ -202,74 +206,51 @@ export default function SignInPage() {
         }
         throw new Error(data.error || (registration ? 'Account creation failed.' : 'Sign in failed.'))
       }
+      if (registration) {
+        setPassword('')
+        setOtp('')
+        setMode('verify')
+        setNotice('Account created. We sent one verification code to your email. Enter it below to finish setup.')
+        return
+      }
       await verifySessionAndOpen()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
   }
 
-  const title = mode === 'register' ? 'Create your OTYA account' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to OTYA'
-  const subtitle = mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for OTYA.' : 'Use your OTYA account.'
+  const title = mode === 'register' ? 'Create your Otya account' : mode === 'verify' ? 'Verify your email' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to Otya'
+  const subtitle = mode === 'verify' ? `Enter the 5-character code sent to ${email || 'your email'}.` : mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use your Otya account.'
 
   return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
-      <Link href="/" aria-label="OTYA home" className="inline-flex items-center gap-1.5 mb-8">
-        <OtyaBrandMark size={42} />
-        <span className="font-black text-[22px] tracking-[-.05em]">tya</span>
-      </Link>
-
+      <Link href="/" aria-label="Otya home" className="inline-flex items-center gap-1.5 mb-8"><OtyaBrandMark size={42} /><span className="font-black text-[22px] tracking-[-.05em]">tya</span></Link>
       <div className="rounded-[30px] border border-black/[.07] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] p-5 sm:p-7 shadow-[0_24px_80px_rgba(20,16,35,.09)]">
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
         <p className="mt-2 mb-6 text-sm leading-6 otya-muted">{subtitle}</p>
-
         {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
         {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
-
         <form onSubmit={submit} className="space-y-3">
           {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
-          <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset'} />
+          <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset' || mode === 'verify'} />
           {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
+          {mode === 'verify' && <Field value={otp} onChange={value => setOtp(value.toUpperCase())} placeholder="A1234" autoComplete="one-time-code" autoFocus />}
           {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
           {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/><Field value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm new password" type="password" autoComplete="new-password"/></>}
-
-          {registration && <div className="space-y-3 py-2 text-sm otya-muted">
-            <Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check>
-            <Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check>
-            <Check checked={marketing} onChange={setMarketing}>Send me optional OTYA product news.</Check>
-          </div>}
-
-          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
+          {registration && <div className="space-y-3 py-2 text-sm otya-muted"><Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check><Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check><Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check></div>}
+          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify and continue' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
         </form>
-
         <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
           {mode === 'signin' && <><button type="button" onClick={() => switchMode('register')}>Create account</button><button type="button" onClick={() => switchMode('forgot')}>Forgot password?</button></>}
           {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
+          {mode === 'verify' && <><button type="button" disabled={busy} onClick={() => void resendVerification()}>Resend code</button><button type="button" onClick={() => switchMode('signin')}>Back to sign in</button></>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>
-
-        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5">
-          <p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p>
-          <div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
-            <div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" />
-            <button type="button" onClick={()=>void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35">
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg>
-            </button>
-          </div>
-        </div>}
+        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5"><p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p><div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}><div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" /><button type="button" onClick={()=>void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg></button></div></div>}
       </div>
-
-      <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted">
-        <Link href="/terms">Terms</Link>
-        <Link href="/privacy">Privacy</Link>
-        <Link href="/help">Help</Link>
-      </div>
+      <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted"><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/help">Help</Link></div>
     </section>
   </main>
 }
 
-function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value:string; onChange:(value:string)=>void; placeholder:string; type?:string; autoComplete?:string; disabled?:boolean; autoFocus?:boolean }) {
-  return <input value={value} onChange={e=>onChange(e.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" />
-}
-
-function Check({ checked,onChange,children }:{ checked:boolean; onChange:(value:boolean)=>void; children:React.ReactNode }) {
-  return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label>
-}
+function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value:string; onChange:(value:string)=>void; placeholder:string; type?:string; autoComplete?:string; disabled?:boolean; autoFocus?:boolean }) { return <input value={value} onChange={e=>onChange(e.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" /> }
+function Check({ checked,onChange,children }:{ checked:boolean; onChange:(value:boolean)=>void; children:React.ReactNode }) { return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label> }

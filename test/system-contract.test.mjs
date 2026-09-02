@@ -74,6 +74,7 @@ test('Admin Telegram step-up preserves the existing normal browser session', () 
 test('Production account OTPs are purpose-bound, protected at rest, and single-use', () => {
   const source = read('auth-worker/src/secure-otp.ts')
   const entry = read('auth-worker/src/production-entrypoint.ts')
+  const email = read('auth-worker/src/production-email.ts')
 
   assert.match(source, /HMAC/)
   assert.match(source, /hmac-sha256:/)
@@ -83,7 +84,11 @@ test('Production account OTPs are purpose-bound, protected at rest, and single-u
   assert.match(source, /delete\(`verify_otp:\$\{user\.id\}`\)/)
   assert.match(source, /revokeRefreshTokens\(env, user\.id\)/)
   assert.match(entry, /handleSecureOtpRoute\(request, env\)/)
-  assert.match(entry, /hardenRegistrationVerification\(response, env\)/)
+  assert.match(entry, /deliverRegistrationEmails\(response, env\)/)
+  assert.doesNotMatch(entry, /hardenRegistrationVerification/)
+  assert.match(email, /Registration owns exactly one automatic email/)
+  assert.match(email, /Only the newest verification code will work/)
+  assert.doesNotMatch(email, /subject: 'Welcome to Otya'/)
 })
 
 test('Otya one-time codes and public IDs use unbiased random allocation', () => {
