@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 
 const space = readFileSync(new URL('../src/app/space/page.tsx', import.meta.url), 'utf8')
 const gate = readFileSync(new URL('../src/components/OtyaSpaceGate.tsx', import.meta.url), 'utf8')
@@ -14,7 +14,8 @@ test('Space is a signed-in product home, not an alias for Account', () => {
   assert.ok(space.includes('Manage account'))
   assert.ok(space.includes('Open Next'))
   assert.ok(space.includes('Playlist recovery'))
-  assert.ok(accountLayout.includes('Space home'))
+  assert.ok(accountLayout.includes('OtyaSpaceGate'))
+  assert.ok(!accountLayout.includes('Space home'))
 })
 
 test('normal Space access never forces an administrator into admin mode', () => {
@@ -24,13 +25,23 @@ test('normal Space access never forces an administrator into admin mode', () => 
   assert.ok(chrome.includes("href: 'https://petersmartlink.com/admin'"))
 })
 
-test('Space navigation exposes real sections and canonical subdomains', () => {
+test('Space navigation exposes separate console sections and canonical subdomains', () => {
   assert.ok(chrome.includes("label: 'Space home', href: '/'"))
+  assert.ok(chrome.includes("href: '/account/overview/'"))
   assert.ok(chrome.includes("href: '/account/sign-in-methods/'"))
+  assert.ok(chrome.includes("href: '/account/security/'"))
+  assert.ok(chrome.includes("href: '/account/devices/'"))
+  assert.ok(chrome.includes("href: '/account/activity/'"))
+  assert.ok(chrome.includes("href: '/account/notifications/'"))
+  assert.ok(chrome.includes("href: '/account/settings/'"))
   assert.ok(chrome.includes("href: '/ask'"))
   assert.ok(chrome.includes("href: '/telegram/'"))
   assert.ok(chrome.includes('https://docs.petersmartlink.com'))
   assert.ok(!chrome.includes('href="/help"'))
+
+  for (const route of ['overview', 'security', 'devices', 'storage', 'activity', 'notifications', 'settings']) {
+    assert.ok(existsSync(new URL(`../src/app/account/${route}/page.tsx`, import.meta.url)), `missing dedicated ${route} page`)
+  }
 })
 
 test('Space does not claim unsupported media cloud synchronization', () => {

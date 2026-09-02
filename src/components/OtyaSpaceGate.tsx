@@ -1,11 +1,11 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
-import { OtyaSpaceChrome } from '@/components/OtyaSpaceChrome'
+import { OtyaSpaceChrome, type SpaceUser } from '@/components/OtyaSpaceChrome'
 
 type SessionState = {
   authenticated?: boolean
-  user?: { otya_id?: string | null }
+  user?: SpaceUser
 }
 
 const PUBLIC_OTYA_ID = /^2IS\d{8}$/i
@@ -13,6 +13,12 @@ const PUBLIC_OTYA_ID = /^2IS\d{8}$/i
 function sectionForLegacyPath(pathname: string, hash: string) {
   if (pathname === '/' || pathname === '/space' || pathname === '/space/') return 'overview'
   if (pathname === '/account/sign-in-methods' || pathname === '/account/sign-in-methods/') return 'account/sign-in-methods'
+  if (pathname === '/account/security' || pathname === '/account/security/') return 'security'
+  if (pathname === '/account/devices' || pathname === '/account/devices/') return 'devices'
+  if (pathname === '/account/storage' || pathname === '/account/storage/') return 'storage'
+  if (pathname === '/account/activity' || pathname === '/account/activity/') return 'activity'
+  if (pathname === '/account/notifications' || pathname === '/account/notifications/') return 'notifications'
+  if (pathname === '/account/settings' || pathname === '/account/settings/') return 'settings'
   if (pathname === '/account' || pathname === '/account/') {
     if (hash === '#security') return 'security'
     if (hash === '#sessions') return 'devices'
@@ -23,6 +29,7 @@ function sectionForLegacyPath(pathname: string, hash: string) {
     if (hash === '#settings') return 'settings'
     return 'account'
   }
+  if (pathname === '/account/overview' || pathname === '/account/overview/') return 'account'
   return null
 }
 
@@ -50,7 +57,7 @@ function canonicalizeSpaceLocation(publicId: string) {
 }
 
 export function OtyaSpaceGate({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false)
+  const [user, setUser] = useState<SpaceUser | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -62,15 +69,15 @@ export function OtyaSpaceGate({ children }: { children: ReactNode }) {
     }).then(async response => {
       const session = await response.json().catch(() => ({})) as SessionState
       if (cancelled) return
-      if (!response.ok || session.authenticated !== true) {
+      if (!response.ok || session.authenticated !== true || !session.user) {
         window.location.replace('/sign-in')
         return
       }
 
-      const publicId = session.user?.otya_id?.trim()
+      const publicId = session.user.otya_id?.trim()
       if (publicId && canonicalizeSpaceLocation(publicId)) return
 
-      setReady(true)
+      setUser(session.user)
     }).catch(() => {
       if (!cancelled) window.location.replace('/sign-in')
     })
@@ -78,14 +85,22 @@ export function OtyaSpaceGate({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [])
 
-  if (!ready) {
-    return <div className="min-h-screen grid place-items-center" style={{ background: 'radial-gradient(circle at 30% 20%,rgba(116,80,255,.22),transparent 35%),#0b0914', color: '#f7f4ff' }}>
-      <div className="text-center">
-        <div className="w-11 h-11 rounded-2xl mx-auto mb-4 animate-pulse" style={{ background: 'linear-gradient(145deg,#8269ff,#3ebcf4)' }} />
-        <p className="text-sm opacity-60">Opening OTYA Space…</p>
+  if (!user) {
+    return <div className="min-h-screen" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
+      <div className="h-16 border-b animate-pulse" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-surface)' }} />
+      <div className="lg:grid lg:grid-cols-[270px_minmax(0,1fr)]">
+        <div className="hidden lg:block min-h-[calc(100vh-64px)] border-r" style={{ borderColor: 'var(--cosmos-divider)' }} />
+        <div className="px-4 sm:px-7 lg:px-10 py-8 max-w-[1100px]">
+          <div className="h-5 w-28 rounded-lg animate-pulse" style={{ background: 'var(--cosmos-card)' }} />
+          <div className="mt-3 h-10 w-64 max-w-full rounded-xl animate-pulse" style={{ background: 'var(--cosmos-card)' }} />
+          <div className="mt-7 grid md:grid-cols-2 gap-4">
+            <div className="h-40 rounded-[22px] animate-pulse" style={{ background: 'var(--cosmos-card)' }} />
+            <div className="h-40 rounded-[22px] animate-pulse" style={{ background: 'var(--cosmos-card)' }} />
+          </div>
+        </div>
       </div>
     </div>
   }
 
-  return <OtyaSpaceChrome>{children}</OtyaSpaceChrome>
+  return <OtyaSpaceChrome user={user}>{children}</OtyaSpaceChrome>
 }

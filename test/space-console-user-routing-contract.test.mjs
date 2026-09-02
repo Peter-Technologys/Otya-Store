@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const router = readFileSync(new URL('../src/production-router.mjs', import.meta.url), 'utf8')
 const gate = readFileSync(new URL('../src/components/OtyaSpaceGate.tsx', import.meta.url), 'utf8')
+const chrome = readFileSync(new URL('../src/components/OtyaSpaceChrome.tsx', import.meta.url), 'utf8')
 const db = readFileSync(new URL('../auth-worker/src/db.ts', import.meta.url), 'utf8')
 
 test('OTYA exposes a public account ID that is separate from the private users.id primary key', () => {
@@ -11,21 +12,36 @@ test('OTYA exposes a public account ID that is separate from the private users.i
   assert.match(db, /users\.id remains the private\/internal primary key/)
 })
 
-test('Space accepts console-style user scoped paths without exposing private identity fields', () => {
+test('Space accepts console-style user scoped paths and gives major sections dedicated pages', () => {
   assert.match(router, /function matchSpaceConsoleRoute\(pathname\)/)
   assert.match(router, /\^2IS\\d\{8\}\$/)
   assert.match(router, /section === 'overview'/)
   assert.match(router, /section === 'account\/sign-in-methods'/)
-  assert.match(router, /accountSections = new Set/)
+  assert.match(router, /section === 'security'[\s\S]*target: '\/account\/security\/'/)
+  assert.match(router, /section === 'devices'[\s\S]*target: '\/account\/devices\/'/)
+  assert.match(router, /section === 'storage'[\s\S]*target: '\/account\/storage\/'/)
+  assert.match(router, /section === 'activity'[\s\S]*target: '\/account\/activity\/'/)
+  assert.match(router, /section === 'notifications'[\s\S]*target: '\/account\/notifications\/'/)
+  assert.match(router, /section === 'settings'[\s\S]*target: '\/account\/settings\/'/)
   assert.doesNotMatch(router, /email.*pathname|pathname.*email/i)
   assert.doesNotMatch(router, /token.*pathname|pathname.*token/i)
 })
 
 test('signed-in Space canonicalizes legacy paths and rejects a mismatched public ID cosmetically', () => {
-  assert.match(gate, /session\.user\?\.otya_id/)
+  assert.match(gate, /session\.user\.otya_id/)
   assert.match(gate, /window\.location\.replace\(`\/u\/\$\{canonicalId\}\/\$\{section\}/)
   assert.match(gate, /routeId !== canonicalId/)
   assert.match(gate, /pathname === '\/account'/)
   assert.match(gate, /hash === '#security'/)
   assert.match(gate, /hash === '#sessions'/)
+})
+
+test('Space chrome reuses the gate session and links directly to public-ID sections', () => {
+  assert.doesNotMatch(chrome, /fetch\('\/api\/account-session\/session'/)
+  assert.match(chrome, /export function OtyaSpaceChrome\(\{ children, user \}/)
+  assert.match(chrome, /function publicHref/)
+  assert.match(chrome, /section: 'security'/)
+  assert.match(chrome, /section: 'devices'/)
+  assert.match(chrome, /section: 'notifications'/)
+  assert.match(chrome, /section: 'settings'/)
 })

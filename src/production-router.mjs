@@ -65,21 +65,18 @@ function matchSpaceConsoleRoute(pathname) {
   const section = parts.slice(2).join('/') || 'overview'
 
   if (section === 'overview') return { publicId, section, target: '/space/' }
+  if (section === 'account') return { publicId, section, target: '/account/overview/' }
   if (section === 'account/sign-in-methods') return { publicId, section, target: '/account/sign-in-methods/' }
+  if (section === 'security') return { publicId, section, target: '/account/security/' }
+  if (section === 'devices') return { publicId, section, target: '/account/devices/' }
+  if (section === 'providers') return { publicId, section, target: '/account/sign-in-methods/' }
+  if (section === 'storage') return { publicId, section, target: '/account/storage/' }
+  if (section === 'activity') return { publicId, section, target: '/account/activity/' }
+  if (section === 'notifications') return { publicId, section, target: '/account/notifications/' }
+  if (section === 'settings') return { publicId, section, target: '/account/settings/' }
   if (section === 'next') return { publicId, section, target: '/ask/' }
   if (section === 'telegram') return { publicId, section, target: '/telegram/' }
 
-  const accountSections = new Set([
-    'account',
-    'security',
-    'devices',
-    'providers',
-    'storage',
-    'activity',
-    'notifications',
-    'settings',
-  ])
-  if (accountSections.has(section)) return { publicId, section, target: '/account/' }
   return { publicId, section: 'overview', target: '/space/', unknown: true }
 }
 
@@ -150,9 +147,6 @@ export default {
     }
 
     if (host === SPACE_HOST) {
-      // Console-style user-scoped paths remain visible in the browser while the
-      // current Next routes are reused internally. The signed-in Space gate
-      // verifies that the public ID in the path belongs to the active session.
       const consoleRoute = matchSpaceConsoleRoute(url.pathname)
       if (consoleRoute) {
         if (consoleRoute.unknown && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -161,13 +155,13 @@ export default {
         return dispatchSurface(request, url, env, ctx, consoleRoute.target)
       }
 
-      // Legacy clean paths remain compatibility entry points. Once authenticated,
-      // OtyaSpaceGate canonicalizes them to /u/<public OTYA ID>/<section>.
+      // Legacy clean paths remain compatibility entry points. Signed-in users
+      // are canonicalized to /u/<public OTYA ID>/<section> by OtyaSpaceGate.
       if (url.pathname === '/' || url.pathname === '/space' || url.pathname === '/space/') {
         return dispatchSurface(request, url, env, ctx, '/space/')
       }
       if (url.pathname === '/account') {
-        return dispatchSurface(request, url, env, ctx, '/account/')
+        return dispatchSurface(request, url, env, ctx, '/account/overview/')
       }
       if (url.pathname === '/sign-in') {
         return dispatchSurface(request, url, env, ctx, '/sign-in/')
