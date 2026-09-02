@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const read = path => readFileSync(path, 'utf8')
 
-test('public OTYA surfaces and Android download naming stay simple', () => {
+test('public Otya surfaces and Android download naming stay simple', () => {
   const apkRoute = read('src/app/apk/[file]/route.ts')
   const legacyDownload = read('src/app/download/otya-player/page.tsx')
   const canonicalDownload = read('src/app/download/otya/page.tsx')
@@ -19,7 +19,7 @@ test('public OTYA surfaces and Android download naming stay simple', () => {
   assert.match(canonicalDownload, /canonical: 'https:\/\/petersmartlink\.com\/download\/otya'/)
 
   assert.match(spaceShell, /label: 'Next'/)
-  assert.match(spaceShell, />OTYA<\/div><div className="text-\[11px\] otya-muted">Space<\/div>/)
-  assert.match(spaceShell, /aria-label="OTYA Space home"/)
+  assert.match(spaceShell, />Otya<\/div><div className="text-\[11px\] otya-muted">Space<\/div>/)
+  assert.match(spaceShell, /aria-label="Otya Space home"/)
   assert.doesNotMatch(spaceShell, /Otya AI/)
 })
