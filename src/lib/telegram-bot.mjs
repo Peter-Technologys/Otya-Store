@@ -98,7 +98,11 @@ function splitTelegramText(text) {
 
 async function askNext(text, env) {
   if (!env.AI_SUPPORT?.fetch) throw new Error('Next service unavailable')
-  const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json', 'X-OTYA-Channel': 'telegram' })
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'X-OTYA-Channel': 'telegram',
+  })
   if (env.INTERNAL_SECRET) headers.set('X-OTYA-Internal-Secret', env.INTERNAL_SECRET)
   const response = await env.AI_SUPPORT.fetch(new Request('https://internal/api/ai/chat', {
     method: 'POST',
@@ -114,25 +118,29 @@ async function askNext(text, env) {
 
 function commandReply(text) {
   if (text === '/start' || text.startsWith('/start ')) return {
-    text: 'Welcome to Next by OTYA. Ask a question, search music, or open OTYA.',
-    reply_markup: { inline_keyboard: [[{ text: 'Open OTYA', web_app: { url: MINI_APP_URL } }]] },
+    text: 'Welcome to Next by Otya. Ask a question or open Otya Space.',
+    reply_markup: { inline_keyboard: [[{ text: 'Open Otya', web_app: { url: MINI_APP_URL } }]] },
   }
-  if (text === '/help') return { text: 'Ask Next anything, use /music <query>, /account for OTYA Account, /updates for release status, or /privacy for privacy information.' }
-  if (text === '/account') return { text: `Open your OTYA Account: ${MINI_APP_URL}` }
-  if (text === '/privacy') return { text: 'OTYA Privacy: https://petersmartlink.com/privacy' }
+  if (text === '/help') return {
+    text: 'Ask Next anything, use /account for your Otya Account, /updates for release status, or /privacy for privacy information. Music playback and library search are local to the Android app.',
+  }
+  if (text === '/account') return { text: `Open your Otya Account: ${MINI_APP_URL}` }
+  if (text === '/privacy') return { text: 'Otya Privacy: https://petersmartlink.com/privacy' }
+  if (text === '/music' || text.startsWith('/music ')) return {
+    text: 'Otya Music is local-first. Open the Android app to search and play music already on your device; the built-in Online Music catalog has been retired.',
+  }
   return null
 }
 
-async function dynamicCommandReply(text, env) {
-  if (text.startsWith('/music ')) return askNext(`Search OTYA music for: ${text.slice(7).trim()}`, env)
+async function dynamicCommandReply(text) {
   if (text === '/updates') {
     const response = await fetch('https://petersmartlink.com/api/bootstrap', { headers: { Accept: 'application/json' } })
-    if (!response.ok) return 'OTYA update information is temporarily unavailable.'
+    if (!response.ok) return 'Otya update information is temporarily unavailable.'
     const data = await response.json().catch(() => ({}))
     const release = data?.release ?? data?.latest ?? data
-    if (release?.published === false) return 'There is no public OTYA release yet.'
+    if (release?.published === false) return 'There is no public Otya release yet.'
     const version = clean(release?.version ?? release?.versionName, 80)
-    return version ? `Current public OTYA release: ${version}.` : 'OTYA update information is available in the Mini App.'
+    return version ? `Current public Otya release: ${version}.` : 'Otya update information is available in the Mini App.'
   }
   return null
 }
@@ -153,7 +161,7 @@ async function processPrivateMessage(message, env) {
   if (!chatId || !text) return
   let reply = commandReply(text)
   if (!reply) {
-    const dynamic = await dynamicCommandReply(text, env)
+    const dynamic = await dynamicCommandReply(text)
     if (dynamic) reply = { text: dynamic }
   }
   if (!reply) {
@@ -162,7 +170,12 @@ async function processPrivateMessage(message, env) {
   }
   const chunks = splitTelegramText(reply.text)
   for (let i = 0; i < chunks.length; i++) {
-    await sendTelegramMessage(chatId, chunks[i], env, i === 0 && reply.reply_markup ? { reply_markup: reply.reply_markup } : {})
+    await sendTelegramMessage(
+      chatId,
+      chunks[i],
+      env,
+      i === 0 && reply.reply_markup ? { reply_markup: reply.reply_markup } : {},
+    )
   }
 }
 
@@ -209,7 +222,12 @@ export async function handleTelegramAdmin(request, env, action) {
     }
     if (request.method === 'GET') {
       const info = await getTelegramWebhookInfo(env)
-      return json({ ok: true, url: info?.url ?? '', pending_update_count: Number(info?.pending_update_count ?? 0), last_error_date: info?.last_error_date ?? null })
+      return json({
+        ok: true,
+        url: info?.url ?? '',
+        pending_update_count: Number(info?.pending_update_count ?? 0),
+        last_error_date: info?.last_error_date ?? null,
+      })
     }
     return json({ error: 'Method not allowed' }, 405)
   }
