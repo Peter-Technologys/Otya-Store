@@ -34,9 +34,14 @@ export async function GET(req: NextRequest) {
   if (auth.error) return auth.error
 
   const db = getDB(env as Record<string, unknown>)
-  const { results } = await db.prepare(
-    'SELECT * FROM eq_presets WHERE user_id = ? ORDER BY is_default DESC, created_at DESC'
-  ).bind(auth.userId!).all<{
+  const { results } = await db.prepare(`
+    SELECT id, user_id,
+           COALESCE(NULLIF(preset_name, ''), name) AS preset_name,
+           bands, is_default, created_at
+    FROM eq_presets
+    WHERE user_id = ?
+    ORDER BY is_default DESC, created_at DESC
+  `).bind(auth.userId!).all<{
     id: string; user_id: string; preset_name: string; bands: string; is_default: number; created_at: string
   }>()
 
@@ -80,14 +85,19 @@ export async function POST(req: NextRequest) {
       .run()
   }
 
+  // July 2026 production tables used `name TEXT NOT NULL`; the current public
+  // API uses `preset_name`. During the additive compatibility window write both
+  // columns so preserved databases remain valid without a destructive rebuild.
   await db.prepare(`
-    INSERT INTO eq_presets (id, user_id, preset_name, bands, is_default, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO eq_presets (id, user_id, name, preset_name, bands, is_default, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
+      name        = excluded.name,
       preset_name = excluded.preset_name,
       bands       = excluded.bands,
-      is_default  = excluded.is_default
-  `).bind(id, auth.userId!, presetName, JSON.stringify(bands), isDefault, now).run()
+      is_default  = excluded.is_default,
+      updated_at  = excluded.updated_at
+  `).bind(id, auth.userId!, presetName, presetName, JSON.stringify(bands), isDefault, now, now).run()
 
   return secureJson({ ok: true, ts: Date.now() })
 }
