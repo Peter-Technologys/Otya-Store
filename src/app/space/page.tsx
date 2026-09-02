@@ -2,20 +2,12 @@
 
 import Link from 'next/link'
 import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { SpaceCard, SpaceMessage, SpacePage } from '@/components/SpaceSectionUi'
+import { getSpaceSession, type SpaceSession, type SpaceUser } from '@/lib/space-session'
 
-type SpaceUser = {
-  id?: string
-  otya_id?: string | null
-  email?: string | null
-  name?: string | null
-  is_verified?: boolean | number
-}
-
-type Identity = { provider: string; provider_username?: string | null }
-type Session = { id: string; last_used_at: string }
-type Product = { product_id?: string; status?: string }
-type AccountPayload = { user?: SpaceUser; identities?: Identity[]; products?: Product[] }
+type Session = { id: string; last_used_at?: string }
 type TwoFactor = { enabled?: boolean }
+type BackupStatus = { has_backup?: boolean; last_backup_at?: string | null }
 
 async function accountFetch(path: string) {
   return fetch(`/api/account-session/${path}`, {
@@ -26,157 +18,132 @@ async function accountFetch(path: string) {
 }
 
 export default function SpaceHomePage() {
-  const [user, setUser] = useState<SpaceUser | null>(null)
-  const [identities, setIdentities] = useState<Identity[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [session, setSession] = useState<SpaceSession | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [twoFactor, setTwoFactor] = useState<TwoFactor>({})
-  const [loading, setLoading] = useState(true)
+  const [backup, setBackup] = useState<BackupStatus>({})
+  const [loadingExtras, setLoadingExtras] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
+    void getSpaceSession().then(value => {
+      if (!cancelled) setSession(value)
+    }).catch(() => {
+      if (!cancelled) setError('Otya Space could not load your account summary. Your account has not been changed.')
+    })
 
     void Promise.all([
-      accountFetch('account'),
       accountFetch('sessions').catch(() => null),
       accountFetch('2fa/status').catch(() => null),
-    ]).then(async ([accountResponse, sessionsResponse, twoFactorResponse]) => {
-      if (!accountResponse.ok) throw new Error('account')
-      const account = await accountResponse.json().catch(() => ({})) as AccountPayload
+      accountFetch('backup?status=1').catch(() => null),
+    ]).then(async ([sessionsResponse, twoFactorResponse, backupResponse]) => {
       const sessionData = sessionsResponse?.ok
         ? await sessionsResponse.json().catch(() => ({})) as { sessions?: Session[] }
         : {}
       const twoFactorData = twoFactorResponse?.ok
         ? await twoFactorResponse.json().catch(() => ({})) as TwoFactor
         : {}
+      const backupData = backupResponse?.ok
+        ? await backupResponse.json().catch(() => ({})) as BackupStatus
+        : {}
       if (cancelled) return
-      setUser(account.user ?? null)
-      setIdentities(Array.isArray(account.identities) ? account.identities : [])
-      setProducts(Array.isArray(account.products) ? account.products : [])
       setSessions(Array.isArray(sessionData.sessions) ? sessionData.sessions : [])
       setTwoFactor(twoFactorData)
-    }).catch(() => {
-      if (!cancelled) setError('OTYA Space could not load your account summary. Your account has not been changed.')
+      setBackup(backupData)
     }).finally(() => {
-      if (!cancelled) setLoading(false)
+      if (!cancelled) setLoadingExtras(false)
     })
 
     return () => { cancelled = true }
   }, [])
 
+  const user = session?.user as SpaceUser | undefined
+  const identities = Array.isArray(session?.identities) ? session!.identities! : []
+  const products = Array.isArray(session?.products) ? session!.products! : []
   const google = identities.find(identity => identity.provider === 'google')
   const telegram = identities.find(identity => identity.provider === 'telegram')
   const connectedCount = [Boolean(user?.email), Boolean(google), Boolean(telegram)].filter(Boolean).length
-  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || user?.otya_id || 'OTYA user'
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || user?.otya_id || 'Otya user'
   const lastActivity = useMemo(() => sessions[0]?.last_used_at ? formatDate(sessions[0].last_used_at) : 'No recent session activity', [sessions])
 
-  return <main className="px-4 sm:px-7 lg:px-10 py-7 sm:py-9 max-w-[1240px]">
-    <section className="relative overflow-hidden rounded-[28px] border p-6 sm:p-8 lg:p-10" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(135deg,color-mix(in srgb,var(--cosmos-primary) 13%,var(--cosmos-card)),var(--cosmos-card) 58%)' }}>
+  return <SpacePage title={`Welcome, ${displayName}`} subtitle="Your signed-in Otya environment. Each major area opens as its own console page while sharing one Otya ID and one secure session.">
+    {error && <SpaceMessage kind="error">{error}</SpaceMessage>}
+
+    <section className="relative overflow-hidden rounded-[28px] border p-6 sm:p-8 mb-6" style={{ borderColor: 'var(--cosmos-divider)', background: 'linear-gradient(135deg,color-mix(in srgb,var(--cosmos-primary) 13%,var(--cosmos-card)),var(--cosmos-card) 58%)' }}>
       <div className="max-w-3xl">
-        <div className="text-[11px] font-black uppercase tracking-[.18em] otya-muted">OTYA Space</div>
-        <h1 className="mt-3 text-3xl sm:text-5xl font-black tracking-[-.05em]">Welcome, {displayName}</h1>
-        <p className="mt-4 text-sm sm:text-base leading-7 otya-muted">Your signed-in OTYA environment. One OTYA ID connects your app account, email, Google, Telegram, security and supported recovery services.</p>
-        {user?.otya_id && <div className="mt-4 inline-flex rounded-xl border px-3 py-2 font-mono text-xs font-bold" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>OTYA ID · {user.otya_id}</div>}
-        <div className="mt-6 flex flex-wrap gap-2">
-          <PrimaryLink href="/account/">Manage account</PrimaryLink>
-          <QuietLink href="/account/sign-in-methods/">Sign-in methods</QuietLink>
-          <QuietLink href="/ask">Open Next</QuietLink>
-          <QuietLink href="/telegram/">Telegram</QuietLink>
-        </div>
+        <div className="text-[11px] font-black uppercase tracking-[.18em] otya-muted">Otya Space · v1.0.0</div>
+        <h2 className="mt-3 text-2xl sm:text-4xl font-black tracking-[-.045em]">One account. Separate areas. Less waiting.</h2>
+        <p className="mt-3 text-sm sm:text-base leading-7 otya-muted">Account, Security, Devices, Activity, Storage, Notifications and Preferences now have their own pages instead of competing on one long screen.</p>
+        {user?.otya_id && <div className="mt-4 inline-flex rounded-xl border px-3 py-2 font-mono text-xs font-bold" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>Otya ID · {user.otya_id}</div>}
       </div>
     </section>
 
-    {error && <div className="mt-5 rounded-2xl border border-red-500/25 px-4 py-3 text-sm text-red-700 dark:text-red-200">{error}</div>}
+    <section className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <DashboardLink href="/account/" title="Account" eyebrow="Identity" detail={user?.email || user?.otya_id || 'Your Otya account'}>
+        Manage your name, recovery email and public Otya identity details.
+      </DashboardLink>
 
-    <section className="mt-7 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <SpaceCard title="Account & security" eyebrow="Identity" action={<Link href="/account/" className="text-xs font-black otya-muted">Open</Link>}>
-        {loading ? <LoadingLine /> : <>
-          <StatusRow label="Primary email" value={!user?.email ? 'Not added' : user.is_verified ? 'Verified' : 'Needs verification'} />
-          <StatusRow label="Two-step verification" value={twoFactor.enabled ? 'On' : 'Off'} />
-          <StatusRow label="Active sessions" value={String(sessions.length)} />
-        </>}
-      </SpaceCard>
+      <DashboardLink href="/account/security/" title="Security" eyebrow="Protection" detail={loadingExtras ? 'Checking…' : twoFactor.enabled ? 'Two-step verification on' : 'Review security'}>
+        Email verification, authenticator setup and recovery codes.
+      </DashboardLink>
 
-      <SpaceCard title="Sign-in methods" eyebrow="One OTYA ID" action={<Link href="/account/sign-in-methods/" className="text-xs font-black otya-muted">Manage</Link>}>
-        {loading ? <LoadingLine /> : <>
-          <div className="text-4xl font-black">{connectedCount}</div>
-          <p className="mt-1 text-sm otya-muted">connected way{connectedCount === 1 ? '' : 's'} to access this same account</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-            <Badge on={Boolean(user?.email)}>Email</Badge><Badge on={Boolean(google)}>Google</Badge><Badge on={Boolean(telegram)}>Telegram</Badge>
-          </div>
-        </>}
-      </SpaceCard>
+      <DashboardLink href="/account/devices/" title="Devices & sessions" eyebrow="Access" detail={loadingExtras ? 'Checking…' : `${sessions.length} active session${sessions.length === 1 ? '' : 's'}`}>
+        Review and revoke recorded sign-ins from browsers and devices.
+      </DashboardLink>
 
-      <SpaceCard title="Devices & activity" eyebrow="Sessions" action={<Link href="/account#sessions" className="text-xs font-black otya-muted">Review</Link>}>
-        <div className="text-sm font-bold">{lastActivity}</div>
-        <p className="mt-2 text-sm otya-muted">Review recorded sign-ins and revoke sessions you no longer trust.</p>
-      </SpaceCard>
+      <DashboardLink href="/account/sign-in-methods/" title="Sign-in methods" eyebrow="One Otya ID" detail={`${connectedCount} connected method${connectedCount === 1 ? '' : 's'}`}>
+        Email, Google and Telegram can all belong to this same account.
+      </DashboardLink>
 
-      <SpaceCard title="Playlist recovery" eyebrow="Google Drive" action={<Link href="/account/" className="text-xs font-black otya-muted">Account</Link>}>
-        <div className="text-lg font-black">Available in the Android app</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">OTYA can back up playlist names and saved media references to your private Google Drive app folder. Media files and Private files stay on your device.</p>
-      </SpaceCard>
+      <DashboardLink href="/account/activity/" title="Activity" eyebrow="Recent sign-ins" detail={lastActivity}>
+        See recorded account activity without mixing it with session controls.
+      </DashboardLink>
 
-      <SpaceCard title="Your OTYA data" eyebrow="Device-first">
-        <StatusRow label="Playlists" value="Recovery supported" />
-        <StatusRow label="Favorites" value="Device-first in v1" />
-        <StatusRow label="History" value="Device-first in v1" />
-        <p className="mt-3 text-xs leading-5 otya-muted">Space does not pretend local-only data is already cloud-synced. More account-backed data can appear here only when the product actually supports it.</p>
-      </SpaceCard>
+      <DashboardLink href="/account/storage/" title="Storage & recovery" eyebrow="Google Drive" detail={loadingExtras ? 'Checking…' : backup.has_backup ? 'Recovery backup recorded' : 'No backup recorded'}>
+        View safe recovery status. Backup and restore actions remain explicit in the Android app.
+      </DashboardLink>
 
-      <SpaceCard title="Next" eyebrow="OTYA AI" action={<Link href="/ask" className="text-xs font-black otya-muted">Open</Link>}>
-        <div className="text-lg font-black">Ask OTYA</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">Use Next from the same OTYA environment. Conversation storage remains governed by the current privacy and product rules.</p>
-      </SpaceCard>
+      <DashboardLink href="/account/notifications/" title="Notifications" eyebrow="Communication" detail="Security + optional product news">
+        Keep necessary security messages separate from optional marketing preferences.
+      </DashboardLink>
 
-      <SpaceCard title="Telegram" eyebrow="Connected service" action={<Link href="/telegram/" className="text-xs font-black otya-muted">Open</Link>}>
-        <div className="text-lg font-black">{telegram ? 'Connected to your OTYA ID' : 'Available to connect'}</div>
-        <p className="mt-2 text-sm leading-6 otya-muted">Telegram is a first-class OTYA identity and Mini App surface, not a separate user database.</p>
-      </SpaceCard>
+      <DashboardLink href="/account/settings/" title="Preferences" eyebrow="Account settings" detail="Region, language and privacy records">
+        Manage account preferences without changing your Otya ID.
+      </DashboardLink>
 
-      <SpaceCard title="OTYA products" eyebrow="Account history">
+      <DashboardLink href="/ask/" title="Next" eyebrow="Otya assistant" detail="Open Next">
+        Ask questions or get Otya help from the same signed-in environment.
+      </DashboardLink>
+
+      <DashboardLink href="/telegram/" title="Telegram" eyebrow="Connected service" detail={telegram ? 'Connected' : 'Available to connect'}>
+        Use the Telegram Mini App and linked identity without creating a second Otya user.
+      </DashboardLink>
+
+      <SpaceCard title="Otya products" subtitle="Product records associated with this account.">
         <div className="text-4xl font-black">{products.length}</div>
-        <p className="mt-1 text-sm otya-muted">product record{products.length === 1 ? '' : 's'} associated with this OTYA account</p>
+        <p className="mt-1 text-sm otya-muted">product record{products.length === 1 ? '' : 's'} associated with this Otya ID</p>
       </SpaceCard>
 
-      <SpaceCard title="Privacy & help" eyebrow="Control">
+      <SpaceCard title="Privacy & help" subtitle="Public product policies and support resources.">
         <div className="flex flex-col gap-2 text-sm font-black">
           <a href="https://petersmartlink.com/privacy">Privacy Policy</a>
           <a href="https://petersmartlink.com/terms">Terms of Service</a>
-          <a href="https://docs.petersmartlink.com">OTYA Help & Docs</a>
-          <Link href="/account#settings">Account preferences</Link>
+          <a href="https://docs.petersmartlink.com">Otya Help & Docs</a>
         </div>
       </SpaceCard>
     </section>
-  </main>
+  </SpacePage>
 }
 
-function SpaceCard({ title, eyebrow, action, children }: { title: string; eyebrow: string; action?: ReactNode; children: ReactNode }) {
-  return <article className="rounded-[22px] border p-5 min-h-[210px]" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
-    <div className="flex items-start justify-between gap-3 mb-5"><div><div className="text-[10px] font-black uppercase tracking-[.15em] otya-muted">{eyebrow}</div><h2 className="mt-1 text-lg font-black tracking-[-.025em]">{title}</h2></div>{action}</div>
-    {children}
-  </article>
-}
-
-function StatusRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-4 border-t first:border-t-0 py-2.5 text-sm" style={{ borderColor: 'var(--cosmos-divider)' }}><span className="otya-muted">{label}</span><span className="font-black text-right">{value}</span></div>
-}
-
-function Badge({ on, children }: { on: boolean; children: ReactNode }) {
-  return <span className="rounded-full border px-2.5 py-1" style={{ borderColor: 'var(--cosmos-divider)', opacity: on ? 1 : .48 }}>{children} · {on ? 'connected' : 'not set'}</span>
-}
-
-function PrimaryLink({ href, children }: { href: string; children: ReactNode }) {
-  return <Link href={href} className="cosmos-button inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-black">{children}</Link>
-}
-
-function QuietLink({ href, children }: { href: string; children: ReactNode }) {
-  return <Link href={href} className="otya-quiet-button inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-black">{children}</Link>
-}
-
-function LoadingLine() {
-  return <div className="space-y-3"><div className="h-4 w-3/4 rounded animate-pulse" style={{ background: 'var(--cosmos-divider)' }} /><div className="h-4 w-2/3 rounded animate-pulse" style={{ background: 'var(--cosmos-divider)' }} /><div className="h-4 w-1/2 rounded animate-pulse" style={{ background: 'var(--cosmos-divider)' }} /></div>
+function DashboardLink({ href, title, eyebrow, detail, children }: { href: string; title: string; eyebrow: string; detail: string; children: ReactNode }) {
+  return <Link href={href} className="group rounded-[22px] border p-5 min-h-[210px] transition-transform hover:-translate-y-0.5" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
+    <div className="text-[10px] font-black uppercase tracking-[.15em] otya-muted">{eyebrow}</div>
+    <h2 className="mt-1 text-lg font-black tracking-[-.025em]">{title}</h2>
+    <div className="mt-5 text-sm font-black">{detail}</div>
+    <p className="mt-2 text-sm leading-6 otya-muted">{children}</p>
+    <div className="mt-4 text-xs font-black text-[color:var(--cosmos-primary)]">Open →</div>
+  </Link>
 }
 
 function formatDate(value: string) {
