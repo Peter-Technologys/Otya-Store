@@ -100,8 +100,11 @@ export async function handleBackupRoute(
 ): Promise<Response | null> {
   const url = new URL(request.url)
   const isBackup = url.pathname === '/auth/backup'
-  const isStatus = url.pathname === '/auth/backup/status'
-  if (!isBackup && !isStatus) return null
+  // Compatibility worker dispatches only the canonical /auth/backup path.
+  // Space requests metadata-only status through ?status=1 so no new public
+  // auth route or Drive credential is needed merely to show recovery state.
+  const isStatus = isBackup && url.searchParams.get('status') === '1'
+  if (!isBackup) return null
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: headers(env) })
