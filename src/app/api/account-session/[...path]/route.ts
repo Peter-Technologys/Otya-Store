@@ -99,7 +99,10 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
   if (!suffix) return NextResponse.json({ error: 'Account route is required' }, { status: 400 })
 
   const first = parts[0] ?? ''
-  const sessionCreatingEntry = ['login', 'register', 'google'].includes(first)
+  // Only the exact login/register/google endpoints create a browser session.
+  // Nested routes such as google/link are protected account actions and must
+  // receive the current OTYA access token rather than being treated as sign-in.
+  const sessionCreatingEntry = ['login', 'register', 'google'].includes(suffix)
   const publicAction = ['forgot-password', 'reset-password'].includes(first)
   const isLogout = first === 'logout'
   const isSessionProbe = first === 'session'
