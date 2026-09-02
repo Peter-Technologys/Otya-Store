@@ -68,6 +68,7 @@ interface ResendEnv extends Record<string, unknown> {
   TELEGRAM_LOGIN_REDIRECT_URI?: string
   TELEGRAM_GATEWAY_TOKEN?: string
   ACCOUNT_ENCRYPTION_KEY?: string
+  SUPPRESS_COMPAT_EMAIL?: boolean
   AUTH_JWT_SECRET: string
   AUTH_KV: KVNamespace
   AUTH_DB: D1Database
@@ -278,7 +279,12 @@ async function persistConsentFromResponse(
 
 export default {
   async fetch(request: Request, env: ResendEnv): Promise<Response> {
-    const resendEnv = { ...env, EMAIL: createEmailAdapter(env.RESEND_API_KEY) }
+    // The outer production worker owns registration/security delivery. When it
+    // calls this compatibility wrapper it explicitly suppresses the historical
+    // EMAIL adapter so a registration can never send two OTPs or two welcomes.
+    const resendEnv = env.SUPPRESS_COMPAT_EMAIL
+      ? { ...env, EMAIL: undefined }
+      : { ...env, EMAIL: createEmailAdapter(env.RESEND_API_KEY) }
     const url = new URL(request.url)
 
     if (url.pathname === '/auth/account' && request.method !== 'OPTIONS') {
