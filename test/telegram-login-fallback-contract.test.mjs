@@ -7,6 +7,7 @@ const primaryLogin = readFileSync(new URL('../auth-worker/src/telegram-primary-l
 const telegramAccount = readFileSync(new URL('../auth-worker/src/telegram-account.ts', import.meta.url), 'utf8')
 const miniAuth = readFileSync(new URL('../auth-worker/src/telegram-miniapp.ts', import.meta.url), 'utf8')
 const proxy = readFileSync(new URL('../src/app/api/auth/telegram/[...path]/route.ts', import.meta.url), 'utf8')
+const signIn = readFileSync(new URL('../src/app/sign-in/page.tsx', import.meta.url), 'utf8')
 const config = readFileSync(new URL('../next.config.mjs', import.meta.url), 'utf8')
 const router = readFileSync(new URL('../src/production-router.mjs', import.meta.url), 'utf8')
 const wrangler = readFileSync(new URL('../auth-worker/wrangler.toml', import.meta.url), 'utf8')
@@ -22,7 +23,6 @@ test('Telegram browser Sign-In is first-class OIDC while Mini App uses Secrets S
   assert.match(telegramAccount, /provider_subject = \?/)
   assert.match(primaryLogin, /createOrGetTelegramUser/)
   assert.match(telegramAccount, /INSERT INTO linked_identities/)
-  assert.match(primaryLogin, /createOrGetTelegramUser/)
   assert.doesNotMatch(primaryLogin, /identity\.invalid/)
   assert.match(miniAuth, /WebAppData/)
   assert.match(miniAuth, /TELEGRAM_BOT_TOKEN\?\.get/)
@@ -33,11 +33,34 @@ test('Telegram browser Sign-In is first-class OIDC while Mini App uses Secrets S
   assert.doesNotMatch(miniAuth, /OTYA_ACCOUNT_REQUIRED/)
 })
 
-test('Telegram OIDC login-start persists PKCE state in KV without D1 access', () => {
+test('Telegram OIDC start persists PKCE and registration intent in KV without D1 access', () => {
   const startBlock = primaryLogin.slice(primaryLogin.indexOf('async function start'), primaryLogin.indexOf('async function callback'))
   assert.match(startBlock, /AUTH_KV\.put/)
   assert.match(startBlock, /code_challenge_method', 'S256'/)
-  assert.doesNotMatch(startBlock, /AUTH_DB|ensureSchema/)
+  assert.match(startBlock, /mode !== 'login' && mode !== 'register'/)
+  assert.match(startBlock, /terms_version === TERMS_VERSION/)
+  assert.match(startBlock, /privacy_version === PRIVACY_VERSION/)
+  assert.doesNotMatch(startBlock, /AUTH_DB|assertSchemaReady/)
+})
+
+test('Telegram sign-in cannot silently create a new Otya account', () => {
+  const resolver = primaryLogin.slice(primaryLogin.indexOf('async function resolveTelegramLogin'), primaryLogin.indexOf('async function applyVerifiedPhone'))
+  assert.doesNotMatch(resolver, /createOrGetTelegramUser/)
+  assert.match(primaryLogin, /stored\.mode === 'login'/)
+  assert.match(primaryLogin, /telegram=not-linked/)
+  assert.match(primaryLogin, /stored\.mode === 'login'[\s\S]*resolveTelegramLogin/)
+  assert.match(primaryLogin, /else \{[\s\S]*createOrGetTelegramUser/)
+  assert.match(primaryLogin, /recordRegistrationConsent\(env, user\.id, stored\.marketingConsent === true\)/)
+})
+
+test('Telegram registration intent and legal acceptance come from the Otya registration UI', () => {
+  const startTelegram = signIn.slice(signIn.indexOf('async function startTelegram'), signIn.indexOf('async function resendVerification'))
+  assert.match(startTelegram, /registration \? 'register' : 'login'/)
+  assert.match(startTelegram, /terms_accepted: true/)
+  assert.match(startTelegram, /terms_version: TERMS_VERSION/)
+  assert.match(startTelegram, /privacy_accepted: true/)
+  assert.match(startTelegram, /privacy_version: PRIVACY_VERSION/)
+  assert.match(startTelegram, /marketing_consent: marketing/)
 })
 
 test('Telegram web session is shared securely with Space and tokens stay out of JSON', () => {
