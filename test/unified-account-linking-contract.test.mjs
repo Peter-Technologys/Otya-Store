@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 const profile = read('auth-worker/src/account-profile.ts')
 const methods = read('src/app/account/sign-in-methods/page.tsx')
 const layout = read('src/app/account/layout.tsx')
+const proxy = read('src/app/api/account-session/[...path]/route.ts')
 
 test('Telegram-first OTYA identities can add a unique primary email without replacing an existing one', () => {
   assert.match(profile, /const allowed = \['email'/)
@@ -23,6 +24,12 @@ test('OTYA Space exposes one sign-in-method manager for email Google and Telegra
   assert.match(methods, /accountFetch\('verify-email'/)
   assert.match(methods, /accountFetch\('telegram\/start'/)
   assert.doesNotMatch(methods, /accountFetch\('register'/)
+})
+
+test('Google linking stays a protected account action instead of a session-creating login', () => {
+  assert.match(proxy, /const sessionCreatingEntry = \['login', 'register', 'google'\]\.includes\(suffix\)/)
+  assert.match(proxy, /if \(options\.accessToken\) headers\.set\('Authorization', `Bearer \$\{options\.accessToken\}`\)/)
+  assert.doesNotMatch(proxy, /\['login', 'register', 'google'\]\.includes\(first\)/)
 })
 
 test('account workspace makes sign-in methods discoverable', () => {
