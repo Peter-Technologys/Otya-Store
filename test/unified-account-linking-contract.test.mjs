@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const profile = read('auth-worker/src/account-profile.ts')
 const methods = read('src/app/account/sign-in-methods/page.tsx')
-const layout = read('src/app/account/layout.tsx')
+const chrome = read('src/components/OtyaSpaceChrome.tsx')
 const proxy = read('src/app/api/account-session/[...path]/route.ts')
 
 test('Telegram-first OTYA identities can add a unique primary email without replacing an existing one', () => {
@@ -32,7 +32,8 @@ test('Google linking stays a protected account action instead of a session-creat
   assert.doesNotMatch(proxy, /\['login', 'register', 'google'\]\.includes\(first\)/)
 })
 
-test('account workspace makes sign-in methods discoverable', () => {
-  assert.match(layout, /href="\/account\/sign-in-methods"/)
-  assert.match(layout, />\s*Sign-in methods\s*</)
+test('account workspace makes sign-in methods discoverable without adding a duplicate navigation strip', () => {
+  assert.match(chrome, /label: 'Sign-in methods'/)
+  assert.match(chrome, /href: '\/account\/sign-in-methods\/'/)
+  assert.match(chrome, /section: 'account\/sign-in-methods'/)
 })
