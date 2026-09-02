@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { OtyaSpaceChrome } from '@/components/OtyaSpaceChrome'
 
@@ -61,5 +62,12 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     </div>
   }
 
-  return <OtyaSpaceChrome>{children}</OtyaSpaceChrome>
+  return <OtyaSpaceChrome>
+    <div className="px-4 sm:px-7 lg:px-10 pt-5 max-w-[1180px]">
+      <Link href="/account/sign-in-methods" className="inline-flex items-center min-h-10 rounded-xl border px-3.5 text-sm font-black" style={{ borderColor: 'var(--cosmos-divider)', background: 'var(--cosmos-card)' }}>
+        Sign-in methods
+      </Link>
+    </div>
+    {children}
+  </OtyaSpaceChrome>
 }
