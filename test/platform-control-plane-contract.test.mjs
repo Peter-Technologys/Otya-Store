@@ -4,14 +4,24 @@ import { readFileSync } from 'node:fs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('production deployment explicitly uploads the canonical custom router', () => {
+test('production deployment uploads the canonical router as a version without reapplying routes', () => {
   const pkg = JSON.parse(read('package.json'))
   const wrangler = read('wrangler.toml')
   const router = read('src/production-router.mjs')
+  const deploy = read('scripts/deploy-core-version.mjs')
 
   assert.match(pkg.scripts.deploy, /opennextjs-cloudflare build/)
-  assert.match(pkg.scripts.deploy, /wrangler deploy src\/production-router\.mjs --config wrangler\.toml/)
+  assert.match(pkg.scripts.deploy, /node scripts\/deploy-core-version\.mjs/)
+  assert.match(deploy, /'versions',\s*'upload'/)
+  assert.match(deploy, /'src\/production-router\.mjs'/)
+  assert.match(deploy, /'versions',\s*'deploy'/)
+  assert.match(deploy, /`\$\{versionId\}@100%`/)
+  assert.match(deploy, /event\?\.type === 'version-upload'/)
+  assert.doesNotMatch(deploy, /triggers',\s*'deploy'/)
+  assert.doesNotMatch(pkg.scripts.deploy, /wrangler deploy src\/production-router/)
+
   assert.match(wrangler, /^main = "src\/production-router\.mjs"$/m)
+  assert.match(wrangler, /custom_domain = true/)
   assert.match(router, /import openNextWorker from '\.\.\/\.open-next\/worker\.js'/)
   assert.match(router, /headers\.set\('Content-Security-Policy', CANONICAL_CSP\)/)
 })
