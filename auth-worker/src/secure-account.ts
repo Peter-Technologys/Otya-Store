@@ -73,26 +73,56 @@ async function revokeEveryRefreshSession(env: SecureAccountEnv, userId: string):
   return revoked
 }
 
-async function notifyStoreDeletion(env: SecureAccountEnv, userId: string): Promise<void> {
-  if (!env.OTYA_STORE_INTERNAL_URL || !env.INTERNAL_SECRET) return
+async function notifyStoreDeletion(
+  env: SecureAccountEnv,
+  userId: string,
+  userEmail: string | null,
+): Promise<void> {
+  if (!env.OTYA_STORE_INTERNAL_URL || !env.INTERNAL_SECRET) {
+    throw new Error('Product-data cleanup channel is not configured')
+  }
 
   const base = env.OTYA_STORE_INTERNAL_URL.replace(/\/$/, '')
-  try {
-    const response = await fetch(`${base}/api/internal/delete-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Secret': env.INTERNAL_SECRET,
-      },
-      body: JSON.stringify({ user_id: userId }),
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!response.ok) {
-      console.error('[auth/delete-account] OTYA Store cleanup failed:', response.status)
-    }
-  } catch (error) {
-    console.error('[auth/delete-account] OTYA Store cleanup unavailable:', (error as Error)?.message)
+  const response = await fetch(`${base}/api/internal/delete-user`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': env.INTERNAL_SECRET,
+    },
+    body: JSON.stringify({ user_id: userId, ...(userEmail ? { user_email: userEmail } : {}) }),
+    signal: AbortSignal.timeout(8000),
+  })
+
+  const result = await response.clone().json().catch(() => ({})) as { ok?: boolean; error?: string }
+  if (!response.ok || result.ok !== true) {
+    throw new Error(result.error || `OTYA Store cleanup failed with HTTP ${response.status}`)
   }
+}
+
+async function deleteAuthDbChildIfPresent(
+  db: D1Database,
+  table: 'user_consents' | 'account_two_factor',
+  userId: string,
+): Promise<void> {
+  const found = await db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+  ).bind(table).first<{ name?: string }>()
+  if (found?.name) await db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId).run()
+}
+
+async function purgeDirectAuthState(env: SecureAccountEnv, userId: string): Promise<void> {
+  const keys = [
+    `drive_file:${userId}`,
+    `drive_backup_at:${userId}`,
+    `last_login_ip:${userId}`,
+    `verify_otp:${userId}`,
+    `2fa_pending:${userId}`,
+    `phone_verify_pending:${userId}`,
+    `admin_mfa_otp:${userId}`,
+    `admin_mfa_telegram:${userId}`,
+    `admin_mfa_complete:${userId}`,
+  ]
+  await Promise.all(keys.map(key => env.AUTH_KV.delete(key)))
 }
 
 export async function handleSecureAccountRoute(
@@ -116,16 +146,34 @@ export async function handleSecureAccountRoute(
   const user = await getUserById(env.AUTH_DB, payload.sub)
   if (!user) return json({ error: 'User not found' }, 404)
 
-  // Revoke first. If D1 deletion later fails, the account remains recoverable but
-  // its old sessions are no longer usable. This is safer than deleting the D1
-  // user first and potentially leaving refresh/session credentials alive.
-  await revokeEveryRefreshSession(env, payload.sub)
-  await deleteUser(env.AUTH_DB, payload.sub)
-  await env.AUTH_KV.delete(`drive_file:${payload.sub}`)
+  // Delete product data first. If the store cannot prove cleanup, preserve the
+  // auth identity so the user can retry instead of being locked out while
+  // server-side product data remains orphaned.
+  try {
+    await notifyStoreDeletion(env, payload.sub, user.email?.toLowerCase() ?? null)
+  } catch (error) {
+    console.error('[auth/delete-account] Product-data cleanup failed:', (error as Error)?.message)
+    return json({
+      error: 'Account deletion could not complete safely. Please try again.',
+      code: 'ACCOUNT_DATA_CLEANUP_FAILED',
+    }, 503)
+  }
 
-  // Product-data cleanup is best effort here so a temporary store outage does
-  // not resurrect the auth account. The store owns its own deletion auditing.
-  await notifyStoreDeletion(env, payload.sub)
+  try {
+    // Revoke credentials before removing the identity so no refresh/session
+    // credential survives a successful deletion.
+    await revokeEveryRefreshSession(env, payload.sub)
+    await purgeDirectAuthState(env, payload.sub)
+    await deleteAuthDbChildIfPresent(env.AUTH_DB, 'user_consents', payload.sub)
+    await deleteAuthDbChildIfPresent(env.AUTH_DB, 'account_two_factor', payload.sub)
+    await deleteUser(env.AUTH_DB, payload.sub)
+  } catch (error) {
+    console.error('[auth/delete-account] Auth cleanup failed:', (error as Error)?.message)
+    return json({
+      error: 'Product data was removed, but account security cleanup needs to be retried.',
+      code: 'ACCOUNT_AUTH_CLEANUP_FAILED',
+    }, 503)
+  }
 
   return json({ ok: true, message: 'Account deleted.' })
 }
