@@ -7,6 +7,8 @@ const HEALTH_PATHS = ['/', '/download/otya-player', '/api/version', '/latest']
 const OTYA_NOREPLY_EMAIL = 'noreply@petersmartlink.com'
 const ACCESS_COOKIE = '__Secure-otya_access'
 const ADMIN_COOKIE = 'otya_admin_session'
+const UPSTREAM_TIMEOUT_MS = 8000
+const SERVICE_HEALTH_TIMEOUT_MS = 5000
 
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}})}
 function cookieValue(request,name){const cookie=request.headers.get('cookie')||'';return cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(`${name}=`))?.slice(name.length+1)||''}
@@ -53,7 +55,7 @@ async function hasElevatedAdminSession(request,env){
   }catch{return false}
 }
 
-function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`}`)}}}
+function createResendEmailAdapter(env){return{async send(message){if(!env.RESEND_API_KEY)throw new Error('RESEND_API_KEY is not configured');const to=Array.isArray(message?.to)?message.to.map(r=>r.email).filter(Boolean):[];if(!to.length)throw new Error('Invalid email envelope');const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:`OTYA <${OTYA_NOREPLY_EMAIL}>`,to,subject:message.subject,text:message.text}),signal:AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)});const data=await response.json().catch(()=>({}));if(!response.ok||!data.id)throw new Error(`Resend email failed: ${data.message??data.name??`HTTP ${response.status}`}`)}}}
 function withProductionAdapters(env){return{...env,EMAIL:createResendEmailAdapter(env)}}
 function analyticsPath(pathname){if(pathname.startsWith('/auth/'))return'/auth/*';if(pathname.startsWith('/apk/'))return'/apk/*';if(pathname.startsWith('/api/admin/'))return'/api/admin/*';if(pathname.startsWith('/api/telegram/'))return'/api/telegram/*';if(pathname.startsWith('/api/ai/'))return'/api/ai/*';if(pathname.startsWith('/api/'))return'/api/*';return pathname==='/'?'/':'/other'}
 function writeRequestAnalytics(env,request,response,startedAt){if(!env.OTYA_ANALYTICS?.writeDataPoint)return;try{const url=new URL(request.url);env.OTYA_ANALYTICS.writeDataPoint({blobs:['request',request.method,analyticsPath(url.pathname),request.cf?.colo??'unknown'],doubles:[response.status,Date.now()-startedAt],indexes:[analyticsPath(url.pathname)]})}catch{}}
@@ -61,7 +63,63 @@ async function readHealthIncident(env){try{return await env.KV?.get?.(HEALTH_INC
 async function writeHealthIncident(env,value){try{await env.KV?.put?.(HEALTH_INCIDENT_KEY,value,{expirationTtl:86400})}catch{}}
 async function clearHealthIncident(env){try{await env.KV?.delete?.(HEALTH_INCIDENT_KEY)}catch{}}
 async function sendHealthEmail(env,subject,text){try{await env.EMAIL.send({from:{email:OTYA_NOREPLY_EMAIL,name:'OTYA Backend'},to:[{email:env.ADMIN_REPORT_EMAIL||'petersmartlink@gmail.com'}],subject,text})}catch(error){console.error('[health] Could not send Resend health notification:',error?.message??error)}}
-async function runProductionHealthCheck(env,ctx){const baseUrl=env.WEBSITE_URL||'https://petersmartlink.com';const results=[];for(const path of HEALTH_PATHS){const startedAt=Date.now();try{const request=new Request(new URL(path,baseUrl),{method:'GET',headers:{'User-Agent':'OTYA-Internal-HealthCheck/2.0'}});const response=await worker.fetch(request,env,ctx);const ok=response.status>=200&&response.status<400;results.push({path,status:response.status,latency:Date.now()-startedAt,ok});try{await response.body?.cancel?.()}catch{}}catch(error){results.push({path,status:0,latency:Date.now()-startedAt,ok:false,error:error?.message??'request failed'})}}const down=results.filter(r=>!r.ok);const previousIncident=await readHealthIncident(env);if(!down.length){if(previousIncident){await clearHealthIncident(env);await sendHealthEmail(env,'[OTYA Backend] Production routes recovered',['OTYA production route health has recovered.','',...results.map(r=>`${r.path} — ${r.status} (${r.latency}ms)`),'',`Checked at: ${new Date().toISOString()}`].join('\n'))}return}const signature=JSON.stringify(down.map(({path,status})=>[path,status]));if(signature===previousIncident)return;await writeHealthIncident(env,signature);await sendHealthEmail(env,`[OTYA Backend] ${down.length} production route(s) unhealthy`,['OTYA production route health alert','',...down.map(r=>`${r.path} — status ${r.status}, latency ${r.latency}ms${r.error?` (${r.error})`:''}`),'',`Checked at: ${new Date().toISOString()}`].join('\n'))}
+
+async function checkPrivateService(name,binding,request,healthyStatuses){
+  const startedAt=Date.now()
+  if(!binding?.fetch)return{path:`service:${name}`,status:0,latency:0,ok:false,error:'binding unavailable'}
+  try{
+    const response=await binding.fetch(request)
+    const ok=healthyStatuses.has(response.status)
+    try{await response.body?.cancel?.()}catch{}
+    return{path:`service:${name}`,status:response.status,latency:Date.now()-startedAt,ok}
+  }catch(error){
+    return{path:`service:${name}`,status:0,latency:Date.now()-startedAt,ok:false,error:error?.message??'service request failed'}
+  }
+}
+
+async function runProductionHealthCheck(env,ctx){
+  const baseUrl=env.WEBSITE_URL||'https://petersmartlink.com'
+  const results=[]
+  for(const path of HEALTH_PATHS){
+    const startedAt=Date.now()
+    try{
+      const request=new Request(new URL(path,baseUrl),{method:'GET',headers:{'User-Agent':'OTYA-Internal-HealthCheck/3.0'},signal:AbortSignal.timeout(SERVICE_HEALTH_TIMEOUT_MS)})
+      const response=await worker.fetch(request,env,ctx)
+      const ok=response.status>=200&&response.status<400
+      results.push({path,status:response.status,latency:Date.now()-startedAt,ok})
+      try{await response.body?.cancel?.()}catch{}
+    }catch(error){
+      results.push({path,status:0,latency:Date.now()-startedAt,ok:false,error:error?.message??'request failed'})
+    }
+  }
+
+  results.push(await checkPrivateService(
+    'otya-auth',
+    env.AUTH,
+    new Request('https://otya-auth/auth/me',{method:'GET',signal:AbortSignal.timeout(SERVICE_HEALTH_TIMEOUT_MS)}),
+    new Set([401]),
+  ))
+  results.push(await checkPrivateService(
+    'otya-next',
+    env.AI_SUPPORT,
+    new Request('https://otya-next/health',{method:'GET',signal:AbortSignal.timeout(SERVICE_HEALTH_TIMEOUT_MS)}),
+    new Set([200]),
+  ))
+
+  const down=results.filter(r=>!r.ok)
+  const previousIncident=await readHealthIncident(env)
+  if(!down.length){
+    if(previousIncident){
+      await clearHealthIncident(env)
+      await sendHealthEmail(env,'[OTYA Backend] Production services recovered',['OTYA production health has recovered.','',...results.map(r=>`${r.path} — ${r.status} (${r.latency}ms)`),'',`Checked at: ${new Date().toISOString()}`].join('\n'))
+    }
+    return
+  }
+  const signature=JSON.stringify(down.map(({path,status})=>[path,status]))
+  if(signature===previousIncident)return
+  await writeHealthIncident(env,signature)
+  await sendHealthEmail(env,`[OTYA Backend] ${down.length} production surface(s) unhealthy`,['OTYA production health alert','',...down.map(r=>`${r.path} — status ${r.status}, latency ${r.latency}ms${r.error?` (${r.error})`:''}`),'',`Checked at: ${new Date().toISOString()}`].join('\n'))
+}
 
 async function forwardClientAi(request,env){
   if(!env.AI_SUPPORT?.fetch)return json({error:'AI service unavailable'},503)

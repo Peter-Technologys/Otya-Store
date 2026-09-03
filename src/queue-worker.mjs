@@ -7,6 +7,9 @@
  */
 import openNextWorker from '../.open-next/worker.js'
 
+const UPSTREAM_TIMEOUT_MS = 8000
+const TRANSIENT_FCM_STATUSES = new Set([401, 403, 408, 425, 429, 500, 502, 503, 504])
+
 export default {
   fetch: openNextWorker.fetch.bind(openNextWorker),
 
@@ -104,6 +107,7 @@ async function sendDailyAbuseReport(env) {
         subject: `[OTYA Backend] Daily Abuse Report — ${new Date().toDateString()}`,
         text,
       }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     })
     if (!response.ok) {
       throw new Error(`Resend abuse report failed: HTTP ${response.status}`)
@@ -121,6 +125,11 @@ async function sendDailyAbuseReport(env) {
  *   1. deviceId — exactly one device
  *   2. user_id/userId — every registered device for exactly one OTYA user
  *   3. no target — intentional broadcast to all registered devices
+ *
+ * A whole queue message is retried only when no device was successfully sent
+ * and at least one failure was transient. After a partial success we do not
+ * replay the whole broadcast because that would duplicate notifications to
+ * devices that already received it.
  */
 async function handlePushMessage(msg, env) {
   const { title, body, url, deviceId } = msg ?? {}
@@ -177,25 +186,36 @@ async function handlePushMessage(msg, env) {
   let sent = 0
   let failed = 0
   let removed = 0
+  let transientFailed = 0
   for (const token of tokens) {
-    const response = await fetch(fcmEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: { title, body },
-          data,
-          android: {
-            priority: 'high',
-            notification: { channel_id: 'otya_updates' },
-          },
+    let response
+    try {
+      response = await fetch(fcmEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
-      }),
-    })
+        body: JSON.stringify({
+          message: {
+            token,
+            notification: { title, body },
+            data,
+            android: {
+              priority: 'high',
+              notification: { channel_id: 'otya_updates' },
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      })
+    } catch (error) {
+      failed++
+      transientFailed++
+      console.warn('[PUSH_QUEUE] FCM request failed:', error?.message ?? error)
+      continue
+    }
+
     if (response.ok) {
       sent++
       continue
@@ -215,12 +235,20 @@ async function handlePushMessage(msg, env) {
         console.error('[PUSH_QUEUE] Failed to clear unregistered token:', cleanupError?.message)
       }
     } else {
+      if (TRANSIENT_FCM_STATUSES.has(response.status)) transientFailed++
       console.warn('[PUSH_QUEUE] FCM send failed:', response.status, errorBody?.error?.status ?? 'unknown')
     }
   }
 
   const scope = deviceId ? `device:${deviceId}` : userId ? `user:${userId}` : 'broadcast'
-  console.log(`[PUSH_QUEUE] Scope=${scope}, Sent=${sent}, Failed=${failed}, Removed=${removed}, Total=${tokens.length}`)
+  console.log(`[PUSH_QUEUE] Scope=${scope}, Sent=${sent}, Failed=${failed}, Transient=${transientFailed}, Removed=${removed}, Total=${tokens.length}`)
+
+  if (sent === 0 && transientFailed > 0) {
+    throw new Error(`All push deliveries failed before a successful send; ${transientFailed} transient failure(s) can be retried safely`)
+  }
+  if (sent > 0 && transientFailed > 0) {
+    console.warn(`[PUSH_QUEUE] ${transientFailed} transient delivery failure(s) were not replayed because ${sent} device(s) already received this message.`)
+  }
 }
 
 function base64urlEncode(buf) {
@@ -279,6 +307,7 @@ async function getFcmAccessToken(serviceAccountJson) {
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       assertion: jwt,
     }),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
   if (!tokenRes.ok) {
     throw new Error(`OAuth2 token exchange failed: ${tokenRes.status}`)
