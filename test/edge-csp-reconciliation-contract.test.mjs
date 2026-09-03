@@ -6,9 +6,13 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 
 test('normal core deploy does not mutate unrelated edge CSP rules', () => {
   const pkg = JSON.parse(read('package.json'))
+  const deploy = read('scripts/deploy-core-version.mjs')
 
-  assert.match(pkg.scripts.deploy, /wrangler deploy src\/production-router\.mjs --config wrangler\.toml/)
+  assert.match(pkg.scripts.deploy, /node scripts\/deploy-core-version\.mjs/)
+  assert.match(deploy, /'versions',\s*'upload'/)
+  assert.match(deploy, /'versions',\s*'deploy'/)
   assert.doesNotMatch(pkg.scripts.deploy, /remove-legacy-edge-csp/)
+  assert.doesNotMatch(deploy, /remove-legacy-edge-csp/)
   assert.equal(pkg.scripts['maintenance:edge-csp'], 'bash scripts/remove-legacy-edge-csp.sh')
 })
 
