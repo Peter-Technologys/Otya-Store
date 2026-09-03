@@ -40,7 +40,7 @@ export function SiteFooter() {
           </Link>
           <p className="mt-3 max-w-[320px] text-sm leading-6 otya-muted">Otya Player by PeterSmart Link keeps your local Android music and video useful offline, with nearby Transfer, Private media and Next when you want connected help.</p>
         </div>
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-8">
           {GROUPS.map(group => <div key={group.title}><div className="text-[11px] uppercase tracking-[.14em] font-black otya-muted">{group.title}</div><div className="mt-3 grid gap-2.5">{group.links.map(([label,href]) => <Link key={href} href={href} className="text-sm font-semibold hover:underline underline-offset-4">{label}</Link>)}</div></div>)}
         </div>
       </div>
