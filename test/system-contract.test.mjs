@@ -174,7 +174,7 @@ test('Online Music is retired across the canonical control plane', () => {
   assert.match(appConfig, /config = enforceProductScope\(config\)/)
   assert.match(appConfig, /ai:\s*'https:\/\/petersmartlink\.com\/ask'/)
   assert.doesNotMatch(appConfig, /action:\s*'\/myspace'/)
-  assert.match(musicPage, /No Online Music catalog/)
+  assert.match(musicPage, /No (?:built-in )?online music catalog/i)
   assert.doesNotMatch(musicPage, /api\/music\/jamendo|streamUrl|<audio/i)
 })
 

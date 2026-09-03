@@ -29,7 +29,7 @@ test('website navigation uses the canonical Otya mark', () => {
 test('Music web page describes the local product and has no streaming catalog runtime', () => {
   const page = read('src/app/music/page.tsx')
   assert.match(page, /Local-first music/)
-  assert.match(page, /No Online Music catalog/)
+  assert.match(page, /No (?:built-in )?online music catalog/i)
   assert.match(page, /songs already on your Android device/i)
   assert.doesNotMatch(page, /api\/music\/jamendo/i)
   assert.doesNotMatch(page, /streamUrl|audioRef|<audio/i)
