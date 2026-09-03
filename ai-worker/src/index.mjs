@@ -113,10 +113,32 @@ async function moderateFeedback(msg, env) {
   try { await env.DB.prepare('UPDATE feedback SET ai_flagged = ? WHERE id = ?').bind(flagged, msg.feedbackId).run() } catch (e) { console.warn('[ai] ai_flagged column unavailable:', e?.message) }
 }
 
+function canonicalCrashText(msg) {
+  return [msg.errorType, msg.description, msg.stackTrace]
+    .filter(Boolean)
+    .map(value => clean(value, 4000).toLowerCase())
+    .join('\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, '<uuid>')
+    .replace(/0x[0-9a-f]+/gi, '0x<address>')
+    .replace(/:\d+:\d+/g, ':<line>:<column>')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
+
+async function deterministicCrashGroup(msg) {
+  const canonical = canonicalCrashText(msg) || 'unknown-crash'
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical))
+  const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  return `crash-${hex.slice(0, 32)}`
+}
+
 async function processCrash(msg, env) {
   if (!msg.crashId) return
   const text = clean([msg.errorType,msg.description,msg.stackTrace].filter(Boolean).join('\n'), 1400)
-  let groupId = String(msg.crashId)
+  // A deterministic local fingerprint keeps identical crashes grouped even
+  // when Vectorize is absent, delayed, or temporarily unavailable.
+  let groupId = await deterministicCrashGroup(msg)
   if (env.VECTORIZE?.query && text) {
     try {
       const embedding = await env.AI.run('@cf/baai/bge-small-en-v1.5', { text:[text] })
