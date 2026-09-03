@@ -57,7 +57,7 @@ export function DownloadPageClient() {
 
   async function download(){
     setError('')
-    if(!isAndroid){setError('Open this page on a supported Android phone to download Otya.');return}
+    if(!isAndroid){setError('Open this page on a supported Android phone to download Otya Player.');return}
     if(!protection.enabled){setStatus('started');window.location.assign(directUrl);return}
     if(!turnstileToken){setError('Complete the verification before downloading.');return}
     setStatus('verifying')
@@ -74,17 +74,17 @@ export function DownloadPageClient() {
     <main className="flex-1 pb-24 md:pb-0">
       <section className="otya-shell py-11 sm:py-16 grid lg:grid-cols-[1fr_.72fr] gap-9 lg:gap-16 items-center">
         <div>
-          <div className="flex items-center gap-4 mb-7"><Image src="/web-app-manifest-192x192.png" alt="Otya" width={64} height={64} className="rounded-[18px]" priority/><div><div className="otya-kicker mb-1">Android</div><h1 className="text-3xl font-extrabold tracking-[-.045em]">Otya</h1></div></div>
+          <div className="flex items-center gap-4 mb-7"><Image src="/web-app-manifest-192x192.png" alt="Otya Player app icon" width={64} height={64} className="rounded-[18px]" priority/><div><div className="otya-kicker mb-1">Official Android download · PeterSmart Link</div><h1 className="text-3xl font-extrabold tracking-[-.045em]">Otya Player</h1></div></div>
           <h2 className="text-4xl sm:text-6xl font-extrabold tracking-[-.055em] leading-[.96] max-w-2xl">Your media.<br/>Ready offline.</h2>
-          <p className="mt-5 max-w-xl text-base sm:text-lg otya-muted">Local video and music, nearby Transfer and Private media—without requiring an account just to play your files.</p>
-          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted"><span>Official release</span><span>ARM Android</span><span>Offline-first</span></div>
+          <p className="mt-5 max-w-xl text-base sm:text-lg otya-muted">Download the official Otya Player for Android. Play local video and music, use nearby Transfer and protect Private media—without requiring an account just to play your files.</p>
+          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted"><span>Official PeterSmart Link release</span><span>Android ARM</span><span>Offline-first</span></div>
         </div>
 
         <aside className="modern-card p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4"><div><div className="otya-kicker">Latest release</div><div className="font-extrabold text-xl mt-1">{loading?'Checking…':release?.version?`Otya ${release.version}`:'Otya for Android'}</div>{release?.date&&<div className="text-xs mt-1 otya-muted">Released {release.date}</div>}</div>{release?.version&&<span className="rounded-full border px-2.5 py-1 text-[10px] font-extrabold" style={{borderColor:'var(--cosmos-divider)',color:'var(--cosmos-primary)'}}>LATEST</span>}</div>
+          <div className="flex items-start justify-between gap-4"><div><div className="otya-kicker">Latest release</div><div className="font-extrabold text-xl mt-1">{loading?'Checking…':release?.version?`Otya Player ${release.version}`:'Otya Player for Android'}</div>{release?.date&&<div className="text-xs mt-1 otya-muted">Released {release.date}</div>}</div>{release?.version&&<span className="rounded-full border px-2.5 py-1 text-[10px] font-extrabold" style={{borderColor:'var(--cosmos-divider)',color:'var(--cosmos-primary)'}}>LATEST</span>}</div>
           {release?.changelog&&<details className="mt-5 border-t pt-4" style={{borderColor:'var(--cosmos-divider)'}}><summary className="cursor-pointer text-xs font-extrabold">What changed</summary><p className="text-xs leading-relaxed otya-muted whitespace-pre-line mt-2">{release.changelog}</p></details>}
           <div className="mt-5 border-t pt-5" style={{borderColor:'var(--cosmos-divider)'}}>
-            {isAndroid?<>{protection.enabled&&<div className="mb-4"><div ref={turnstileHost}/></div>}<button type="button" disabled={status==='verifying'} onClick={download} className="cosmos-button w-full rounded-full px-5 py-3.5 text-sm font-extrabold disabled:opacity-60">{status==='verifying'?'Verifying…':status==='started'?'Download started':`Download${release?.version?` · v${release.version}`:''}`}</button><p className="text-[11px] mt-3 text-center otya-muted">Otya selects the appropriate official ARM build.</p></>:<div className="rounded-2xl border p-4 text-center" style={{borderColor:'var(--cosmos-divider)'}}><div className="font-bold text-sm">Android download</div><p className="text-xs mt-1.5 otya-muted">Open this page on a supported Android phone.</p></div>}
+            {isAndroid?<>{protection.enabled&&<div className="mb-4"><div ref={turnstileHost}/></div>}<button type="button" disabled={status==='verifying'} onClick={download} className="cosmos-button w-full rounded-full px-5 py-3.5 text-sm font-extrabold disabled:opacity-60">{status==='verifying'?'Verifying…':status==='started'?'Download started':`Download Otya Player${release?.version?` · v${release.version}`:''}`}</button><p className="text-[11px] mt-3 text-center otya-muted">Otya Player selects the appropriate official ARM build for this Android device.</p></>:<div className="rounded-2xl border p-4 text-center" style={{borderColor:'var(--cosmos-divider)'}}><div className="font-bold text-sm">Android download</div><p className="text-xs mt-1.5 otya-muted">Open this page on a supported Android phone to download Otya Player.</p></div>}
             {error&&<p className="text-xs mt-3 text-center" style={{color:'var(--cosmos-error)'}}>{error}</p>}
           </div>
         </aside>
