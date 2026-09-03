@@ -8,9 +8,27 @@ import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 import { getKV } from '@/lib/d1'
 
 export const metadata: Metadata = {
-  title: 'Otya — Your media, your way',
-  description: 'Otya is an offline-first Android media experience for local music and video, nearby transfer, private media and Next, your intelligent assistant.',
+  title: 'Otya Player — Offline Music & Video Player for Android',
+  description:
+    'Official home of Otya Player by PeterSmart Link: an offline-first Android music and video player for local media, nearby Transfer, Private media and practical tools.',
+  keywords: [
+    'Otya Player',
+    'Otya Player Android',
+    'PeterSmart Link',
+    'offline music player Android',
+    'offline video player Android',
+    'local media player Android',
+    'Otya Uganda',
+  ],
   alternates: { canonical: 'https://petersmartlink.com' },
+  openGraph: {
+    type: 'website',
+    url: 'https://petersmartlink.com',
+    title: 'Otya Player — Offline Music & Video Player for Android',
+    description:
+      'Official home of Otya Player by PeterSmart Link for local Android music and video, offline playback, nearby Transfer and Private media.',
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Otya Player by PeterSmart Link' }],
+  },
 }
 
 const CAPABILITIES = [
@@ -38,21 +56,21 @@ export default async function HomePage() {
         <div className="otya-shell relative py-16 sm:py-24 lg:py-28 grid lg:grid-cols-[1.08fr_.92fr] gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-black/[.06] dark:border-white/[.08] px-3 py-2 text-xs font-black bg-white/55 dark:bg-white/[.03]">
-              <OtyaBrandMark size={22}/><span>Otya 1.0</span>
+              <OtyaBrandMark size={22}/><span>Otya Player 1.0 · PeterSmart Link</span>
             </div>
-            <h1 className="mt-7 max-w-[760px] text-[clamp(52px,8vw,98px)] font-black tracking-[-.075em] leading-[.88]">Your media.<br/><span className="text-[color:var(--cosmos-primary)]">Your way.</span></h1>
-            <p className="mt-7 max-w-[680px] text-base sm:text-xl leading-8 otya-muted">One clean place for your local video and music, nearby transfer, private media and useful tools. Otya stays useful offline, while Next is there when you want intelligent help.</p>
+            <h1 className="mt-7 max-w-[760px] text-[clamp(52px,8vw,98px)] font-black tracking-[-.075em] leading-[.88]">Otya Player.<br/><span className="text-[color:var(--cosmos-primary)]">Your media. Your way.</span></h1>
+            <p className="mt-7 max-w-[680px] text-base sm:text-xl leading-8 otya-muted">Otya Player is PeterSmart Link&apos;s offline-first Android media player for your local video and music, nearby Transfer, Private media and useful tools. Core playback stays useful without an account or internet connection, while Next is there when you want intelligent help.</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/download/otya-player" className="cosmos-button inline-flex min-h-12 items-center rounded-full px-6 text-sm font-black">Get Otya for Android</Link>
+              <Link href="/download/otya-player" className="cosmos-button inline-flex min-h-12 items-center rounded-full px-6 text-sm font-black">Download Otya Player</Link>
               <Link href="/ask" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-black/[.08] dark:border-white/[.10] px-5 text-sm font-black bg-white/55 dark:bg-white/[.03]"><OtyaBrandMark ai size={26}/>Ask Next</Link>
             </div>
-            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted"><span>Offline-first</span><span>Local media</span><span>Nearby transfer</span><span>Sign-in optional</span></div>
+            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs otya-muted"><span>Android</span><span>Offline-first</span><span>Local music & video</span><span>Nearby Transfer</span><span>Sign-in optional</span></div>
           </div>
 
           <div className="relative">
             <div className="absolute -inset-8 rounded-full bg-[radial-gradient(circle,rgba(41,121,255,.13),transparent_65%)] blur-2xl" />
             <div className="relative rounded-[34px] border border-black/[.07] dark:border-white/[.09] bg-white/72 dark:bg-white/[.035] p-3 sm:p-4 shadow-[0_30px_90px_rgba(8,11,18,.16)] backdrop-blur-xl">
-              <Image src="/brand/otya-app-preview.svg" alt="Otya Android app showing Video, Music and Me" width={1200} height={820} priority className="w-full h-auto rounded-[26px]" />
+              <Image src="/brand/otya-app-preview.svg" alt="Otya Player Android app showing Video, Music and Me" width={1200} height={820} priority className="w-full h-auto rounded-[26px]" />
             </div>
           </div>
         </div>
@@ -79,7 +97,7 @@ export default async function HomePage() {
           <div>
             <div className="otya-kicker">Local music</div>
             <h2 className="mt-3 text-3xl sm:text-5xl font-black tracking-[-.055em]">The songs on your phone, organized clearly.</h2>
-            <p className="mt-4 max-w-[620px] text-sm sm:text-base leading-7 otya-muted">Browse songs, albums, artists, folders and playlists already on your Android device. Otya does not need a streaming catalog to make your library useful.</p>
+            <p className="mt-4 max-w-[620px] text-sm sm:text-base leading-7 otya-muted">Browse songs, albums, artists, folders and playlists already on your Android device. Otya Player does not need a streaming catalog to make your library useful.</p>
             <Link href="/music" className="mt-7 inline-flex min-h-12 items-center rounded-full border border-black/[.08] dark:border-white/[.10] px-5 text-sm font-black">See Otya Music</Link>
           </div>
           <div className="rounded-[30px] border border-black/[.06] dark:border-white/[.08] bg-[color:var(--cosmos-surface)] p-6 sm:p-8">
@@ -99,7 +117,7 @@ export default async function HomePage() {
           <div className="max-w-[760px]">
             <div className="flex items-center gap-3"><OtyaBrandMark ai size={42}/><div className="otya-kicker">Next · Otya assistant</div></div>
             <h2 className="mt-5 text-3xl sm:text-5xl font-black tracking-[-.055em]">Ask naturally. Keep moving.</h2>
-            <p className="mt-4 text-sm sm:text-base leading-7 otya-muted">Next can answer everyday questions and help with Otya. Owner capabilities stay protected behind server-enforced admin access.</p>
+            <p className="mt-4 text-sm sm:text-base leading-7 otya-muted">Next can answer everyday questions and help with Otya Player. Owner capabilities stay protected behind server-enforced admin access.</p>
           </div>
           <Link href="/ask" className="cosmos-button inline-flex min-h-12 items-center justify-center rounded-full px-6 text-sm font-black whitespace-nowrap">Open Next</Link>
         </div>
@@ -108,7 +126,7 @@ export default async function HomePage() {
       <section className="otya-shell pb-16 sm:pb-24">
         <div className="flex flex-col sm:flex-row gap-4 sm:items-end sm:justify-between border-t border-black/[.06] dark:border-white/[.08] pt-8">
           <div><div className="otya-kicker">Android · v{appVersion}</div><h2 className="mt-2 text-2xl sm:text-3xl font-black">Ready when you are.</h2></div>
-          <Link href="/download/otya-player" className="inline-flex min-h-11 items-center text-sm font-black text-[color:var(--cosmos-primary)]">Download Otya →</Link>
+          <Link href="/download/otya-player" className="inline-flex min-h-11 items-center text-sm font-black text-[color:var(--cosmos-primary)]">Download Otya Player →</Link>
         </div>
       </section>
     </main>
