@@ -6,8 +6,8 @@ import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
 const API = '/api/account-session'
 const GOOGLE_WEB_CLIENT_ID = '82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com'
-const TERMS_VERSION = '2026-08-28'
-const PRIVACY_VERSION = '2026-08-28'
+const TERMS_VERSION = '2026-09-02'
+const PRIVACY_VERSION = '2026-09-02'
 const DEFAULT_AFTER_AUTH = 'https://space.petersmartlink.com/'
 
 type Mode = 'signin' | 'register' | 'verify' | 'forgot' | 'reset' | 'twofactor'

@@ -16,8 +16,8 @@ interface Env {
   AUTH_JWT_SECRET: string
 }
 
-export const TERMS_VERSION = '2026-08-28'
-export const PRIVACY_VERSION = '2026-08-28'
+export const TERMS_VERSION = '2026-09-02'
+export const PRIVACY_VERSION = '2026-09-02'
 
 async function ensureConsentSchema(db: D1Database): Promise<void> {
   await db.exec(`
