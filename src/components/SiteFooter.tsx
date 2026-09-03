@@ -5,9 +5,10 @@ const GROUPS = [
   {
     title: 'Otya',
     links: [
+      ['Otya Player', '/otya-player'],
+      ['Download', '/download/otya-player'],
       ['Music', '/music'],
       ['Next', '/ask'],
-      ['Get the app', '/download/otya-player'],
     ],
   },
   {
@@ -37,15 +38,15 @@ export function SiteFooter() {
             <span className="grid place-items-center w-9 h-9 rounded-xl bg-white/70 dark:bg-white/[.06] border border-black/[.06] dark:border-white/[.08]"><Image src="/otya-icon.svg" alt="" width={27} height={27}/></span>
             <span className="font-black text-lg tracking-[-.04em]">Otya</span>
           </Link>
-          <p className="mt-3 max-w-[300px] text-sm leading-6 otya-muted">Your local music and video on Android. Nearby Transfer, Private media and Next when you want connected help.</p>
+          <p className="mt-3 max-w-[320px] text-sm leading-6 otya-muted">Otya Player by PeterSmart Link keeps your local Android music and video useful offline, with nearby Transfer, Private media and Next when you want connected help.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           {GROUPS.map(group => <div key={group.title}><div className="text-[11px] uppercase tracking-[.14em] font-black otya-muted">{group.title}</div><div className="mt-3 grid gap-2.5">{group.links.map(([label,href]) => <Link key={href} href={href} className="text-sm font-semibold hover:underline underline-offset-4">{label}</Link>)}</div></div>)}
         </div>
       </div>
       <div className="mt-10 pt-5 border-t border-black/[.05] dark:border-white/[.06] flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between text-[11px] otya-muted">
-        <span>© {new Date().getFullYear()} Otya</span>
-        <span>Built by PeterSmart Link in Uganda.</span>
+        <span>© {new Date().getFullYear()} PeterSmart Link</span>
+        <span>Otya Player · Built in Uganda.</span>
       </div>
     </div>
   </footer>
