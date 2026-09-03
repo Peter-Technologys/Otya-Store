@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           auth=false
           next=false
-          core=false
+          core=true
 
           if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             echo "No usable previous commit; conservatively deploying all runtime components."
