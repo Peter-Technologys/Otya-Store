@@ -21,6 +21,7 @@ type ProductionEnv = Record<string, unknown> & AdminMfaEnv & TelegramLoginEnv & 
 }
 
 let identitySchemaReady: Promise<void> | null = null
+const GOOGLE_VERIFY_TIMEOUT_MS = 8000
 
 function configuredGoogleAudiences(env: ProductionEnv): Set<string> {
   return new Set(
@@ -82,7 +83,13 @@ async function verifiedGoogleAudience(request: Request, env: ProductionEnv): Pro
   if (typeof idToken !== 'string' || !idToken) return googleError('id_token is required', 400)
 
   try {
-    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`)
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+      {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(GOOGLE_VERIFY_TIMEOUT_MS),
+      },
+    )
     if (!response.ok) return googleError('Invalid Google ID token', 401)
 
     const payload = await response.json() as GoogleTokenPayload
