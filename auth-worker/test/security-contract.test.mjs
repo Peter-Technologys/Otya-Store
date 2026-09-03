@@ -37,6 +37,21 @@ test('production auth remains on hardened Firebase and Resend path behind Mini A
   assert.match(resend, /if\(!apiKey\)throw new Error\('RESEND_API_KEY is not configured'\)/)
 })
 
+test('JWT verification is fail-closed for metadata, identity and expiry', () => {
+  const crypto = read('src/crypto.ts')
+
+  assert.match(crypto, /parts\.length !== 3 \|\| !secret/)
+  assert.match(crypto, /\.alg !== 'HS256'/)
+  assert.match(crypto, /\.typ !== 'JWT'/)
+  assert.match(crypto, /typeof payload\.sub !== 'string'/)
+  assert.match(crypto, /payload\.sub\.trim\(\)\.length === 0/)
+  assert.match(crypto, /Number\.isSafeInteger\(payload\.iat\)/)
+  assert.match(crypto, /Number\.isSafeInteger\(payload\.exp\)/)
+  assert.match(crypto, /payload\.iat as number\) > now \+ 300/)
+  assert.match(crypto, /payload\.exp as number\) <= now/)
+  assert.match(crypto, /payload\.exp as number\) <= \(payload\.iat as number\)/)
+})
+
 test('password reset stays generic, single-use, expiring and revokes existing sessions', () => {
   const auth = read('src/index.ts')
   const hardenedOtp = read('src/secure-otp.ts')
