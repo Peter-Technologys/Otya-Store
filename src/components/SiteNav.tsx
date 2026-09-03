@@ -7,7 +7,7 @@ import { OtyaBrandMark } from './OtyaBrandMark'
 type User = { name?: string; email?: string; avatar_url?: string }
 type Session = { authenticated?: boolean; user?: User }
 
-const publicLinks = [['Home','/'],['Music','/music'],['App','/otya-player'],['Help','/help']] as const
+const publicLinks = [['Home','/'],['Otya Player','/otya-player'],['Download','/download/otya-player'],['Music','/music'],['Help','/help']] as const
 
 function initials(user?: User) {
   const name = user?.name?.trim()
@@ -40,7 +40,7 @@ export function SiteNav(){
       <div className="otya-shell h-16 flex items-center gap-2 sm:gap-3">
         <button onClick={()=>setMenuOpen(true)} aria-label="Open menu" className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-black/[.05] dark:hover:bg-white/[.06]"><MenuGlyph/></button>
         <Link href="/" className="inline-flex items-center gap-1.5 shrink-0" aria-label="Otya home"><OtyaBrandMark size={34}/><span className="font-black text-[19px] tracking-[-.045em]">tya</span></Link>
-        <nav className="hidden md:flex ml-7 items-center gap-1" aria-label="Main navigation">{publicLinks.map(([label,href])=><Link key={href} href={href} className="min-h-10 inline-flex items-center rounded-full px-4 text-[13px] font-extrabold otya-muted hover:bg-black/[.045] dark:hover:bg-white/[.06]">{label}</Link>)}</nav>
+        <nav className="hidden md:flex ml-7 items-center gap-1" aria-label="Main navigation">{publicLinks.map(([label,href])=><Link key={href} href={href} className="min-h-10 inline-flex items-center rounded-full px-3.5 text-[13px] font-extrabold otya-muted hover:bg-black/[.045] dark:hover:bg-white/[.06]">{label}</Link>)}</nav>
         <div className="ml-auto flex items-center gap-2">
           {signedIn&&<Link href="/account" className="hidden sm:inline-flex min-h-10 items-center gap-2 rounded-full border border-black/[.08] dark:border-white/[.10] px-3.5 text-xs font-black hover:bg-black/[.04] dark:hover:bg-white/[.05]" aria-label="Open Otya Space"><SpaceGlyph/>Space</Link>}
           <Link href="/ask" aria-label="Open Next" title="Next" className="inline-flex min-h-11 items-center gap-2 rounded-full px-2.5 hover:bg-black/[.04] dark:hover:bg-white/[.05]"><OtyaBrandMark ai size={31}/><span className="hidden sm:inline text-xs font-black">Next</span></Link>
