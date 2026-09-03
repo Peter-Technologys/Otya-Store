@@ -1,12 +1,5 @@
-import type { Metadata } from 'next'
-import { DownloadPageClient } from '../otya-player/DownloadButtons'
+import { redirect } from 'next/navigation'
 
-export const metadata: Metadata = {
-  title: 'Download Otya',
-  description: 'Download Otya for Android.',
-  alternates: { canonical: 'https://petersmartlink.com/download/otya' },
-}
-
-export default function DownloadOtyaPage() {
-  return <DownloadPageClient />
+export default function LegacyDownloadPage() {
+  redirect('/download/otya-player')
 }
