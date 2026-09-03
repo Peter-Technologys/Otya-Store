@@ -7,6 +7,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 test('generic release downloads never silently select ARM64', () => {
   const latest = read('src/app/latest/route.ts')
   const workflow = read('src/release-workflow.mjs')
+  const downloadPage = read('src/app/download/otya-player/DownloadButtons.tsx')
 
   assert.match(latest, /const DOWNLOAD_PAGE = 'https:\/\/petersmartlink\.com\/download\/otya-player'/)
   assert.match(latest, /auto:\s+DOWNLOAD_PAGE/)
@@ -15,6 +16,13 @@ test('generic release downloads never silently select ARM64', () => {
   assert.match(workflow, /auto: `\$\{release\.workerUrl\}\/download\/otya-player`/)
   assert.match(workflow, /arm64: `\$\{release\.workerUrl\}\/apk\/arm64`/)
   assert.match(workflow, /arm32: `\$\{release\.workerUrl\}\/apk\/arm32`/)
+
+  assert.match(downloadPage, /return \{isAndroid:true,abi:'unknown'\}/)
+  assert.match(downloadPage, /Choose your Android build/)
+  assert.match(downloadPage, /Otya Player will not guess/)
+  assert.match(downloadPage, /download\('arm64'\)/)
+  assert.match(downloadPage, /download\('arm32'\)/)
+  assert.doesNotMatch(downloadPage, /\/android\/i\.test\(ua\) \? 'arm64' : 'unknown'/)
 })
 
 test('a different release tag cannot reuse or decrease the Android version code', () => {
