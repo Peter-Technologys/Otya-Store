@@ -56,17 +56,39 @@ export async function signJwt(payload: JwtPayload, secret: string): Promise<stri
 
 export async function verifyJwt(token: string, secret: string): Promise<JwtPayload | null> {
   const parts = token.split('.')
-  if (parts.length !== 3) return null
+  if (parts.length !== 3 || !secret) return null
   const [headerB64, payloadB64, sigB64] = parts
   const signing = `${headerB64}.${payloadB64}`
   try {
+    // Fail closed on malformed or misleading JWT metadata. We always issue
+    // HS256 JWTs, so accepting any other declared algorithm/type is needless
+    // ambiguity even though Web Crypto below already pins HMAC-SHA256.
+    const header = JSON.parse(new TextDecoder().decode(base64urlDecode(headerB64))) as unknown
+    if (
+      typeof header !== 'object' ||
+      header === null ||
+      (header as { alg?: unknown }).alg !== 'HS256' ||
+      (header as { typ?: unknown }).typ !== 'JWT'
+    ) {
+      return null
+    }
+
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
     const valid = await crypto.subtle.verify('HMAC', key, base64urlDecode(sigB64), new TextEncoder().encode(signing))
     if (!valid) return null
-    const payload = JSON.parse(new TextDecoder().decode(base64urlDecode(payloadB64))) as JwtPayload
+
+    const decoded = JSON.parse(new TextDecoder().decode(base64urlDecode(payloadB64))) as unknown
+    if (typeof decoded !== 'object' || decoded === null) return null
+
+    const payload = decoded as Partial<JwtPayload>
     const now = Math.floor(Date.now() / 1000)
-    if (payload.exp && payload.exp < now) return null
-    return payload
+    if (typeof payload.sub !== 'string' || payload.sub.trim().length === 0) return null
+    if (payload.email !== null && typeof payload.email !== 'string') return null
+    if (!Number.isSafeInteger(payload.iat) || !Number.isSafeInteger(payload.exp)) return null
+    if ((payload.iat as number) > now + 300) return null
+    if ((payload.exp as number) <= now || (payload.exp as number) <= (payload.iat as number)) return null
+
+    return payload as JwtPayload
   } catch {
     return null
   }
