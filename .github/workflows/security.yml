@@ -69,16 +69,14 @@ jobs:
       - name: Validate and audit web/backend
         run: |
           set -euo pipefail
-          npm install --no-package-lock --ignore-scripts
-          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
           npm run audit:all
           npm run check
       - name: Validate and audit auth worker
         working-directory: auth-worker
         run: |
           set -euo pipefail
-          npm install --no-package-lock --ignore-scripts
-          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
           npm audit --audit-level=high
           npm test
           npx tsc --noEmit
@@ -86,8 +84,7 @@ jobs:
         working-directory: ai-worker
         run: |
           set -euo pipefail
-          npm install --no-package-lock --ignore-scripts
-          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
           npm audit --audit-level=high
           npm test
           npm run check
@@ -116,10 +113,10 @@ jobs:
         with: { languages: javascript-typescript }
       - uses: actions/setup-node@v6
         with: { node-version: '22', package-manager-cache: false }
-      - run: npm install --no-package-lock --ignore-scripts
+      - run: npm ci --ignore-scripts
       - working-directory: auth-worker
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts
       - working-directory: ai-worker
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts
       - run: npm run build
       - uses: github/codeql-action/analyze@v3

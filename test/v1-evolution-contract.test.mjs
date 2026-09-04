@@ -25,7 +25,8 @@ test('critical deployment stack is pinned instead of floating across deploys', (
 })
 
 test('high-severity dependency audits are deployment gates', () => {
-  assert.match(securityWorkflow, /npm install --package-lock-only --ignore-scripts/)
+  assert.match(securityWorkflow, /npm ci --ignore-scripts/)
+  assert.doesNotMatch(securityWorkflow, /--no-package-lock/)
   assert.match(securityWorkflow, /npm run audit:all/)
   assert.match(securityWorkflow, /npm audit --audit-level=high/)
   assert.match(securityWorkflow, /actions\/checkout@v6/)
