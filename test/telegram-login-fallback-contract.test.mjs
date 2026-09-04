@@ -15,7 +15,11 @@ const secretWorkflowUrl = new URL('../.github/workflows/telegram-auth-secret.yml
 test('Telegram browser Sign-In is first-class OIDC while Mini App uses Secrets Store HMAC', () => {
   assert.match(wrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
   assert.match(wrapper, /handleTelegramPrimaryLogin/)
-  assert.match(wrapper, /return worker\.fetch\(request, env\)/)
+  assert.match(wrapper, /createRefreshSafeKv/)
+  assert.match(wrapper, /AUTH_KV:\s*createRefreshSafeKv\(rawEnv\.AUTH_KV\)/)
+  assert.match(wrapper, /handleTelegramPrimaryLogin\(request, authEnv\)/)
+  assert.match(wrapper, /return worker\.fetch\(request, authEnv\)/)
+  assert.doesNotMatch(wrapper, /return worker\.fetch\(request, env\)/)
   assert.match(primaryLogin, /STATE_PREFIX = 'telegram_primary_oidc:'/)
   assert.match(primaryLogin, /code_challenge_method', 'S256'/)
   assert.match(primaryLogin, /claims\.nonce !== nonce/)

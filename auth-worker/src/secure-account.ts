@@ -1,5 +1,6 @@
 import { verifyJwt } from './crypto'
 import { deleteUser, getUserById, type D1Database } from './db'
+import { sessionIdForRefreshIndexSuffix } from './refresh-token-store'
 
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>
@@ -31,15 +32,6 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
-async function sessionIdForToken(refreshToken: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(refreshToken))
-  return toHex(new Uint8Array(digest).slice(0, 16))
-}
-
 async function revokeEveryRefreshSession(env: SecureAccountEnv, userId: string): Promise<number> {
   let cursor: string | undefined
   let revoked = 0
@@ -52,12 +44,12 @@ async function revokeEveryRefreshSession(env: SecureAccountEnv, userId: string):
     })
 
     for (const key of page.keys) {
-      const token = key.name.slice(`rt_user:${userId}:`.length)
-      if (!token) continue
-      const sessionId = await sessionIdForToken(token)
+      const suffix = key.name.slice(`rt_user:${userId}:`.length)
+      if (!suffix) continue
+      const sessionId = await sessionIdForRefreshIndexSuffix(suffix)
       await Promise.all([
         env.AUTH_KV.delete(key.name),
-        env.AUTH_KV.delete(`rt:${token}`),
+        env.AUTH_KV.delete(`rt:${suffix}`),
         env.AUTH_KV.delete(`auth_session:${userId}:${sessionId}`),
         env.AUTH_KV.delete(`auth_session_token:${sessionId}`),
       ])
@@ -161,7 +153,9 @@ export async function handleSecureAccountRoute(
 
   try {
     // Revoke credentials before removing the identity so no refresh/session
-    // credential survives a successful deletion.
+    // credential survives a successful deletion. The production refresh-safe
+    // KV wrapper returns both legacy and digest-backed indexes through this
+    // compatibility prefix, so account deletion covers the migration window.
     await revokeEveryRefreshSession(env, payload.sub)
     await purgeDirectAuthState(env, payload.sub)
     await deleteAuthDbChildIfPresent(env.AUTH_DB, 'user_consents', payload.sub)
