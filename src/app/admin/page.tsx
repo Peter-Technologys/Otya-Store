@@ -22,7 +22,7 @@ type Feedback = {
 }
 type CrashGroup = { group_id?: string | null; error_type?: string | null; count?: number; latest?: string | null }
 type FirebaseSync = { configured?: boolean; synced?: boolean; revision?: number; updatedAt?: string }
-type SessionState = { loading: boolean; configured: boolean; authenticated: boolean; accountAdmin: boolean }
+type SessionState = { loading: boolean; configured: boolean; authenticated: boolean; accountAdmin: boolean; checkError: string }
 type Latest = { version?: string; versionCode?: number; changelog?: string; date?: string }
 
 const card = 'rounded-2xl border p-4 sm:p-5'
@@ -40,7 +40,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   </div>
 }
 
-function AdminGate({ configured, accountAdmin, onSuccess }: { configured: boolean; accountAdmin: boolean; onSuccess: () => void }) {
+function AdminGate({ configured, accountAdmin, checkError, onRetry, onSuccess }: { configured: boolean; accountAdmin: boolean; checkError: string; onRetry: () => void; onSuccess: () => void }) {
   const [otp, setOtp] = useState('')
   const [stage, setStage] = useState<'start' | 'otp' | 'telegram'>('start')
   const [error, setError] = useState('')
@@ -113,8 +113,12 @@ function AdminGate({ configured, accountAdmin, onSuccess }: { configured: boolea
         Admin access uses your normal Otya account plus fresh email and Telegram verification.
       </p>
 
-      {!configured ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
-        Admin MFA is not fully configured on the server.
+      {checkError ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
+        <p>We could not verify the Admin service configuration right now.</p>
+        <p className="mt-2 text-red-400">{checkError}</p>
+        <button type="button" onClick={onRetry} className="mt-3 w-full rounded-xl border px-4 py-2.5 text-sm font-bold" style={{ borderColor: 'var(--cosmos-divider)' }}>Retry session check</button>
+      </div> : !configured ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
+        Admin MFA is not fully configured on the server. Check the owner allowlist, Auth service binding, and Admin session secret.
       </div> : !accountAdmin ? <div className="mt-6 space-y-3">
         <p className="text-sm text-center" style={{ color: 'var(--cosmos-text-secondary)' }}>Sign in to your Otya account first. Only allowlisted accounts can continue to Admin.</p>
         <a href="/sign-in?next=/admin" className="block w-full rounded-xl bg-violet-500 px-4 py-3 text-center text-sm font-black text-white">Sign in to Otya</a>
@@ -151,7 +155,7 @@ const sections = [
 type Section = typeof sections[number][0]
 
 export default function AdminPage() {
-  const [session, setSession] = useState<SessionState>({ loading: true, configured: false, authenticated: false, accountAdmin: false })
+  const [session, setSession] = useState<SessionState>({ loading: true, configured: false, authenticated: false, accountAdmin: false, checkError: '' })
   const [section, setSection] = useState<Section>('overview')
   const [stats, setStats] = useState<Stats | null>(null)
   const [feedback, setFeedback] = useState<Feedback[]>([])
@@ -164,12 +168,15 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false)
 
   const refreshSession = useCallback(async () => {
+    setSession(current => ({ ...current, loading: true, checkError: '' }))
     try {
       const res = await fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`Admin session check failed (HTTP ${res.status})`)
       const body = await res.json() as { configured?: boolean; authenticated?: boolean; accountAdmin?: boolean }
-      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true, accountAdmin: body.accountAdmin === true })
-    } catch {
-      setSession({ loading: false, configured: false, authenticated: false, accountAdmin: false })
+      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true, accountAdmin: body.accountAdmin === true, checkError: '' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Admin session check failed'
+      setSession({ loading: false, configured: false, authenticated: false, accountAdmin: false, checkError: message })
     }
   }, [])
 
@@ -251,7 +258,7 @@ export default function AdminPage() {
   }
 
   if (session.loading) return <div className="min-h-screen grid place-items-center">Loading OTYA Admin…</div>
-  if (!session.authenticated) return <AdminGate configured={session.configured} accountAdmin={session.accountAdmin} onSuccess={refreshSession} />
+  if (!session.authenticated) return <AdminGate configured={session.configured} accountAdmin={session.accountAdmin} checkError={session.checkError} onRetry={refreshSession} onSuccess={refreshSession} />
 
   return <div className="min-h-screen" style={{ background: 'var(--cosmos-scaffold)', color: 'var(--cosmos-text-primary)' }}>
     <header className="sticky top-0 z-40 border-b" style={{ background: 'var(--cosmos-surface)', borderColor: 'var(--cosmos-divider)' }}>
