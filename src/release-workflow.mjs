@@ -189,8 +189,6 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           downloads: {
             arm64: `${release.workerUrl}/apk/arm64`,
             arm32: `${release.workerUrl}/apk/arm32`,
-            // Generic consumers must not be silently routed to ARM64. The app
-            // uses the explicit ABI URLs; everyone else gets the download page.
             auto: `${release.workerUrl}/download/otya-player`,
             page: `${release.workerUrl}/download/otya-player`,
           },
@@ -230,21 +228,26 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
       const notification = await step.do('queue update notification once', async () => {
         const markerKey = `release:push:${release.tag}`
         if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
+        const url = `${release.workerUrl}/download/otya-player`
         await this.env.PUSH_QUEUE.send({
+          title: `OTYA Player ${release.version} is available`,
+          body: metadata.changelog || `OTYA Player ${release.version} is ready to download.`,
+          url,
           type: 'release_available',
-          tag: release.tag,
           version: release.version,
-          versionCode: release.versionCode,
-          changelog: metadata.changelog,
-          dedupeKey: markerKey,
+          data: {
+            type: 'release_available',
+            tag: release.tag,
+            version: release.version,
+            versionCode: String(release.versionCode),
+            download_url: url,
+            dedupeKey: markerKey,
+          },
         })
         await this.env.KV.put(markerKey, new Date().toISOString(), { expirationTtl: 90 * 24 * 60 * 60 })
         return { queued: true, duplicate: false }
       })
 
-      // Publication is already committed once metadata is live and the push is
-      // queued. Observability/reporting failures must never turn that completed
-      // release into a misleading "failed" state.
       const analytics = await step.do('record release analytics', async () => {
         try {
           if (!this.env.OTYA_ANALYTICS?.writeDataPoint) return { written: false, reason: 'binding-unavailable' }
@@ -302,7 +305,6 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
           `Status: failed\nReason: ${message}`,
         ))
       } catch {
-        // Reporting failure must not mask the original release failure.
       }
       throw error
     }
