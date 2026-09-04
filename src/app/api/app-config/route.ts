@@ -8,7 +8,7 @@ import {
 
 const KEY = 'app:remote-config'
 const FIREBASE_CACHE_KEY = 'app:remote-config:firebase-cache-v1'
-const CURRENT_REVISION = 10
+const CURRENT_REVISION = 11
 const FIREBASE_CACHE_FRESH_MS = 10 * 60 * 1000
 const FIREBASE_CACHE_TTL_SECS = 60 * 60
 
@@ -65,12 +65,12 @@ const DEFAULT_CONFIG = {
   links: {
     website: 'https://petersmartlink.com/otya-player',
     download: 'https://petersmartlink.com/download/otya-player',
-    support: 'https://petersmartlink.com/apps/otya-player/support',
+    support: 'https://docs.petersmartlink.com/help',
     privacy: 'https://petersmartlink.com/privacy',
     terms: 'https://petersmartlink.com/terms',
-    docs: 'https://petersmartlink.com/docs',
-    account: 'https://petersmartlink.com/account',
-    ai: 'https://petersmartlink.com/ask',
+    docs: 'https://docs.petersmartlink.com',
+    account: 'https://space.petersmartlink.com/account/',
+    ai: 'https://space.petersmartlink.com/ask',
   },
   ai: {
     enabled: true,
@@ -80,7 +80,7 @@ const DEFAULT_CONFIG = {
     productContext: 'otya-aware',
     guestPolicy: 'single-low-cost-model',
     signedInPolicy: 'managed-model-selector',
-    greeting: 'Ask Otya anything. It can answer general questions and has extra Otya product context when you need help with playback, files, Transfer, Private, updates or your account.',
+    greeting: 'Ask Next anything. It can answer general questions and has extra Otya product context when you need help with playback, files, Transfer, Private, updates or your account.',
     suggestedPrompts: [
       'Explain something I am learning in simple language.',
       'Help me think through a decision step by step.',
@@ -159,6 +159,13 @@ function enforceProductScope(value: ConfigRecord): ConfigRecord {
   return {
     ...value,
     features,
+    links: {
+      ...asRecord(value.links),
+      support: DEFAULT_CONFIG.links.support,
+      docs: DEFAULT_CONFIG.links.docs,
+      account: DEFAULT_CONFIG.links.account,
+      ai: DEFAULT_CONFIG.links.ai,
+    },
     search: {
       ...asRecord(value.search),
       categories: DEFAULT_CONFIG.search.categories,
