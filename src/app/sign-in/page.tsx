@@ -10,8 +10,9 @@ const TERMS_VERSION = '2026-09-02'
 const PRIVACY_VERSION = '2026-09-02'
 const DEFAULT_AFTER_AUTH = 'https://space.petersmartlink.com/'
 
-type Mode = 'signin' | 'register' | 'verify' | 'forgot' | 'reset' | 'twofactor'
+type Mode = 'signin' | 'register' | 'verify' | 'forgot' | 'reset' | 'twofactor' | 'owner' | 'owner-otp' | 'owner-telegram'
 type Json = { error?: string; code?: string; message?: string; authenticated?: boolean; authorization_url?: string }
+type AdminState = { configured?: boolean; authenticated?: boolean; accountAdmin?: boolean; error?: string }
 type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
 declare global { interface Window { google?: GoogleApi } }
@@ -22,6 +23,12 @@ async function authFetch(path: string, init: RequestInit = {}) {
   return fetch(`${API}/${path}`, { ...init, headers, credentials: 'same-origin', cache: 'no-store' })
 }
 
+async function adminFetch(init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  return fetch('/api/admin/session', { ...init, headers, credentials: 'same-origin', cache: 'no-store' })
+}
+
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
 
 function afterAuthDestination(): string {
@@ -29,6 +36,10 @@ function afterAuthDestination(): string {
   const requested = new URLSearchParams(window.location.search).get('next')?.trim() ?? ''
   if (requested.startsWith('/') && !requested.startsWith('//') && !requested.includes('\\')) return requested
   return DEFAULT_AFTER_AUTH
+}
+
+function isAdminDestination(destination: string) {
+  return destination === '/admin' || destination.startsWith('/admin/')
 }
 
 export default function SignInPage() {
@@ -45,20 +56,29 @@ export default function SignInPage() {
   const [terms, setTerms] = useState(false)
   const [privacy, setPrivacy] = useState(false)
   const [marketing, setMarketing] = useState(false)
+  const [ownerEligible, setOwnerEligible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
   const registration = mode === 'register'
   const providerMode = mode === 'signin' || mode === 'register'
+  const ownerMode = mode === 'owner' || mode === 'owner-otp' || mode === 'owner-telegram'
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const owner = params.get('owner')
+    if (owner === 'verified') {
+      void completeOwnerVerification()
+      return
+    }
+
     void authFetch('session').then(async response => {
       const data = await response.json().catch(() => ({})) as Json
-      if (response.ok && data.authenticated) window.location.replace(afterAuthDestination())
+      if (response.ok && data.authenticated) await routeAuthenticatedSession()
     }).catch(() => undefined)
 
-    const telegram = new URLSearchParams(window.location.search).get('telegram')
+    const telegram = params.get('telegram')
     if (telegram === 'signed-in') void verifySessionAndOpen()
     else if (telegram === 'not-linked') setNotice('That Telegram account is not linked yet. Sign in with your Otya account first, then connect Telegram from Space.')
     else if (telegram === 'expired') setError('Telegram sign-in expired. Please try again.')
@@ -98,19 +118,109 @@ export default function SignInPage() {
     setMode(next); setError(''); setNotice(''); setOtp(''); setNewPassword(''); setConfirmPassword(''); setSecondFactor(''); setUseRecovery(false)
   }
 
+  function openDestination() {
+    window.location.replace(afterAuthDestination())
+  }
+
+  async function beginOwnerVerification() {
+    setOwnerEligible(true)
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const response = await adminFetch({ method: 'POST', body: JSON.stringify({ action: 'start' }) })
+      const data = await response.json().catch(() => ({})) as AdminState
+      if (!response.ok) throw new Error(data.error || 'Owner verification could not start.')
+      setMode('owner-otp')
+      setNotice('Owner account recognized. Enter the single-use code sent to the verified email on this Otya account.')
+    } catch (cause) {
+      setMode('owner')
+      setError((cause as Error).message)
+    } finally { setBusy(false) }
+  }
+
+  async function routeAuthenticatedSession() {
+    const destination = afterAuthDestination()
+    try {
+      const response = await adminFetch()
+      const state = await response.json().catch(() => ({})) as AdminState
+      if (!response.ok) throw new Error(state.error || 'Otya could not check account permissions.')
+
+      if (state.accountAdmin === true || state.authenticated === true) {
+        setOwnerEligible(true)
+        if (state.authenticated === true) {
+          openDestination()
+          return true
+        }
+        await beginOwnerVerification()
+        return true
+      }
+
+      if (isAdminDestination(destination)) {
+        setOwnerEligible(false)
+        setMode('owner')
+        setError('This Otya account does not have Admin access.')
+        return true
+      }
+
+      openDestination()
+      return true
+    } catch (cause) {
+      if (isAdminDestination(destination)) {
+        setOwnerEligible(true)
+        setMode('owner')
+        setError((cause as Error).message)
+        return true
+      }
+      openDestination()
+      return true
+    }
+  }
+
   async function verifySessionAndOpen() {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await authFetch('session').catch(() => null)
       if (response?.ok) {
         const data = await response.json().catch(() => ({})) as Json
         if (data.authenticated === true) {
-          window.location.replace(afterAuthDestination())
+          await routeAuthenticatedSession()
           return true
         }
       }
       if (attempt < 2) await sleep(120 * (attempt + 1))
     }
     throw new Error('Your details were accepted, but Otya could not open a secure session. Please try again.')
+  }
+
+  async function completeOwnerVerification() {
+    setMode('owner-telegram')
+    setOwnerEligible(true)
+    setBusy(true); setError(''); setNotice('Completing owner verification…')
+    try {
+      const response = await adminFetch({ method: 'POST', body: JSON.stringify({ action: 'complete' }) })
+      const data = await response.json().catch(() => ({})) as AdminState
+      if (!response.ok) throw new Error(data.error || 'Owner verification could not be completed.')
+      setNotice('Owner verified. Opening your Otya Space…')
+      openDestination()
+    } catch (cause) {
+      setError((cause as Error).message)
+      setNotice('Telegram returned to Otya, but the owner session was not completed.')
+    } finally { setBusy(false) }
+  }
+
+  async function startOwnerTelegram() {
+    setBusy(true); setError('')
+    try {
+      const query = new URLSearchParams({ mode: 'admin', return_to: 'sign-in' })
+      const destination = afterAuthDestination()
+      if (isAdminDestination(destination)) query.set('next', destination)
+      const response = await fetch(`/api/auth/telegram/start?${query.toString()}`, { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+      const data = await response.json().catch(() => ({})) as Json
+      if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram owner verification could not start.')
+      setMode('owner-telegram')
+      window.location.assign(data.authorization_url)
+    } catch (cause) {
+      setError((cause as Error).message)
+      setBusy(false)
+    }
   }
 
   async function completeGoogle(response: GoogleCredentialResponse) {
@@ -158,7 +268,8 @@ export default function SignInPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!email.trim()) return setError('Enter your email address.')
+    if (mode === 'owner-otp' && !otp.trim()) return setError('Enter the owner verification code from your email.')
+    if (!ownerMode && !email.trim()) return setError('Enter your email address.')
     if ((mode === 'signin' || mode === 'register' || mode === 'twofactor') && !password) return setError('Enter your password.')
     if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy to create your account.')
     if (mode === 'verify' && !otp.trim()) return setError('Enter the verification code from your email.')
@@ -168,6 +279,16 @@ export default function SignInPage() {
 
     setBusy(true); setError(''); setNotice('')
     try {
+      if (mode === 'owner-otp') {
+        const response = await adminFetch({ method: 'POST', body: JSON.stringify({ action: 'verify-otp', otp: otp.trim().toUpperCase() }) })
+        const data = await response.json().catch(() => ({})) as AdminState
+        if (!response.ok) throw new Error(data.error || 'The owner verification code is invalid or expired.')
+        setOtp('')
+        setNotice('Email verification passed. Continue with the Telegram identity linked to this same Otya account.')
+        setBusy(false)
+        await startOwnerTelegram()
+        return
+      }
       if (mode === 'verify') {
         const response = await authFetch('verify-email', { method: 'POST', body: JSON.stringify({ otp: otp.trim().toUpperCase() }) })
         const data = await response.json().catch(() => ({})) as Json
@@ -218,39 +339,48 @@ export default function SignInPage() {
     finally { setBusy(false) }
   }
 
-  const title = mode === 'register' ? 'Create your Otya account' : mode === 'verify' ? 'Verify your email' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Sign in to Otya'
-  const subtitle = mode === 'verify' ? `Enter the 5-character code sent to ${email || 'your email'}.` : mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : registration ? 'Create one account for Otya.' : 'Use your Otya account.'
+  const title = mode === 'register' ? 'Create your Otya account' : mode === 'verify' ? 'Verify your email' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : mode === 'owner-otp' ? 'Confirm owner access' : mode === 'owner-telegram' ? 'Confirm owner identity' : mode === 'owner' ? 'Owner access' : 'Sign in to Otya'
+  const subtitle = mode === 'verify' ? `Enter the 5-character code sent to ${email || 'your email'}.` : mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : mode === 'owner-otp' ? 'This is the same Otya account. Enter the fresh code sent to its verified owner email.' : mode === 'owner-telegram' ? 'Finish the owner check with the Telegram identity linked to this same Otya account.' : mode === 'owner' ? 'Admin is a role inside this Otya account, not a second account.' : registration ? 'Create one account for Otya.' : 'One account opens your Otya Space.'
 
   return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
-      <Link href="/" aria-label="Otya home" className="inline-flex items-center gap-1.5 mb-8"><OtyaBrandMark size={42} /><span className="font-black text-[22px] tracking-[-.05em]">tya</span></Link>
+      <Link href="https://petersmartlink.com" aria-label="PeterSmart Link home" className="inline-flex items-center gap-2.5 mb-8"><span className="h-10 w-10 rounded-xl grid place-items-center border border-black/[.08] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] text-xs font-black">PS</span><span><span className="block font-black text-[15px] tracking-[-.03em]">PeterSmart Link</span><span className="block text-[11px] otya-muted">Otya Space</span></span></Link>
       <div className="rounded-[30px] border border-black/[.07] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] p-5 sm:p-7 shadow-[0_24px_80px_rgba(20,16,35,.09)]">
+        <div className="mb-5"><OtyaBrandMark size={38}/></div>
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
         <p className="mt-2 mb-6 text-sm leading-6 otya-muted">{subtitle}</p>
         {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
         {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
-        <form onSubmit={submit} className="space-y-3">
+
+        {mode === 'owner' ? <div className="space-y-3">
+          {ownerEligible && <button type="button" disabled={busy} onClick={() => void beginOwnerVerification()} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Checking…' : 'Retry owner verification'}</button>}
+          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-black/[.08] dark:border-white/[.10]">Open Space</button>
+        </div> : mode === 'owner-telegram' ? <div className="space-y-3">
+          <button type="button" disabled={busy} onClick={() => void startOwnerTelegram()} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Completing verification…' : 'Continue with Telegram'}</button>
+          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-black/[.08] dark:border-white/[.10]">Open Space</button>
+        </div> : <form onSubmit={submit} className="space-y-3">
           {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
-          <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset' || mode === 'verify'} />
+          {!ownerMode && <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset' || mode === 'verify'} />}
           {(mode === 'signin' || mode === 'register' || mode === 'twofactor') && <Field value={password} onChange={setPassword} placeholder="Password" type="password" autoComplete={registration ? 'new-password' : 'current-password'} disabled={mode === 'twofactor'} />}
-          {mode === 'verify' && <Field value={otp} onChange={value => setOtp(value.toUpperCase())} placeholder="A1234" autoComplete="one-time-code" autoFocus />}
-          {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(v => !v); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
+          {(mode === 'verify' || mode === 'owner-otp') && <Field value={otp} onChange={value => setOtp(value.toUpperCase())} placeholder="A1234" autoComplete="one-time-code" autoFocus />}
+          {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(value => !value); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
           {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/><Field value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm new password" type="password" autoComplete="new-password"/></>}
           {registration && <div className="space-y-3 py-2 text-sm otya-muted"><Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check><Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check><Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check></div>}
-          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify and continue' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : 'Sign in'}</button>
-        </form>
-        <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
+          <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify and continue' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : mode === 'owner-otp' ? 'Verify owner and continue' : 'Sign in'}</button>
+        </form>}
+
+        {!ownerMode && <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold otya-muted">
           {mode === 'signin' && <><button type="button" onClick={() => switchMode('register')}>Create account</button><button type="button" onClick={() => switchMode('forgot')}>Forgot password?</button></>}
           {mode === 'register' && <button type="button" onClick={() => switchMode('signin')}>Already have an account?</button>}
           {mode === 'verify' && <><button type="button" disabled={busy} onClick={() => void resendVerification()}>Resend code</button><button type="button" onClick={() => switchMode('signin')}>Back to sign in</button></>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
-        </div>
-        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5"><p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p><div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}><div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" /><button type="button" onClick={()=>void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg></button></div></div>}
+        </div>}
+        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5"><p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p><div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}><div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" /><button type="button" onClick={() => void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg></button></div></div>}
       </div>
-      <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted"><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/help">Help</Link></div>
+      <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted"><Link href="https://petersmartlink.com/terms">Terms</Link><Link href="https://petersmartlink.com/privacy">Privacy</Link><Link href="https://docs.petersmartlink.com">Help & Docs</Link></div>
     </section>
   </main>
 }
 
-function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value:string; onChange:(value:string)=>void; placeholder:string; type?:string; autoComplete?:string; disabled?:boolean; autoFocus?:boolean }) { return <input value={value} onChange={e=>onChange(e.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" /> }
-function Check({ checked,onChange,children }:{ checked:boolean; onChange:(value:boolean)=>void; children:React.ReactNode }) { return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label> }
+function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value: string; onChange: (value: string) => void; placeholder: string; type?: string; autoComplete?: string; disabled?: boolean; autoFocus?: boolean }) { return <input value={value} onChange={event => onChange(event.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" /> }
+function Check({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) { return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label> }

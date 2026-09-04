@@ -16,12 +16,15 @@ test('custom domains are canonical public entry points', () => {
   assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/')"))
 })
 
-test('Space root is a product home while Account remains a Space section', () => {
+test('Space root is a product home while Account and Admin remain Space sections', () => {
   assert.ok(router.includes("url.pathname === '/' || url.pathname === '/space'"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/space/')"))
   assert.ok(router.includes("url.pathname === '/account'"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
   assert.ok(router.includes("pathname.startsWith('/account/')"))
+  assert.ok(router.includes("pathname === '/admin'"))
+  assert.ok(router.includes("pathname.startsWith('/admin/')"))
+  assert.ok(router.includes("['admin', '/admin']"))
 })
 
 test('Space allows approved signed-in product routes instead of redirecting them away', () => {
@@ -29,11 +32,14 @@ test('Space allows approved signed-in product routes instead of redirecting them
   assert.ok(router.includes("pathname === '/ask'"))
   assert.ok(router.includes("pathname.startsWith('/ask/')"))
   assert.ok(router.includes("pathname === '/telegram/'"))
+  assert.ok(router.includes("pathname === '/admin'"))
   assert.ok(router.includes('isSpaceSurfacePath(url.pathname)'))
 })
 
-test('Docs and Status are internal rewrites instead of redirects to apex paths', () => {
+test('Docs root is real documentation while Help and Status stay distinct surfaces', () => {
   assert.ok(router.includes("host === DOCS_HOST"))
+  assert.ok(router.includes("url.pathname === '/' || url.pathname === '/docs'"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/docs/')"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/help/')"))
   assert.ok(router.includes("host === STATUS_HOST"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/status/')"))
@@ -50,16 +56,19 @@ test('surface rewrites preserve browser hostname and Next trailing slash policy'
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/space/')"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/account/')"))
   assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/sign-in/')"))
+  assert.ok(router.includes("dispatchSurface(request, url, env, ctx, '/docs/')"))
 })
 
-test('legacy apex paths converge to clean subdomains without losing Account intent', () => {
+test('legacy apex paths converge to clean subdomains without losing intent', () => {
   assert.ok(router.includes("url.pathname === '/docs'"))
   assert.ok(router.includes("url.pathname === '/help'"))
   assert.ok(router.includes("url.pathname === '/status'"))
   assert.ok(router.includes("url.pathname === '/account'"))
+  assert.ok(router.includes("url.pathname === '/admin'"))
   assert.ok(router.includes("redirectToHost(url, DOCS_HOST, '/')"))
   assert.ok(router.includes("redirectToHost(url, STATUS_HOST, '/')"))
   assert.ok(router.includes("redirectToHost(url, SPACE_HOST, '/account/')"))
+  assert.ok(router.includes("redirectToHost(url, SPACE_HOST, url.pathname)"))
 })
 
 test('custom surfaces keep HTTPS and generated OpenNext routing explicit', () => {

@@ -48,6 +48,8 @@ function isSpaceSurfacePath(pathname) {
     || pathname.startsWith('/ask/')
     || pathname === '/account'
     || pathname.startsWith('/account/')
+    || pathname === '/admin'
+    || pathname.startsWith('/admin/')
     || pathname === '/sign-in'
     || pathname === '/sign-in/'
     || pathname.startsWith('/api/')
@@ -76,6 +78,7 @@ function matchSpaceConsoleRoute(pathname) {
     ['settings', '/account/settings/'],
     ['next', '/ask/'],
     ['telegram', '/telegram/'],
+    ['admin', '/admin'],
   ])
   const target = direct.get(section)
   if (target) return { publicId, section, target }
@@ -157,7 +160,8 @@ export default {
     }
 
     if (host === DOCS_HOST) {
-      if (url.pathname === '/' || url.pathname === '/help' || url.pathname === '/help/') return dispatchSurface(request, url, env, ctx, '/help/')
+      if (url.pathname === '/' || url.pathname === '/docs' || url.pathname === '/docs/') return dispatchSurface(request, url, env, ctx, '/docs/')
+      if (url.pathname === '/help' || url.pathname === '/help/') return dispatchSurface(request, url, env, ctx, '/help/')
       if (isSharedAppAssetPath(url.pathname)) return dispatchSurface(request, url, env, ctx)
       if (request.method === 'GET' || request.method === 'HEAD') return redirectToHost(url, DOCS_HOST, '/')
       return dispatchSurface(request, url, env, ctx)
@@ -173,6 +177,7 @@ export default {
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (host === APP_HOST && (url.pathname === '/account' || url.pathname === '/account/')) return redirectToHost(url, SPACE_HOST, '/account/')
       if (host === APP_HOST && (url.pathname === '/sign-in' || url.pathname === '/sign-in/')) return redirectToHost(url, SPACE_HOST, '/sign-in/')
+      if (host === APP_HOST && (url.pathname === '/admin' || url.pathname.startsWith('/admin/'))) return redirectToHost(url, SPACE_HOST, url.pathname)
       if (host === APP_HOST && (url.pathname === '/help' || url.pathname === '/help/' || url.pathname === '/docs' || url.pathname === '/docs/')) return redirectToHost(url, DOCS_HOST, '/')
       if (host === APP_HOST && (url.pathname === '/status' || url.pathname === '/status/')) return redirectToHost(url, STATUS_HOST, '/')
     }
