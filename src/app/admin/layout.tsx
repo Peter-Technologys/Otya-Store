@@ -3,14 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { OtyaBrandMark } from '@/components/OtyaBrandMark'
-
-type AdminState = {
-  configured?: boolean
-  authenticated?: boolean
-  accountAdmin?: boolean
-}
-
-const ADMIN_SESSION_TIMEOUT_MS = 9000
+import { getAdminSession } from '@/lib/admin_session_client'
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -19,13 +12,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
 
-    void fetch('/api/admin/session', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(ADMIN_SESSION_TIMEOUT_MS),
-    }).then(async response => {
-      const state = await response.json().catch(() => ({})) as AdminState
+    void getAdminSession().then(state => {
       if (cancelled) return
 
       const inAi = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/')
@@ -33,7 +20,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       // Never render privileged admin surfaces unless the server positively
       // confirms an elevated admin session. UI state is not authorization.
-      if (inAi && (response.ok !== true || state.authenticated !== true)) {
+      if (inAi && state.authenticated !== true) {
         window.location.replace('/admin')
         return
       }

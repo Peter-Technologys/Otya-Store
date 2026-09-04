@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { OtyaBrandMark } from '@/components/OtyaBrandMark'
+import { clearAdminSessionCache, getAdminSession } from '@/lib/admin_session_client'
 
 type Msg = { id?: number; role: 'user' | 'assistant'; content: string }
 type Conv = { id: string; title: string; updated_at?: string }
@@ -36,11 +37,9 @@ export default function ConsoleClient() {
 
   const refreshSession = useCallback(async()=>{
     try {
-      const r = await fetch('/api/admin/session',{cache:'no-store',credentials:'same-origin'})
-      const d = await r.json().catch(()=>({})) as {authenticated?:boolean}
-      const authenticated = r.ok === true && d.authenticated === true
-      setSession({loading:false,authenticated})
-      if (!authenticated) window.location.replace('/admin')
+      const state = await getAdminSession()
+      setSession({loading:false,authenticated:state.authenticated})
+      if (!state.authenticated) window.location.replace('/admin')
     } catch {
       setSession({loading:false,authenticated:false})
       window.location.replace('/admin')
@@ -55,6 +54,7 @@ export default function ConsoleClient() {
     const r = await fetch(url,{...init,credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',...(init?.headers||{})}})
     const d = await r.json().catch(()=>({}))
     if(r.status===401 || r.status===403){
+      clearAdminSessionCache()
       setSession({loading:false,authenticated:false})
       window.location.replace('/admin')
       throw new Error('Owner verification is required.')
@@ -71,6 +71,7 @@ export default function ConsoleClient() {
 
   async function logout(){
     await fetch('/api/admin/session',{method:'DELETE',credentials:'same-origin'}).catch(()=>null)
+    clearAdminSessionCache()
     setSession({loading:false,authenticated:false})
     setMessages([]);setConvs([]);setCurrent('')
     window.location.replace('/account')

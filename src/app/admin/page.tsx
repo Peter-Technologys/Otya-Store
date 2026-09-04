@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { clearAdminSessionCache, getAdminSession } from '@/lib/admin_session_client'
 
 type Health = { url: string; status: number; latency: number; ok: boolean }
 type Stats = {
@@ -55,6 +56,7 @@ function AdminGate({ configured, accountAdmin, checkError, onRetry, onSuccess }:
     })
     const data = await res.json().catch(() => ({})) as { error?: string; ok?: boolean }
     if (!res.ok) throw new Error(data.error ?? 'Admin verification failed')
+    clearAdminSessionCache()
     return data
   }, [])
 
@@ -110,7 +112,7 @@ function AdminGate({ configured, accountAdmin, checkError, onRetry, onSuccess }:
       </div>
       <h1 className="text-center text-2xl font-black">OTYA Admin</h1>
       <p className="mt-2 text-center text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>
-        Admin access uses your normal Otya account plus fresh email and Telegram verification.
+        Admin uses your existing Otya sign-in. Owner controls are unlocked with fresh email and Telegram verification, not a second account login.
       </p>
 
       {checkError ? <div className="mt-5 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: 'var(--cosmos-divider)' }}>
@@ -123,8 +125,8 @@ function AdminGate({ configured, accountAdmin, checkError, onRetry, onSuccess }:
         <p className="text-sm text-center" style={{ color: 'var(--cosmos-text-secondary)' }}>Sign in to your Otya account first. Only allowlisted accounts can continue to Admin.</p>
         <a href="/sign-in?next=/admin" className="block w-full rounded-xl bg-violet-500 px-4 py-3 text-center text-sm font-black text-white">Sign in to Otya</a>
       </div> : stage === 'start' ? <div className="mt-6 space-y-3">
-        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>We will send a single-use code to the email already verified on this Otya account. Telegram is required after the code.</p>
-        <button onClick={sendOtp} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Sending…' : 'Verify admin access'}</button>
+        <p className="text-sm" style={{ color: 'var(--cosmos-text-secondary)' }}>You are already signed in. To unlock Admin, we will send a single-use code to the verified email on this Otya account, then confirm the linked Telegram identity.</p>
+        <button onClick={sendOtp} disabled={loading} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Sending…' : 'Unlock Admin'}</button>
       </div> : stage === 'otp' ? <form onSubmit={verifyOtp} className="mt-6 space-y-3">
         <input className={input} style={surfaceStyle()} autoComplete="one-time-code" inputMode="text" placeholder="Email verification code" value={otp} onChange={e => setOtp(e.target.value.toUpperCase().slice(0, 5))} />
         <button disabled={loading || otp.trim().length !== 5} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{loading ? 'Checking…' : 'Continue with Telegram'}</button>
@@ -170,10 +172,8 @@ export default function AdminPage() {
   const refreshSession = useCallback(async () => {
     setSession(current => ({ ...current, loading: true, checkError: '' }))
     try {
-      const res = await fetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`Admin session check failed (HTTP ${res.status})`)
-      const body = await res.json() as { configured?: boolean; authenticated?: boolean; accountAdmin?: boolean }
-      setSession({ loading: false, configured: body.configured === true, authenticated: body.authenticated === true, accountAdmin: body.accountAdmin === true, checkError: '' })
+      const body = await getAdminSession()
+      setSession({ loading: false, configured: body.configured, authenticated: body.authenticated, accountAdmin: body.accountAdmin, checkError: '' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Admin session check failed'
       setSession({ loading: false, configured: false, authenticated: false, accountAdmin: false, checkError: message })
@@ -185,6 +185,7 @@ export default function AdminPage() {
   const api = useCallback(async (url: string, init?: RequestInit) => {
     const res = await fetch(url, { ...init, credentials: 'same-origin', cache: 'no-store' })
     if (res.status === 401) {
+      clearAdminSessionCache()
       setSession(s => ({ ...s, authenticated: false }))
       throw new Error('Admin session expired')
     }
@@ -242,6 +243,7 @@ export default function AdminPage() {
 
   async function logout() {
     await fetch('/api/admin/session', { method: 'DELETE', credentials: 'same-origin' }).catch(() => null)
+    clearAdminSessionCache()
     setSession(s => ({ ...s, authenticated: false }))
   }
 
