@@ -20,8 +20,10 @@ test('Admin account lookup is bounded and valid elevated sessions avoid the look
 
 test('Admin UI cannot stay on the access spinner indefinitely', () => {
   const layout = read('src/app/admin/layout.tsx')
-  assert.match(layout, /ADMIN_SESSION_TIMEOUT_MS = 9000/)
-  assert.match(layout, /signal: AbortSignal\.timeout\(ADMIN_SESSION_TIMEOUT_MS\)/)
+  const client = read('src/lib/admin_session_client.ts')
+  assert.match(client, /REQUEST_TIMEOUT_MS = 9_000/)
+  assert.match(client, /signal: AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/)
+  assert.match(layout, /getAdminSession\(\)/)
   assert.match(layout, /setChecking\(false\)/)
 })
 
