@@ -44,6 +44,12 @@ function decodeBase64(value: string): Uint8Array {
   return bytes
 }
 
+function concreteBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength)
+  new Uint8Array(buffer).set(bytes)
+  return buffer
+}
+
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false
   let diff = 0
@@ -106,7 +112,7 @@ async function verifySignature(
 
   const key = await crypto.subtle.importKey(
     'raw',
-    keyBytes,
+    concreteBuffer(keyBytes),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
