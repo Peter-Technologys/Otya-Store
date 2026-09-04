@@ -66,6 +66,14 @@ async function listAll(kv: RefreshTokenKv, prefix: string): Promise<{ name: stri
   return keys
 }
 
+async function removeSessionMetadata(kv: RefreshTokenKv, userId: string, digest: string): Promise<void> {
+  const sessionId = digest.slice(0, 32)
+  await Promise.all([
+    kv.delete(`auth_session:${userId}:${sessionId}`),
+    kv.delete(`auth_session_token:${sessionId}`),
+  ])
+}
+
 /**
  * Production compatibility wrapper.
  *
@@ -130,13 +138,18 @@ export function createRefreshSafeKv(kv: RefreshTokenKv): RefreshTokenKv {
           const userId = rest.slice(0, separator)
           const suffix = rest.slice(separator + 1)
           if (suffix.startsWith(SYNTHETIC_V2_SUFFIX)) {
-            await kv.delete(`${CURRENT_USER_PREFIX}${userId}:${suffix.slice(SYNTHETIC_V2_SUFFIX.length)}`)
+            const digest = suffix.slice(SYNTHETIC_V2_SUFFIX.length)
+            await Promise.all([
+              kv.delete(`${CURRENT_USER_PREFIX}${userId}:${digest}`),
+              removeSessionMetadata(kv, userId, digest),
+            ])
             return
           }
           const digest = await refreshTokenDigest(suffix)
           await Promise.all([
             kv.delete(`${CURRENT_USER_PREFIX}${userId}:${digest}`),
             kv.delete(key),
+            removeSessionMetadata(kv, userId, digest),
           ])
           return
         }
@@ -187,6 +200,7 @@ export async function revokeRefreshTokenByDigest(
   await Promise.all([
     kv.delete(`${CURRENT_TOKEN_PREFIX}${digest}`),
     kv.delete(`${CURRENT_USER_PREFIX}${userId}:${digest}`),
+    removeSessionMetadata(kv, userId, digest),
   ])
 
   const legacy = await listAll(kv, `${LEGACY_USER_PREFIX}${userId}:`)
