@@ -24,6 +24,7 @@ const GROUPS = [
     title: 'Legal',
     links: [
       ['Privacy', '/privacy'],
+      ['Delete account', '/delete-account'],
       ['Terms', '/terms'],
     ],
   },

@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           <p className="px-4 sm:px-5 pb-5 text-sm leading-7 otya-muted">{body}</p>
         </details>)}
       </section>
-      <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold"><Link href="/terms">Terms</Link><Link href="/help">Help</Link></div>
+      <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold"><Link href="/delete-account">Delete Otya account</Link><Link href="/terms">Terms</Link><Link href="/help">Help</Link></div>
     </main>
     <SiteFooter />
   </div>
