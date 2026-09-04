@@ -8,6 +8,20 @@ import { verifyAdminSession } from '@/lib/admin_auth'
 const CHUNK_SIZE = 100
 const OTYA_DOWNLOAD_URL = 'https://petersmartlink.com/download/otya-player'
 
+function officialNotificationUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    const host = url.hostname.toLowerCase()
+    if (url.protocol !== 'https:' ||
+        (host !== 'petersmartlink.com' && !host.endsWith('.petersmartlink.com'))) {
+      return null
+    }
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': 'https://petersmartlink.com',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -69,7 +83,8 @@ export async function POST(req: NextRequest) {
   }
   if (!projectId) return errorJson('FCM project_id is missing', 503)
 
-  const link = url || OTYA_DOWNLOAD_URL
+  const link = url ? officialNotificationUrl(url) : OTYA_DOWNLOAD_URL
+  if (!link) return errorJson('url must use an official PeterSmart Link HTTPS host', 400)
   let accessToken: string
   try {
     accessToken = await getFcmAccessToken(serviceAccountJson)
