@@ -29,7 +29,7 @@ export default function PrivacyPage() {
       <header className="mb-7">
         <div className="otya-kicker mb-2">Otya · Privacy</div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[-.04em]">Privacy without the wall of text.</h1>
-        <p className="mt-2 text-sm otya-muted">Last updated September 4, 2026. Open only the section you need.</p>
+        <p className="mt-2 text-sm otya-muted">Last updated September 2, 2026. Open only the section you need.</p>
       </header>
       <section className="overflow-hidden rounded-[24px] border backdrop-blur-xl" style={{ borderColor:'var(--cosmos-divider)', background:'color-mix(in srgb,var(--cosmos-card) 82%,transparent)' }}>
         {SECTIONS.map(([title, body]) => <details key={title} className="group border-b last:border-b-0" style={{ borderColor:'var(--cosmos-divider)' }}>
