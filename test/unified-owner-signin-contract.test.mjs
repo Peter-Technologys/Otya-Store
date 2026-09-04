@@ -43,6 +43,7 @@ test('Telegram owner verification returns to the same sign-in journey safely', (
   assert.match(telegramProxy, /return_to.*sign-in/)
   assert.match(telegramProxy, /owner=verified/)
   assert.match(telegramProxy, /callbackAdminReturn\(request\)/)
+  assert.match(telegramProxy, /new URL\(callbackAdminReturn\(request\), SPACE_URL\)/)
   assert.match(telegramProxy, /clearAdminReturn\(response\)/)
 })
 
@@ -55,8 +56,8 @@ test('Admin is a protected Space route rather than a separate public identity su
 })
 
 test('PeterSmart Link owns the organization hierarchy while Otya remains a product', () => {
-  assert.match(home, /PeterSmart Link is the developer\/publisher/)
-  assert.match(home, /Otya is a product family/)
+  assert.match(home, /PeterSmart Link is the developer and publisher behind Otya Player/)
+  assert.match(home, /PeterSmart Link is the developer\. Otya is a product family\./)
   assert.match(products, /title: 'Products \| PeterSmart Link'/)
   assert.match(developers, /title: 'Developers \| PeterSmart Link'/)
   assert.match(docs, /title: 'Documentation \| PeterSmart Link'/)
