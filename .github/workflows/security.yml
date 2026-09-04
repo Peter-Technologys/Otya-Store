@@ -70,14 +70,14 @@ jobs:
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
-          npm run audit:all
+          node scripts/npm-audit-retry.mjs --audit-level=high
           npm run check
       - name: Validate and audit auth worker
         working-directory: auth-worker
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
-          npm audit --audit-level=high
+          node ../scripts/npm-audit-retry.mjs --audit-level=high
           npm test
           npx tsc --noEmit
       - name: Validate and audit Next worker
@@ -85,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
-          npm audit --audit-level=high
+          node ../scripts/npm-audit-retry.mjs --audit-level=high
           npm test
           npm run check
 
