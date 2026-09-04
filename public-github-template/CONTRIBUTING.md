@@ -1,19 +1,22 @@
 # Contributing to OTYA public resources
 
-Thanks for helping improve OTYA.
+Thanks for helping improve OTYA, a product family by PeterSmart Link.
 
-This public repository is for documentation, reproducible public bug reports, feature requests, release information and public examples. OTYA production application/backend source remains private.
+This public repository is for documentation, reproducible public bug reports, feature requests, release information and explicitly public examples. Private production infrastructure, secrets and privileged administration details do not belong in public contributions.
 
 ## Before opening an issue
 
-- Check the current OTYA Docs: https://petersmartlink.com/docs
-- Use the latest supported OTYA Player release when possible.
-- Do not include passwords, OTPs, access tokens, API keys, private files or personal account data.
+- Check the current OTYA documentation: https://docs.petersmartlink.com
+- Check service health when the problem may be operational: https://status.petersmartlink.com
+- Use the latest supported Otya Player release when possible.
+- Do not include passwords, OTPs, recovery codes, access tokens, API keys, private files or personal account data.
 - Security vulnerabilities must be reported privately according to `SECURITY.md`.
 
 ## Bug reports
 
 Include the OTYA product, app version/build, Android/device version when relevant, what you expected, what happened, and the smallest safe reproduction steps.
+
+For account problems, describe the sign-in method (for example email or Google) without publishing credentials or verification codes. Admin is a role inside the normal OTYA account system; do not publish owner-verification details in a public issue.
 
 ## Feature requests
 
