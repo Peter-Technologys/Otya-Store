@@ -36,6 +36,8 @@ test('optional reporting cannot turn an already-published release into a false f
   const workflow = read('src/release-workflow.mjs')
   assert.match(workflow, /Completion report failed/)
   assert.match(workflow, /Analytics write failed/)
+  assert.match(workflow, /Push notification queue failed/)
   assert.match(workflow, /return \{ sent: false, error:/)
   assert.match(workflow, /return \{ written: false, error:/)
+  assert.match(workflow, /queued: false,[\s\S]*?duplicate: false,[\s\S]*?error:/)
 })
