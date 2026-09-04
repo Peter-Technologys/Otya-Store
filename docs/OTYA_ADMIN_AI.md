@@ -1,8 +1,20 @@
 # OTYA Command Center
 
-The OTYA Command Center is the private administrator workspace. Its primary interface is conversational: the administrator should be able to ask the operator what needs attention, investigate a problem, review support, prepare a release, inspect connected systems, or request a report without navigating a maze of dashboards.
+The OTYA Command Center is the private administrator workspace inside Otya Space. Its primary interface is conversational: an authorized owner can ask what needs attention, investigate a problem, review support, prepare a release, inspect connected systems or request a report without navigating a maze of dashboards.
 
-Public Ask OTYA is a separate product surface and must never receive Command Center-only context, support mail, infrastructure credentials, administrator tools or privileged audit data.
+**Next** is the user-facing Otya assistant. It must never receive Command Center-only context, support mail, infrastructure credentials, administrator tools or privileged audit data.
+
+## Identity and entry model
+
+The Command Center does not have a separate user account or a separate username/password login.
+
+1. The person signs in with the normal Otya account using a supported method such as Google or email.
+2. The server resolves the account's role.
+3. If the account is eligible for owner/Admin capabilities and fresh verification is required, that verification happens in the normal Otya sign-in journey.
+4. The authorized account enters the same Otya Space environment, where Admin appears according to server-authorized permissions.
+5. Privileged APIs continue to verify the elevated Admin session independently of the UI.
+
+High-impact operations may require fresh step-up verification even when the administrator is already signed in.
 
 ## Information architecture
 
@@ -10,8 +22,8 @@ Public Ask OTYA is a separate product surface and must never receive Command Cen
 
 The default view is a full conversational workspace with:
 
-- New conversation
-- persistent conversation history
+- new conversation
+- persistent conversation history where enabled
 - streaming/clear assistant responses when supported
 - useful suggested prompts for an empty conversation
 - visible progress for long-running checks
@@ -28,13 +40,13 @@ Connections are private services used by the administrator/operator, such as Gma
 
 ### Settings
 
-Settings control the power behind the conversation rather than replacing it. The settings model includes:
+Settings control the power behind the conversation rather than replacing it. The settings model may include:
 
 - AI & models
 - Connections
 - Permissions & approvals
 - Notifications
-- Security & 2FA
+- Security
 - Developer Platform
 - Audit history
 - Appearance
@@ -52,6 +64,7 @@ Meaningful writes require an approval boundary. This includes, where applicable:
 - deleting data/resources
 - rotating/revoking credentials
 - modifying user/account state
+- changing administrator access
 - other destructive or difficult-to-reverse actions
 
 The AI response itself is never authorization. Server-side policy remains authoritative.
@@ -60,18 +73,19 @@ The AI response itself is never authorization. Server-side policy remains author
 
 The Command Center must not render secret values into ordinary chat history, logs, analytics or settings pages. Prefer connection status, credential names/identifiers and last-verified timestamps over secret-value display.
 
-No Cloudflare token, Firebase Admin private key, Resend key, signing key, OAuth client secret, `INTERNAL_SECRET` or equivalent privileged credential may be forwarded to public Ask OTYA or a third-party Developer App.
+No Cloudflare token, Firebase Admin private key, Resend key, signing key, OAuth client secret, internal service secret or equivalent privileged credential may be forwarded to public Next or a third-party Developer App.
 
 ## Developer Platform separation
 
-OTYA Developer Apps, SDKs, OAuth clients, webhooks and public MCP tools are a separate trust boundary. A developer integration can access only published capabilities and granted scopes. It can never inherit Command Center permissions simply because it connects to the same OTYA backend.
+OTYA Developer Apps, SDKs, OAuth clients, webhooks and public MCP tools are a separate trust boundary. A developer integration can access only published capabilities and granted scopes. It can never inherit Command Center permissions simply because it connects to the same Otya backend.
 
 ## Release acceptance
 
 Before OTYA 1.0 is considered complete, the Command Center must be tested on mobile and desktop for:
 
-- administrator sign-in
-- 2FA/recovery path
+- normal Otya sign-in followed by correct role resolution
+- owner verification path when required
+- Google sign-in without a redundant normal-password prompt
 - conversation create/open/send
 - session refresh/expiry
 - support inbox/read/draft/send-confirmation
@@ -79,4 +93,4 @@ Before OTYA 1.0 is considered complete, the Command Center must be tested on mob
 - unauthorized-account rejection
 - offline/service-error states
 - write approval behavior
-- no privileged data leakage into public Ask OTYA
+- no privileged data leakage into public Next
