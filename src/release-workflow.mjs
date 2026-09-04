@@ -1,5 +1,6 @@
 import { WorkflowEntrypoint } from 'cloudflare:workers'
 import { mirrorApkToFirebaseAppDistribution } from './lib/firebase_app_distribution'
+import { decodeWorkflowPayload } from './lib/workflow_payload.mjs'
 
 const TAG_RE = /^v\d+\.\d+\.\d+$/
 const VERSION_RE = /^\d+\.\d+\.\d+$/
@@ -100,7 +101,10 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
   async run(event, step) {
     let release
     try {
-      release = await step.do('validate release metadata', async () => normalizePayload(event.payload ?? {}))
+      release = await step.do(
+        'validate release metadata',
+        async () => normalizePayload(decodeWorkflowPayload(event.payload)),
+      )
 
       const artifacts = await step.do(
         'verify versioned R2 APK artifacts',
