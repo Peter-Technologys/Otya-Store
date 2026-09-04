@@ -7,6 +7,23 @@ on:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**']
   workflow_dispatch:
+    inputs:
+      component:
+        description: 'Production action after validation'
+        required: true
+        default: 'validate-only'
+        type: choice
+        options:
+          - validate-only
+          - auth
+          - next
+          - core
+          - all
+      confirm:
+        description: 'Type DEPLOY to authorize a production deployment'
+        required: false
+        default: ''
+        type: string
 concurrency:
   group: cloudflare-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
@@ -40,69 +57,81 @@ jobs:
           npm test
           npm run check
 
-  plan-deploy:
-    name: Plan Otya runtime deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  authorize-deploy:
+    name: Authorize explicit production deploy
+    if: github.event_name == 'workflow_dispatch' && inputs.component != 'validate-only'
     needs: validate
     runs-on: ubuntu-latest
-    outputs:
-      auth: ${{ steps.paths.outputs.auth }}
-      next: ${{ steps.paths.outputs.next }}
-      core: ${{ steps.paths.outputs.core }}
-      any_runtime: ${{ steps.paths.outputs.any_runtime }}
     steps:
-      - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }
-      - name: Classify changed runtime components
-        id: paths
-        env:
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.sha }}
+      - name: Verify production authority
         shell: bash
+        env:
+          COMPONENT: ${{ inputs.component }}
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$TARGET_REF" = 'refs/heads/main' || {
+            echo "ERROR: production deploys may only run from the main branch; got $TARGET_REF"
+            exit 1
+          }
+          test "$CONFIRM" = 'DEPLOY' || {
+            echo "ERROR: production deployment requires the exact confirmation DEPLOY"
+            exit 1
+          }
+          case "$COMPONENT" in
+            auth|next|core|all) ;;
+            *) echo "ERROR: unsupported production component $COMPONENT"; exit 1 ;;
+          esac
+          echo "Production deploy authorized for component: $COMPONENT"
+
+  plan-deploy:
+    name: Plan explicitly authorized Otya runtime deploy
+    if: github.event_name == 'workflow_dispatch' && inputs.component != 'validate-only'
+    needs: [validate, authorize-deploy]
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.plan.outputs.auth }}
+      next: ${{ steps.plan.outputs.next }}
+      core: ${{ steps.plan.outputs.core }}
+      any_runtime: ${{ steps.plan.outputs.any_runtime }}
+    steps:
+      - name: Select requested runtime components
+        id: plan
+        shell: bash
+        env:
+          COMPONENT: ${{ inputs.component }}
         run: |
           set -euo pipefail
           auth=false
           next=false
-          core=true
-
-          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            echo "No usable previous commit; conservatively deploying all runtime components."
-            auth=true
-            next=true
-            core=true
-          else
-            git diff --name-only --no-renames "$BEFORE" "$AFTER" > /tmp/otya-changed-files
-            while IFS= read -r path; do
-              [ -n "$path" ] || continue
-              case "$path" in
-                auth-worker/*)
-                  auth=true
-                  ;;
-                ai-worker/*)
-                  next=true
-                  ;;
-                .github/workflows/*|docs/*|test/*|validate-config.mjs|*.md|.github/ISSUE_TEMPLATE/*)
-                  ;;
-                *)
-                  core=true
-                  ;;
-              esac
-            done < /tmp/otya-changed-files
-          fi
-
-          any_runtime=false
-          if [ "$auth" = true ] || [ "$next" = true ] || [ "$core" = true ]; then any_runtime=true; fi
+          core=false
+          case "$COMPONENT" in
+            auth) auth=true ;;
+            next) next=true ;;
+            core) core=true ;;
+            all)
+              auth=true
+              next=true
+              core=true
+              ;;
+            *)
+              echo "ERROR: unsupported production component $COMPONENT"
+              exit 1
+              ;;
+          esac
           echo "auth=$auth" >> "$GITHUB_OUTPUT"
           echo "next=$next" >> "$GITHUB_OUTPUT"
           echo "core=$core" >> "$GITHUB_OUTPUT"
-          echo "any_runtime=$any_runtime" >> "$GITHUB_OUTPUT"
+          echo "any_runtime=true" >> "$GITHUB_OUTPUT"
           echo "Deploy plan: auth=$auth next=$next core=$core"
 
   deploy-auth:
     name: Deploy otya-auth
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan-deploy.outputs.auth == 'true' }}
-    needs: [validate, plan-deploy]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.authorize-deploy.result == 'success' && needs.plan-deploy.result == 'success' && needs.plan-deploy.outputs.auth == 'true' }}
+    needs: [validate, authorize-deploy, plan-deploy]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -146,9 +175,10 @@ jobs:
 
   deploy-next:
     name: Deploy otya-next
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && needs.plan-deploy.outputs.next == 'true' }}
-    needs: [validate, plan-deploy, deploy-auth]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.authorize-deploy.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && needs.plan-deploy.outputs.next == 'true' }}
+    needs: [validate, authorize-deploy, plan-deploy, deploy-auth]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -179,10 +209,11 @@ jobs:
 
   deploy-core:
     name: Deploy otya-core
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && needs.plan-deploy.outputs.core == 'true' }}
-    needs: [validate, plan-deploy, deploy-auth, deploy-next]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.authorize-deploy.result == 'success' && needs.plan-deploy.result == 'success' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && needs.plan-deploy.outputs.core == 'true' }}
+    needs: [validate, authorize-deploy, plan-deploy, deploy-auth, deploy-next]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -213,8 +244,8 @@ jobs:
 
   verify-production:
     name: Verify live OTYA after deploy
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.plan-deploy.result == 'success' && needs.plan-deploy.outputs.any_runtime == 'true' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && (needs.deploy-core.result == 'success' || needs.deploy-core.result == 'skipped') }}
-    needs: [validate, plan-deploy, deploy-auth, deploy-next, deploy-core]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.authorize-deploy.result == 'success' && needs.plan-deploy.result == 'success' && needs.plan-deploy.outputs.any_runtime == 'true' && (needs.deploy-auth.result == 'success' || needs.deploy-auth.result == 'skipped') && (needs.deploy-next.result == 'success' || needs.deploy-next.result == 'skipped') && (needs.deploy-core.result == 'success' || needs.deploy-core.result == 'skipped') }}
+    needs: [validate, authorize-deploy, plan-deploy, deploy-auth, deploy-next, deploy-core]
     runs-on: ubuntu-latest
     timeout-minutes: 7
     steps:
