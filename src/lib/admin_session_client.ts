@@ -10,6 +10,7 @@ const MAX_RETRY_DELAY_MS = 3_000
 
 let cached: { expiresAt: number; value: AdminSessionSnapshot } | null = null
 let inflight: Promise<AdminSessionSnapshot> | null = null
+let generation = 0
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -73,19 +74,24 @@ export async function getAdminSession(): Promise<AdminSessionSnapshot> {
   if (cached && cached.expiresAt > now) return cached.value
   if (inflight) return inflight
 
-  inflight = requestAdminSession()
+  const requestGeneration = generation
+  const request = requestAdminSession()
     .then(value => {
-      cached = { value, expiresAt: Date.now() + CACHE_TTL_MS }
+      if (generation === requestGeneration) {
+        cached = { value, expiresAt: Date.now() + CACHE_TTL_MS }
+      }
       return value
     })
     .finally(() => {
-      inflight = null
+      if (inflight === request) inflight = null
     })
 
-  return inflight
+  inflight = request
+  return request
 }
 
 export function clearAdminSessionCache(): void {
+  generation += 1
   cached = null
   inflight = null
 }
