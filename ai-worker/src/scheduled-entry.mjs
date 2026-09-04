@@ -10,6 +10,12 @@ const FAST_MODEL='@cf/meta/llama-3.1-8b-instruct-fast'
 const output=r=>typeof r?.response==='string'?r.response.trim():''
 const parse=s=>{try{const m=String(s||'').match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null}catch{return null}}
 const clean=(v,max=2000)=>String(v??'').replace(/[\u0000-\u001f]/g,' ').trim().slice(0,max)
+const crashEmailDetail=(v,max=420)=>clean(v,max)
+  .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[redacted-email]')
+  .replace(/\b(?:sk-|re_|ghp_|github_pat_)[A-Za-z0-9._-]{12,}\b/g,'[redacted-token]')
+  .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted-jwt]')
+  .replace(/([?&](?:token|key|secret|code)=)[^&\s]+/gi,'$1[redacted]')
+  .replace(/\/storage\/emulated\/\d+\/[^\s]+/g,'[redacted-device-path]')
 
 /**
  * Every Workers AI request from the otya-ai Worker is routed through the
@@ -141,11 +147,58 @@ async function urgent(env){
   const hour=new Date().toISOString().slice(0,13)
   const key=`ops:crash-alert:${hour}`
   if(env.KV&&await env.KV.get(key))return
-  const groups=await rows(env,"SELECT group_id,error_type,COUNT(*) count,MAX(created_at) latest FROM crash_reports WHERE created_at>=datetime('now','-1 hour') GROUP BY group_id,error_type ORDER BY count DESC LIMIT 6")
+  const groups=await rows(env,`
+    WITH recent AS (
+      SELECT group_id,error_type,device_id,app_version,version_code,description,stack_trace,created_at
+      FROM crash_reports
+      WHERE created_at>=datetime('now','-1 hour')
+    ), grouped AS (
+      SELECT group_id,error_type,COUNT(*) count,
+        COUNT(DISTINCT NULLIF(device_id,'')) devices,
+        MAX(created_at) latest
+      FROM recent
+      GROUP BY group_id,error_type
+      ORDER BY count DESC
+      LIMIT 6
+    )
+    SELECT grouped.*,
+      (SELECT app_version FROM recent r
+        WHERE COALESCE(r.group_id,'')=COALESCE(grouped.group_id,'')
+          AND COALESCE(r.error_type,'')=COALESCE(grouped.error_type,'')
+        ORDER BY r.created_at DESC LIMIT 1) app_version,
+      (SELECT version_code FROM recent r
+        WHERE COALESCE(r.group_id,'')=COALESCE(grouped.group_id,'')
+          AND COALESCE(r.error_type,'')=COALESCE(grouped.error_type,'')
+        ORDER BY r.created_at DESC LIMIT 1) version_code,
+      (SELECT description FROM recent r
+        WHERE COALESCE(r.group_id,'')=COALESCE(grouped.group_id,'')
+          AND COALESCE(r.error_type,'')=COALESCE(grouped.error_type,'')
+        ORDER BY r.created_at DESC LIMIT 1) sample_description,
+      (SELECT stack_trace FROM recent r
+        WHERE COALESCE(r.group_id,'')=COALESCE(grouped.group_id,'')
+          AND COALESCE(r.error_type,'')=COALESCE(grouped.error_type,'')
+        ORDER BY r.created_at DESC LIMIT 1) sample_stack
+    FROM grouped
+    ORDER BY count DESC
+  `)
+  const groupLines=groups.flatMap(x=>{
+    const type=clean(x.error_type||'Unknown',120)
+    const group=clean(x.group_id||'',80)
+    const shortGroup=group?` [${group.slice(0,24)}]`:''
+    const deviceCount=Math.max(0,Number(x.devices||0))
+    const lines=[`• ${type}${shortGroup} — ${x.count} reports — ${deviceCount} device${deviceCount===1?'':'s'} — latest ${x.latest||''}`]
+    const app=clean(x.app_version||'',64)
+    if(app)lines.push(`  App: ${app}${x.version_code!=null?` (${x.version_code})`:''}`)
+    const description=crashEmailDetail(x.sample_description,320)
+    if(description)lines.push(`  Sample: ${description}`)
+    const stack=crashEmailDetail(x.sample_stack,420)
+    if(stack)lines.push(`  Stack: ${stack}`)
+    return lines
+  })
   await email(env,`OTYA alert · ${crashes} crashes in the last hour`,[
     `OTYA recorded ${crashes} crash reports in the last hour.`,
     '',
-    ...groups.map(x=>`• ${x.error_type||x.group_id||'Unknown'} — ${x.count} reports — latest ${x.latest||''}`),
+    ...groupLines,
     '',
     'Review the OTYA Console before taking any destructive or customer-facing action.',
     `Generated ${new Date().toISOString()}`,
