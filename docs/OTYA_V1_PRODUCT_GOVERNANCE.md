@@ -2,15 +2,17 @@
 
 Status: canonical v1 product rulebook
 
-This document prevents OTYA from growing as disconnected features. Product, web, Android, Next, support, documentation and infrastructure must follow the same information architecture and naming rules.
+This document prevents OTYA from growing as disconnected features. Product, web, Android, Next, support, documentation and infrastructure must follow the same information architecture and naming rules. The broader PeterSmart Link organization hierarchy is defined in `PETERSMART_LINK_PLATFORM.md`.
 
 ## Canonical product names
 
-- Company: **PeterSmart Link**
-- Product: **OTYA**
+- Developer / publisher: **PeterSmart Link**
+- Product family: **OTYA**
+- Android product: **Otya Player**
 - AI assistant: **Next** / **Next by OTYA** where a fuller label is useful
 - User identity: **OTYA Account**
-- User cloud/personal space: **OTYA Space**
+- Signed-in environment: **OTYA Space**
+- Privileged role: **Admin** / **Owner** according to the permission being described
 - Android navigation: **Video / Music / Me**
 
 Legacy names such as OtyaPlayer, Played, WOP, Ask OTYA, Message Otya, OTYA AI, otya-store and otya-ai must not appear in new customer-facing copy. Internal legacy identifiers may remain only where removal would break compatibility and must have an explicit migration path.
@@ -32,7 +34,7 @@ Every new data field, page, API and integration must be classified before releas
 
 ### Public
 
-Safe for everyone: product features, download information, public help, public Docs, status, privacy, terms, security contact, changelog and intentionally public catalog content.
+Safe for everyone: company/product information, download information, public help, public Docs, status, privacy, terms, security contact, changelog and intentionally public catalog content.
 
 ### User-private
 
@@ -44,7 +46,7 @@ Support/operations information required for authorized work. Never expose throug
 
 ### Admin
 
-Release approval, user/account administration, incident controls, operational metrics and owner tools. Server-enforced authorization is mandatory.
+Release approval, user/account administration, incident controls, operational metrics and owner tools. Server-enforced authorization is mandatory. The Admin UI may appear inside Space only for an account the server identifies as eligible.
 
 ### Engineering-private
 
@@ -60,11 +62,11 @@ The public product must stay simpler than the internal system.
 
 ### petersmartlink.com
 
-Primary company/product surface. It must answer: what OTYA is, why it is useful, supported platforms, privacy/trust basics, and how to download/use it.
+Primary **PeterSmart Link organization** surface. It must answer: who PeterSmart Link is, what products exist, where OTYA belongs, how to get support, where documentation/status live and how to enter the signed-in environment. Otya Player marketing belongs on its product route rather than making the company homepage look like a single-app landing page.
 
 ### docs.petersmartlink.com
 
-Public user documentation only. Do not expose Worker names, database IDs, queue names, secrets, internal monitoring thresholds, release internals, raw logs or private architecture.
+Public product documentation. Do not expose Worker names, database IDs, queue names, secrets, internal monitoring thresholds, release internals, raw logs or private architecture.
 
 ### status.petersmartlink.com
 
@@ -72,7 +74,19 @@ Operational truth only: service state, incidents and incident history. No market
 
 ### space.petersmartlink.com
 
-OTYA Account/Space entry point. Signed-out users get login/signup. Signed-in users get their own user home. Do not expose Admin or engineering controls.
+OTYA Account/Space entry point. Signed-out users get the single Otya sign-in journey. Signed-in users get their own Space. Account, security, connected providers, devices, settings, Next, Telegram and role-authorized Admin entry points belong in this environment.
+
+Admin is not a separate account system. The server resolves the signed-in Otya identity to roles/permissions. Required owner verification happens as an additional factor in the same sign-in journey or as fresh step-up verification for a sensitive operation.
+
+## Authentication and Admin rules
+
+- Email, Google and supported providers are ways to authenticate the same Otya identity.
+- Google authentication must not be followed by a demand for the normal Otya password merely because Google was used.
+- Admin eligibility is resolved server-side from the authenticated account.
+- A normal user must never see or gain Admin capability merely by navigating to an Admin URL.
+- An owner/admin may complete required fresh verification on the normal sign-in surface.
+- UI visibility is never authorization. Privileged APIs remain server-authorized.
+- High-impact operations may require fresh step-up verification even when the owner is already signed in.
 
 ## Public documentation scope
 
@@ -87,6 +101,7 @@ Public Docs may cover:
 - Next capabilities, live-search behavior, limitations and privacy
 - Account, Google sign-in, recovery and deletion
 - Space/backups only when actually available
+- Role-aware account behavior at a user-safe level
 - Troubleshooting and support
 
 Private engineering documentation belongs in the repository or authenticated internal tools, not on the public Docs hostname.
@@ -119,6 +134,7 @@ Release notes should use user outcomes under New / Improved / Fixed. Avoid inter
 - Public posts describe user outcomes, not Worker/D1/queue maintenance.
 - Do not publish empty News/Careers/Developer sections just to look large.
 - Do not advertise platforms or capabilities that are not production-ready.
+- PeterSmart Link is the developer/publisher brand; OTYA is a product family.
 
 ## Design and performance rules
 
@@ -134,7 +150,7 @@ Every user-facing workflow needs:
 - accessibility semantics
 - responsive layout
 - light/dark compatibility
-- consistent OTYA typography, spacing, shapes and iconography
+- consistent typography, spacing, shapes and iconography within each product surface
 
 For Next specifically, sending a prompt must never create a long blank wait. Show immediate thinking/tool state, stream output as soon as possible, expose Stop/Retry, and route simple questions directly instead of invoking expensive retrieval unnecessarily.
 
