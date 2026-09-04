@@ -25,7 +25,9 @@ test('Next requests native Workers AI streaming and emits SSE deltas', () => {
 
 test('signed-in streamed conversations persist user and assistant messages', () => {
   assert.match(stream, /X-OTYA-Persist-Chat/)
-  assert.match(stream, /appendMessage\(env,\{conversationId:conversation\.id,role:'user'/)
+  assert.match(stream, /const \[systemContent,preparedConversation\]=await Promise\.all\(\[systemPromise,conversationPromise\]\)/)
+  assert.match(stream, /appendMessage\(env,\{conversationId:preparedConversation\.conversation\.id,role:'user'/)
+  assert.match(stream, /conversationId:preparedConversation\.conversation\.id,messages:/)
   assert.match(stream, /appendMessage\(env,\{conversationId:prepared\.conversationId,role:'assistant'/)
 })
 
