@@ -40,7 +40,15 @@ export async function sendFcmWithToken(
           token,
           notification: { title, body },
           data: { url },
-          android: { priority: 'high' },
+          android: {
+            priority: 'high',
+            ttl: '86400s',
+            collapse_key: 'otya_announcement',
+            notification: {
+              channel_id: 'otya_announcements',
+              default_sound: true,
+            },
+          },
         },
       }),
     })

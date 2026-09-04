@@ -152,6 +152,10 @@ async function handlePushMessage(msg, env) {
   for (const key of ['type', 'version', 'download_url', 'release_notes']) {
     if (msg?.[key] !== undefined && msg?.[key] !== null) data[key] = String(msg[key])
   }
+  const messageType = data.type || 'announcement'
+  const channelId = messageType === 'update'
+    ? 'otya_updates'
+    : 'otya_announcements'
 
   let tokens = []
   if (deviceId) {
@@ -203,7 +207,13 @@ async function handlePushMessage(msg, env) {
             data,
             android: {
               priority: 'high',
-              notification: { channel_id: 'otya_updates' },
+              ttl: messageType === 'update' ? '604800s' : '86400s',
+              collapse_key: `otya_${messageType}`,
+              notification: {
+                channel_id: channelId,
+                default_sound: true,
+                tag: `otya_${messageType}`,
+              },
             },
           },
         }),
