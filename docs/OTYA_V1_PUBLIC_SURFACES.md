@@ -2,65 +2,62 @@
 
 Status: canonical public-information map
 
-The public OTYA ecosystem must feel like one product, not a collection of internal services.
+The PeterSmart Link ecosystem must feel like one organized platform with clear product boundaries, not a collection of internal services or unrelated landing pages.
 
 ## 1. Main site — petersmartlink.com
 
-Purpose: company + OTYA product discovery.
+Purpose: **PeterSmart Link organization + product discovery**.
 
 Primary navigation:
-- OTYA
-- Features
-- Next
-- Download
+- Products
+- Otya
+- Developers
+- Company
 - Support
 
-Secondary/footer links:
+Account/resource actions:
 - Docs
+- Sign in / Space
+
+Secondary/footer links:
+- Documentation
 - Status
 - Privacy
 - Terms
-- Security
-- Changelog
 - Contact
+- Delete account
 
 The homepage must quickly explain:
-1. What OTYA is.
-2. The main user benefit.
-3. Current supported platform(s).
-4. Trust/privacy basics.
-5. A clear download/use action.
+1. PeterSmart Link is the developer/publisher.
+2. What products currently exist.
+3. Where Otya Player belongs in that portfolio.
+4. How to reach Docs, Status and Space.
+5. A clear product discovery action.
+
+Otya Player has its own product page. Do not make the PeterSmart Link homepage look like the company and a single Android app are the same entity.
 
 Do not expose internal infrastructure or unfinished product claims.
 
 ## 2. Docs — docs.petersmartlink.com
 
-Purpose: user help and feature documentation.
+Purpose: public product guidance and user documentation.
 
-Recommended structure:
+Top-level structure:
 
-- Getting started
-  - Install OTYA
+- Get started
+  - Otya Player overview
+  - Install safely
   - First launch
   - Media permissions
-  - Find local media
-- Video
-  - Playback controls
-  - Gestures
-  - Subtitles/audio tracks
-  - Speed
-  - Picture-in-picture
-  - Continue watching
-- Music
-  - Songs/albums/artists
-  - Playlists
-  - Queue
-  - Search
+- Playback & local media
+  - Video controls
+  - Music library
   - Background playback
+  - Picture-in-picture
+  - Search
 - Transfer
   - Nearby devices
-  - Send
-  - Receive
+  - Send / receive
   - Security/privacy
   - Troubleshooting
 - Private
@@ -68,31 +65,33 @@ Recommended structure:
   - Import/export/restore
   - Uninstall/data implications
 - Media Tools
-  - Convert
   - Trim
+  - Extract audio
   - Supported formats
   - Output location
 - Next
   - What Next can do
-  - Live/current information
-  - OTYA knowledge
+  - Current information
+  - Otya guidance
   - Limitations
   - Privacy
 - Account & Space
   - Create/sign in
   - Google sign-in
+  - Multiple sign-in methods / one Otya identity
   - Recovery
   - Delete account
   - Backups/sync only when live
+  - Role-aware Admin behavior at a safe user level
 - Troubleshooting
 - Contact support
 
 Forbidden in public Docs:
 - Cloudflare Worker names/topology
-- D1/KV/R2 IDs
-- queue IDs/topology
-- secret names/values unless a public integration explicitly requires a documented environment variable
-- internal admin rules
+- D1/KV/R2 identifiers
+- queue identifiers/topology
+- secrets or credentials
+- internal authorization implementation details
 - raw logs
 - private API routes
 - internal model-routing policy
@@ -108,7 +107,7 @@ Public components:
 - Next
 - OTYA Web
 - Downloads & Updates
-- OTYA Space (only when released)
+- OTYA Space
 
 States:
 - Operational
@@ -127,27 +126,72 @@ Never expose stack traces, internal service names, database details or security-
 
 ## 4. Space — space.petersmartlink.com
 
-Purpose: user-owned account/cloud surface.
+Purpose: one signed-in environment for one Otya identity.
 
 Signed out:
 - Sign in
-- Create OTYA Account
-- Google sign-in where available
+- Create Otya Account
+- Google sign-in
+- Telegram sign-in where supported
 - Recover account
 - Concise explanation of Space
 
 Signed in:
+- Space home
 - account summary
-- user-owned synced/backed-up data that is genuinely implemented
-- connected services/devices when implemented
-- privacy/data controls
+- sign-in methods
+- security
+- devices & sessions
+- activity
+- preferences
+- data/recovery
+- notifications
+- Next
+- Telegram
+- role-authorized Admin entry point
 - sign out
 
-Do not show Admin, infrastructure, deployment, logs or owner tools.
+### Admin inside Space
 
-If Space does not yet have enough real user functionality, keep the surface minimal/private rather than filling it with placeholder cards.
+Admin is not a separate account or a second username/password system.
 
-## 5. Support
+The server resolves the signed-in Otya identity to roles. If the account is eligible for Admin and fresh owner verification is required, that verification is completed through the normal Otya sign-in journey or as step-up verification for a high-impact action. Once authorized, Admin appears as part of the same Space environment.
+
+Normal users must never gain Admin capability by entering an Admin URL. UI visibility never replaces backend authorization.
+
+Do not show raw infrastructure, deployment secrets, logs or owner-only implementation details to normal users.
+
+## 5. Products — petersmartlink.com/apps
+
+Purpose: portfolio view of current PeterSmart Link products and connected surfaces.
+
+Current product presentation may include:
+- Otya Player
+- Next
+- Space
+
+Do not fill the portfolio with speculative or placeholder products merely to look larger.
+
+## 6. Developers — petersmartlink.com/developers
+
+Purpose: safe developer-facing resources.
+
+May link to:
+- public documentation
+- service status
+- security reporting
+- contact
+- explicitly supported public interfaces
+
+Do not expose private production topology as though it were a public developer API.
+
+## 7. Company — petersmartlink.com/company
+
+Purpose: explain PeterSmart Link as the developer/publisher organization, its product principles and its relationship to Otya.
+
+Keep this factual. Do not fabricate company size, customers, awards, offices, partnerships or metrics.
+
+## 8. Support
 
 User-facing support categories:
 - Help Center / Docs
@@ -159,11 +203,11 @@ User-facing support categories:
 
 Categories may initially share backend/mail infrastructure, but the user-facing intake should remain organized.
 
-## 6. Privacy / Terms / Security
+## 9. Privacy / Terms / Security
 
-Privacy must reflect actual OTYA behavior, including:
+Privacy must reflect actual Otya behavior, including:
 - local vs server-processed data
-- OTYA Account data
+- Otya Account data
 - Next prompts/conversations and retrieval
 - Transfer behavior
 - Private media behavior
@@ -171,17 +215,17 @@ Privacy must reflect actual OTYA behavior, including:
 - retention/deletion
 - user rights/request path
 
-Security page should provide safe security commitments and a responsible reporting path without publishing exploitable architecture.
+Security guidance should provide safe commitments and a responsible reporting path without publishing exploitable architecture.
 
 Terms should describe actual supported services and responsibilities, not speculative features.
 
-## 7. Changelog
+## 10. Changelog
 
 Use user-language grouped as New / Improved / Fixed.
 
 Do not mix current incidents into the changelog. Do not publish internal deployment notes as customer-facing release notes.
 
-## 8. SEO / crawler policy
+## 11. SEO / crawler policy
 
 - Normal public search indexing: allowed.
 - `/api/`: disallowed from search crawling.
@@ -189,13 +233,8 @@ Do not mix current incidents into the changelog. Do not publish internal deploym
 - Do not enable broad AI crawlers merely to fix AI Search ingestion.
 - AI Search crawler exceptions must be deliberate and narrow enough to preserve the public content policy.
 
-## 9. Canonical public/private boundary
+## 12. Canonical public/private boundary
 
-Public users interact with `otya-core` only. `otya-auth` and `otya-next` are private service bindings and must not become public endpoints simply for convenience.
+The web gateway remains the only public application entry point. Private identity and assistant services must not become public endpoints merely for convenience.
 
-Canonical Worker topology:
-- `otya-core` — only public Worker / website / API gateway / release control plane
-- `otya-auth` — private identity service
-- `otya-next` — private Next service
-
-Physical compatibility identifiers such as `otya-store-db` and `com.otyaplayer.app` remain unchanged during the v1 cutover unless an explicit migration is separately approved and tested.
+Internal physical compatibility identifiers may remain unchanged during v1 unless an explicit migration is separately approved and tested. Public documentation describes user-facing behavior, not internal service topology.
