@@ -1,15 +1,12 @@
 import { verifyJwt } from './crypto'
+import {
+  refreshTokenDigest,
+  refreshTokenSessionId,
+  revokeRefreshTokenByDigest,
+  type RefreshTokenKv,
+} from './refresh-token-store'
 
-interface KVNamespaceLike {
-  get(key: string): Promise<string | null>
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
-  delete(key: string): Promise<void>
-  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{
-    keys: { name: string }[]
-    list_complete: boolean
-    cursor?: string
-  }>
-}
+interface KVNamespaceLike extends RefreshTokenKv {}
 
 export interface SessionEnv {
   AUTH_KV: KVNamespaceLike
@@ -19,14 +16,25 @@ export interface SessionEnv {
 type SessionRecord = {
   id: string
   userId: string
-  refreshToken: string
+  tokenDigest: string
   createdAt: string
   lastUsedAt: string
   ip?: string
   userAgent?: string
 }
 
+type StoredSessionRecord = Partial<SessionRecord> & {
+  id?: string
+  userId?: string
+  refreshToken?: string
+  createdAt?: string
+  lastUsedAt?: string
+  ip?: string
+  userAgent?: string
+}
+
 const SESSION_TTL = 30 * 24 * 60 * 60
+const DIGEST_RE = /^[a-f0-9]{64}$/
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -52,33 +60,65 @@ function clientIp(request: Request): string | undefined {
   return value || undefined
 }
 
-function sessionIdForToken(refreshToken: string): Promise<string> {
-  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(refreshToken)).then((digest) => {
-    const bytes = new Uint8Array(digest).slice(0, 16)
-    return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('')
-  })
+function tokenIndexKeyById(id: string): string {
+  return `auth_session_token:${id}`
 }
 
-function tokenIndexKey(refreshToken: string): Promise<string> {
-  return sessionIdForToken(refreshToken).then((id) => `auth_session_token:${id}`)
+async function tokenIndexKey(refreshToken: string): Promise<string> {
+  return tokenIndexKeyById(await refreshTokenSessionId(refreshToken))
 }
 
 async function readSession(kv: KVNamespaceLike, userId: string, id: string): Promise<SessionRecord | null> {
-  const raw = await kv.get(`auth_session:${userId}:${id}`)
+  const key = `auth_session:${userId}:${id}`
+  const raw = await kv.get(key)
   if (!raw) return null
+
+  let parsed: StoredSessionRecord
   try {
-    return JSON.parse(raw) as SessionRecord
+    parsed = JSON.parse(raw) as StoredSessionRecord
   } catch {
     return null
   }
+  if (parsed.id !== id || parsed.userId !== userId || !parsed.createdAt || !parsed.lastUsedAt) return null
+
+  if (typeof parsed.tokenDigest === 'string' && DIGEST_RE.test(parsed.tokenDigest)) {
+    return {
+      id,
+      userId,
+      tokenDigest: parsed.tokenDigest,
+      createdAt: parsed.createdAt,
+      lastUsedAt: parsed.lastUsedAt,
+      ip: parsed.ip,
+      userAgent: parsed.userAgent,
+    }
+  }
+
+  // One-release compatibility for session records created before refresh-token
+  // containment. Convert the raw bearer to a one-way digest immediately and
+  // overwrite the session record so future KV reads no longer expose it.
+  if (typeof parsed.refreshToken === 'string' && parsed.refreshToken) {
+    const tokenDigest = await refreshTokenDigest(parsed.refreshToken)
+    const upgraded: SessionRecord = {
+      id,
+      userId,
+      tokenDigest,
+      createdAt: parsed.createdAt,
+      lastUsedAt: parsed.lastUsedAt,
+      ip: parsed.ip,
+      userAgent: parsed.userAgent,
+    }
+    await kv.put(key, JSON.stringify(upgraded), { expirationTtl: SESSION_TTL })
+    return upgraded
+  }
+
+  return null
 }
 
 async function deleteSessionRecord(kv: KVNamespaceLike, session: SessionRecord): Promise<void> {
+  await revokeRefreshTokenByDigest(kv, session.userId, session.tokenDigest)
   await Promise.all([
-    kv.delete(`rt:${session.refreshToken}`),
-    kv.delete(`rt_user:${session.userId}:${session.refreshToken}`),
     kv.delete(`auth_session:${session.userId}:${session.id}`),
-    kv.delete(await tokenIndexKey(session.refreshToken)),
+    kv.delete(tokenIndexKeyById(session.id)),
   ])
 }
 
@@ -97,12 +137,13 @@ export async function recordSessionFromAuthResponse(
     const userId = data.user?.id
     if (!refreshToken || !userId) return
 
-    const id = await sessionIdForToken(refreshToken)
+    const tokenDigest = await refreshTokenDigest(refreshToken)
+    const id = tokenDigest.slice(0, 32)
     const now = new Date().toISOString()
     const record: SessionRecord = {
       id,
       userId,
-      refreshToken,
+      tokenDigest,
       createdAt: now,
       lastUsedAt: now,
       ip: clientIp(request),
@@ -110,7 +151,7 @@ export async function recordSessionFromAuthResponse(
     }
     await Promise.all([
       env.AUTH_KV.put(`auth_session:${userId}:${id}`, JSON.stringify(record), { expirationTtl: SESSION_TTL }),
-      env.AUTH_KV.put(await tokenIndexKey(refreshToken), JSON.stringify({ userId, id }), { expirationTtl: SESSION_TTL }),
+      env.AUTH_KV.put(tokenIndexKeyById(id), JSON.stringify({ userId, id }), { expirationTtl: SESSION_TTL }),
     ])
   } catch (error) {
     console.error('[auth/session] Could not record session:', (error as Error)?.message)
@@ -157,12 +198,10 @@ async function listUserSessions(kv: KVNamespaceLike, userId: string): Promise<Se
   do {
     const page = await kv.list({ prefix: `auth_session:${userId}:`, limit: 1000, cursor })
     for (const key of page.keys) {
-      const raw = await kv.get(key.name)
-      if (!raw) continue
-      try {
-        const row = JSON.parse(raw) as SessionRecord
-        if (row.userId === userId) rows.push(row)
-      } catch {}
+      const id = key.name.slice(`auth_session:${userId}:`.length)
+      if (!id) continue
+      const row = await readSession(kv, userId, id)
+      if (row) rows.push(row)
     }
     cursor = page.list_complete ? undefined : page.cursor
   } while (cursor)
