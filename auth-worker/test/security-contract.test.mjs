@@ -26,7 +26,10 @@ test('production auth remains on hardened Firebase and Resend path behind Mini A
 
   assert.match(config, /^main = "src\/production-entrypoint-miniapp\.ts"$/m)
   assert.match(miniWrapper, /import worker from '\.\/production-entrypoint'/)
-  assert.match(miniWrapper, /return worker\.fetch\(request, env\)/)
+  assert.match(miniWrapper, /createRefreshSafeKv/)
+  assert.match(miniWrapper, /AUTH_KV:\s*createRefreshSafeKv\(rawEnv\.AUTH_KV\)/)
+  assert.match(miniWrapper, /return worker\.fetch\(request, authEnv\)/)
+  assert.doesNotMatch(miniWrapper, /return worker\.fetch\(request, env\)/)
   assert.match(miniWrapper, /TELEGRAM_MINIAPP_BOT_TOKEN/)
   assert.match(hardenedWrapper, /handleSecureOtpRoute/)
   assert.match(hardenedWrapper, /handleSecureAccountRoute/)
