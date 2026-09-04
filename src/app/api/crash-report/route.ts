@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   if (!await rateAllowed(recordEnv, req, deviceId)) {
     // A telemetry endpoint should fail closed without encouraging client retry
     // storms. 202 means the report was intentionally sampled/suppressed.
-    return secureJson({ ok: true, accepted: false, reason: 'rate_limited', ts: Date.now() }, 202)
+    return secureJson({ ok: true, accepted: false, reason: 'rate_limited', ts: Date.now() }, { status: 202 })
   }
 
   const userId = auth.mode === 'jwt' ? auth.user_id : null
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
         authenticated: auth.mode !== 'none',
         app_check: appCheck.valid ? 'valid' : appCheck.configured ? 'unverified' : 'not-configured',
         ts: Date.now(),
-      }, 202)
+      }, { status: 202 })
     }
   } catch (e) {
     console.warn('[crash-report] Duplicate check failed:', (e as Error)?.message)
