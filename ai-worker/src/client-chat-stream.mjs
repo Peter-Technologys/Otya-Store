@@ -23,6 +23,9 @@ const trustedStoreRequest=(request,env)=>Boolean(env.INTERNAL_SECRET)&&request.h
 const LIVE_HINT=/\b(today|tonight|now|currently|current|latest|recent|recently|this week|this month|news|breaking|updated|update on|right now|president|prime minister|leader|ceo|score|standings|weather|temperature|forecast|price|exchange rate|currency rate|stock|market|election|winner|schedule|open now|release date)\b/i
 const RELEASE_HINT=/\b(version|release|update|upgrade|download|apk|build number|latest build|current version)\b/i
 const SEARCH_ORIGIN='https://html.duckduckgo.com/html/'
+const BROWSER_GOTO_TIMEOUT_MS=2500
+const LIVE_SEARCH_BUDGET_MS=3000
+const LIVE_SEARCH_MAX_CHARS=8000
 
 function configuredPolicy(env){
   const configured=parseIds(env.AI_PUBLIC_MODELS)
@@ -67,18 +70,44 @@ function needsReleaseMetadata(message){
 async function browserSearch(env,message){
   if(!needsLiveWeb(message)||!env.BROWSER?.quickAction)return''
   const searchUrl=`${SEARCH_ORIGIN}?q=${encodeURIComponent(message)}`
+  let budgetTimer
   try{
-    const response=await env.BROWSER.quickAction('markdown',{
+    const searchPromise=env.BROWSER.quickAction('markdown',{
       url:searchUrl,
-      gotoOptions:{waitUntil:'domcontentloaded',timeout:9000},
+      gotoOptions:{waitUntil:'domcontentloaded',timeout:BROWSER_GOTO_TIMEOUT_MS},
       rejectResourceTypes:['image','media','font'],
+    }).catch(error=>{
+      console.warn('[next-live-web]',error?.message)
+      return null
     })
+    const response=await Promise.race([
+      searchPromise,
+      new Promise(resolve=>{budgetTimer=setTimeout(()=>resolve(null),LIVE_SEARCH_BUDGET_MS)}),
+    ])
     if(!response?.ok)return''
     const markdown=await response.text()
-    return clean(markdown,14000)
+    return clean(markdown,LIVE_SEARCH_MAX_CHARS)
   }catch(error){
     console.warn('[next-live-web]',error?.message)
     return''
+  }finally{
+    if(budgetTimer)clearTimeout(budgetTimer)
+  }
+}
+
+async function releaseVersion(env,message,base){
+  if(!needsReleaseMetadata(message))return''
+  const controller=new AbortController()
+  const timeout=setTimeout(()=>controller.abort(),1500)
+  try{
+    const response=await fetch(`${base}/latest`,{headers:{Accept:'application/json'},signal:controller.signal})
+    if(!response.ok)return''
+    const release=await response.json().catch(()=>null)
+    return clean(release?.version,80)
+  }catch{
+    return''
+  }finally{
+    clearTimeout(timeout)
   }
 }
 
@@ -93,20 +122,11 @@ async function liveContext(env,message){
     `Official OTYA download: ${base}/download/otya-player.`,
     `Official support: ${base}/apps/otya-player/support.`,
   ]
-  if(needsReleaseMetadata(message)){
-    try{
-      const controller=new AbortController()
-      const timeout=setTimeout(()=>controller.abort(),1500)
-      const response=await fetch(`${base}/latest`,{headers:{Accept:'application/json'},signal:controller.signal})
-      clearTimeout(timeout)
-      if(response.ok){
-        const release=await response.json().catch(()=>null)
-        const version=clean(release?.version,80)
-        if(version)facts.push(`Current public OTYA release: ${version}.`)
-      }
-    }catch{}
-  }
-  const web=await browserSearch(env,message)
+  const [version,web]=await Promise.all([
+    releaseVersion(env,message,base),
+    browserSearch(env,message),
+  ])
+  if(version)facts.push(`Current public OTYA release: ${version}.`)
   return{otya:facts.join('\n'),web}
 }
 
@@ -137,19 +157,25 @@ async function prepareMessages(env,body,signedIn,userId,selection){
   const message=clean(body.message,3000)
   if(!message)throw new Error('MESSAGE_REQUIRED')
   const channel=clean(body.channel,20)||'web'
-  const system={role:'system',content:await systemPrompt(env,message)}
+  const systemPromise=systemPrompt(env,message)
   if(!signedIn){
+    const system={role:'system',content:await systemPromise}
     return{message,channel,conversationId:'',messages:[system,...historyFrom(body.history),{role:'user',content:message}]}
   }
 
-  const ownerKey=await hashIdentity(env,`user:${userId}`)
-  const conversation=body.new_chat===true
-    ?await newConversation(env,{ownerType:'client',ownerKey,title:message.slice(0,80)})
-    :await getOrCreateConversation(env,{ownerType:'client',ownerKey,conversationId:clean(body.conversation_id,80)})
-  const previous=await readConversation(env,{ownerType:'client',ownerKey,conversationId:conversation.id,limit:22})
-  const history=(previous?.messages||[]).map(x=>({role:x.role,content:clean(x.content,3500)}))
-  await appendMessage(env,{conversationId:conversation.id,role:'user',content:message,channel})
-  return{message,channel,conversationId:conversation.id,messages:[system,...history,{role:'user',content:message}],selection}
+  const conversationPromise=(async()=>{
+    const ownerKey=await hashIdentity(env,`user:${userId}`)
+    const conversation=body.new_chat===true
+      ?await newConversation(env,{ownerType:'client',ownerKey,title:message.slice(0,80)})
+      :await getOrCreateConversation(env,{ownerType:'client',ownerKey,conversationId:clean(body.conversation_id,80)})
+    const previous=await readConversation(env,{ownerType:'client',ownerKey,conversationId:conversation.id,limit:22})
+    const history=(previous?.messages||[]).map(x=>({role:x.role,content:clean(x.content,3500)}))
+    return{conversation,history}
+  })()
+  const [systemContent,preparedConversation]=await Promise.all([systemPromise,conversationPromise])
+  await appendMessage(env,{conversationId:preparedConversation.conversation.id,role:'user',content:message,channel})
+  const system={role:'system',content:systemContent}
+  return{message,channel,conversationId:preparedConversation.conversation.id,messages:[system,...preparedConversation.history,{role:'user',content:message}],selection}
 }
 
 export async function handlePublicChatStream(request,env){
