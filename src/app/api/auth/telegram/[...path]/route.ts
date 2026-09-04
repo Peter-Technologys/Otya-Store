@@ -115,7 +115,7 @@ async function forward(request: NextRequest): Promise<Response> {
 
     if (publicUrl.pathname.endsWith('/callback') && upstream.ok && data) {
       if (data.telegram_login === true && data.admin_mfa === true) {
-        const response = NextResponse.redirect(new URL(callbackAdminReturn(request), request.url), 302)
+        const response = NextResponse.redirect(new URL(callbackAdminReturn(request), SPACE_URL), 302)
         clearAdminReturn(response)
         response.headers.set('Cache-Control', 'no-store')
         return response
