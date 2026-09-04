@@ -226,26 +226,35 @@ export class OtyaReleaseWorkflow extends WorkflowEntrypoint {
       })
 
       const notification = await step.do('queue update notification once', async () => {
-        const markerKey = `release:push:${release.tag}`
-        if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
-        const url = `${release.workerUrl}/download/otya-player`
-        await this.env.PUSH_QUEUE.send({
-          title: `OTYA Player ${release.version} is available`,
-          body: metadata.changelog || `OTYA Player ${release.version} is ready to download.`,
-          url,
-          type: 'release_available',
-          version: release.version,
-          data: {
+        try {
+          const markerKey = `release:push:${release.tag}`
+          if (await this.env.KV.get(markerKey)) return { queued: false, duplicate: true }
+          const url = `${release.workerUrl}/download/otya-player`
+          await this.env.PUSH_QUEUE.send({
+            title: `OTYA Player ${release.version} is available`,
+            body: metadata.changelog || `OTYA Player ${release.version} is ready to download.`,
+            url,
             type: 'release_available',
-            tag: release.tag,
             version: release.version,
-            versionCode: String(release.versionCode),
-            download_url: url,
-            dedupeKey: markerKey,
-          },
-        })
-        await this.env.KV.put(markerKey, new Date().toISOString(), { expirationTtl: 90 * 24 * 60 * 60 })
-        return { queued: true, duplicate: false }
+            data: {
+              type: 'release_available',
+              tag: release.tag,
+              version: release.version,
+              versionCode: String(release.versionCode),
+              download_url: url,
+              dedupeKey: markerKey,
+            },
+          })
+          await this.env.KV.put(markerKey, new Date().toISOString(), { expirationTtl: 90 * 24 * 60 * 60 })
+          return { queued: true, duplicate: false }
+        } catch (error) {
+          console.error('[release] Push notification queue failed:', error?.message)
+          return {
+            queued: false,
+            duplicate: false,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
       })
 
       const analytics = await step.do('record release analytics', async () => {
