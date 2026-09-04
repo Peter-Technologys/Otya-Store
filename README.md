@@ -1,14 +1,16 @@
 # OTYA Backend
 
-The private production backend for **OTYA** by PeterSmart Link.
+The private production backend for **OTYA** by **PeterSmart Link**.
 
-**Official service:** https://petersmartlink.com
+**PeterSmart Link:** https://petersmartlink.com  
+**OTYA product:** https://petersmartlink.com/otya-player
 
-This repository contains production infrastructure for the shared OTYA account, OTYA Player APIs, OTYA AI, secure recovery, release delivery, notifications, support and future OTYA products.
+This repository contains production infrastructure for the shared OTYA account, Otya Player APIs, Next, secure recovery, release delivery, notifications, support and future PeterSmart Link / OTYA product capabilities.
 
 ## Production principles
 
-- One shared OTYA identity across products
+- One shared OTYA identity across supported products and sign-in methods
+- Admin is a server-authorized role inside the same OTYA identity, not a separate account
 - Product-specific data remains separately scoped
 - Real server-side authentication and session management
 - Server-side Google identity verification
@@ -19,22 +21,26 @@ This repository contains production infrastructure for the shared OTYA account, 
 - Cloudflare Workers-based production infrastructure
 - Security scanning and dependency review through GitHub Actions
 - Secrets stored in protected platform/GitHub secret stores, never in client code
-- AI remains optional for OTYA Player and cannot block local playback
+- Next remains optional for Otya Player and cannot block local playback
 
 ## Public product information
 
-Customer-facing product information, Docs, downloads, support and release notices are published through the official OTYA website rather than this private source repository.
+PeterSmart Link is the developer/publisher. OTYA is a product family. Public information is separated by purpose instead of exposing internal infrastructure as product documentation.
 
-- OTYA: https://petersmartlink.com
-- Docs: https://petersmartlink.com/docs
-- OTYA AI: https://petersmartlink.com/ai
-- OTYA Account: https://petersmartlink.com/my-account
-- OTYA Player: https://petersmartlink.com/otya-player
-- OTYA Player download: https://petersmartlink.com/download/otya-player
+- PeterSmart Link: https://petersmartlink.com
+- Products: https://petersmartlink.com/apps
+- Otya Player: https://petersmartlink.com/otya-player
+- Otya Player download: https://petersmartlink.com/download/otya-player
+- Documentation: https://docs.petersmartlink.com
+- OTYA Space: https://space.petersmartlink.com
+- Next: https://space.petersmartlink.com/ask
+- Service status: https://status.petersmartlink.com
 
 ## Public GitHub
 
-OTYA production source remains private. A separate public OTYA repository should be used for public Docs links, release/checksum information, public issue templates, security reporting guidance and future public examples/SDKs. Starter files are maintained under `public-github-template/` until that public repository is created.
+Production infrastructure details remain private even when this repository is accessible to an authorized maintainer. Public repositories should contain only material deliberately approved for public release: product documentation links, release/checksum information, issue templates, security-reporting guidance, examples and SDKs intended for developers.
+
+Starter public-repository files are maintained under `public-github-template/` until or unless a dedicated public developer repository replaces them.
 
 ## Security
 
