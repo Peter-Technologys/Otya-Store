@@ -4,13 +4,14 @@ import { existsSync, readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('website navigation uses the canonical Otya mark', () => {
+test('organization navigation identifies PeterSmart Link while the Otya product mark stays canonical', () => {
   const nav = read('src/components/SiteNav.tsx')
   const mark = read('src/components/OtyaBrandMark.tsx')
   const icon = read('public/otya-icon.svg')
   const darkIcon = read('public/otya-icon-dark.svg')
 
-  assert.match(nav, /OtyaBrandMark/)
+  assert.match(nav, /PeterSmart Link/)
+  assert.match(nav, /\['Otya', '\/otya-player'\]/)
   assert.match(mark, /otya-icon\.svg/)
   assert.match(mark, /otya-icon-dark\.svg/)
   assert.doesNotMatch(nav, /web-app-manifest-192x192\.png/)
