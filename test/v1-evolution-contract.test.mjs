@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'
 const pkg = JSON.parse(read('package.json'))
 const nextConfig = read('next.config.mjs')
 const securityWorkflow = read('.github/workflows/security.yml')
+const auditRetry = read('scripts/npm-audit-retry.mjs')
 
 test('public server version remains Otya 1.0.0 during first-release evolution', () => {
   assert.equal(pkg.version, '1.0.0')
@@ -25,9 +26,21 @@ test('critical deployment stack is pinned instead of floating across deploys', (
 })
 
 test('high-severity dependency audits are deployment gates', () => {
-  assert.match(securityWorkflow, /npm install --package-lock-only --ignore-scripts/)
-  assert.match(securityWorkflow, /npm run audit:all/)
-  assert.match(securityWorkflow, /npm audit --audit-level=high/)
+  assert.match(securityWorkflow, /npm ci --ignore-scripts/)
+  assert.doesNotMatch(securityWorkflow, /--no-package-lock/)
+  assert.match(
+    securityWorkflow,
+    /node (?:\.\.\/)?scripts\/npm-audit-retry\.mjs --audit-level=high/,
+  )
+  assert.match(auditRetry, /const args = \['audit'/)
+  assert.match(auditRetry, /const maxAttempts = 3/)
+  assert.match(
+    auditRetry,
+    /503 Service Unavailable\|502 Bad Gateway\|504 Gateway Timeout/,
+  )
+  assert.match(auditRetry, /ECONNRESET\|ETIMEDOUT\|EAI_AGAIN/)
+  assert.match(auditRetry, /if \(!transient \|\| attempt === maxAttempts\)/)
+  assert.match(auditRetry, /process\.exit\(result\.status \?\? 1\)/)
   assert.match(securityWorkflow, /actions\/checkout@v6/)
   assert.match(securityWorkflow, /actions\/setup-node@v6/)
 })
