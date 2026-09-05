@@ -30,6 +30,13 @@ const clean = (value: unknown, max: number): string | null => {
   return normalized || null
 }
 
+const USERNAME_PATTERN = /^[a-z][a-z0-9_]{2,23}$/
+
+function normalizeUsername(value: unknown): string | null {
+  const username = clean(value, 24)?.replace(/^@+/, '').toLowerCase() ?? null
+  return username && USERNAME_PATTERN.test(username) ? username : null
+}
+
 function validEmail(value: string | null): value is string {
   return value !== null && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -56,6 +63,13 @@ function validTimezone(value: string | null): boolean {
   }
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  const message = String(error).toLowerCase()
+  return message.includes('unique constraint') ||
+    message.includes('constraint failed') ||
+    message.includes('sqlite_constraint')
+}
+
 export async function handleAccountProfile(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   if (url.pathname !== '/auth/account') return null
@@ -72,17 +86,53 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
 
   try {
     await assertSchemaReady(env.AUTH_DB)
+    await env.AUTH_DB.prepare(
+      'SELECT username, user_id FROM user_public_usernames LIMIT 0',
+    ).all()
   } catch (error) {
     console.error('[auth/account] Schema readiness check failed:', (error as Error)?.message)
     return json({ error: 'Otya account storage is temporarily unavailable. Please try again.' }, 503)
   }
 
   try {
+    const lookupRaw = url.searchParams.get('lookup_username')
+    if (request.method === 'GET' && lookupRaw !== null) {
+      const username = normalizeUsername(lookupRaw)
+      if (!username) {
+        return json({
+          error: 'Enter a valid OTYA username.',
+          code: 'INVALID_USERNAME',
+        }, 400)
+      }
+
+      const found = await env.AUTH_DB.prepare(`
+        SELECT u.otya_id, p.username, u.name, u.avatar_url
+        FROM user_public_usernames p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.username = ? COLLATE NOCASE
+        LIMIT 1
+      `).bind(username).first<Record<string, unknown>>()
+
+      if (!found) {
+        return json({ error: 'OTYA user not found.', code: 'USERNAME_NOT_FOUND' }, 404)
+      }
+      return json({ ok: true, user: found })
+    }
+
     if (request.method === 'PATCH') {
       const body = await request.json().catch(() => null) as Record<string, unknown> | null
       if (!body) return json({ error: 'Invalid JSON body' }, 400)
 
-      const allowed = ['email', 'name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone'] as const
+      const allowed = [
+        'email',
+        'name',
+        'avatar_url',
+        'recovery_email',
+        'country_code',
+        'locale',
+        'timezone',
+        'username',
+      ] as const
       if (!allowed.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
         return json({ error: 'No supported profile fields supplied' }, 400)
       }
@@ -153,8 +203,37 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
         values.push(timezone)
       }
 
-      values.push(userId)
-      await env.AUTH_DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run()
+      if ('username' in body) {
+        const username = normalizeUsername(body.username)
+        if (!username) {
+          return json({
+            error: 'Use 3–24 characters, start with a letter, and use only letters, numbers or underscore.',
+            code: 'INVALID_USERNAME',
+          }, 400)
+        }
+        try {
+          await env.AUTH_DB.prepare(`
+            INSERT INTO user_public_usernames (username, user_id, created_at, updated_at)
+            VALUES (?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+              username = excluded.username,
+              updated_at = datetime('now')
+          `).bind(username, userId).run()
+        } catch (error) {
+          if (isUniqueConstraintError(error)) {
+            return json({
+              error: 'That OTYA username is already taken.',
+              code: 'USERNAME_TAKEN',
+            }, 409)
+          }
+          throw error
+        }
+      }
+
+      if (updates.length > 1) {
+        values.push(userId)
+        await env.AUTH_DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run()
+      }
     }
 
     const user = await env.AUTH_DB.prepare(`
@@ -164,6 +243,11 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
       FROM users WHERE id = ?
     `).bind(userId).first<Record<string, unknown>>()
     if (!user) return json({ error: 'Account not found. Please sign in again.' }, 404)
+
+    const usernameRow = await env.AUTH_DB.prepare(
+      'SELECT username FROM user_public_usernames WHERE user_id = ? LIMIT 1',
+    ).bind(userId).first<{ username?: string }>()
+    const publicUser = { ...user, username: usernameRow?.username ?? null }
 
     // Connected identities and product history are useful account metadata, but
     // they must never make the primary account profile unavailable if a legacy
@@ -187,7 +271,7 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
       console.error('[auth/account] Product history read failed:', (error as Error)?.message)
     }
 
-    return json({ ok: true, user, identities, products })
+    return json({ ok: true, user: publicUser, identities, products })
   } catch (error) {
     console.error('[auth/account] Account request failed:', (error as Error)?.message)
     return json({ error: 'Could not load your Otya account. Please try again.' }, 503)
