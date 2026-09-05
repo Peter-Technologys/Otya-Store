@@ -17,6 +17,13 @@ type GoogleCredentialResponse = { credential?: string }
 type GoogleApi = { accounts: { id: { initialize(input: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } }
 declare global { interface Window { google?: GoogleApi } }
 
+function accountError(data: Json, registration: boolean): string {
+  if (!registration && data.error === 'Invalid email or password') {
+    return 'Email/password sign-in failed. If you created this account with Google or Telegram, use that same method below. You can also choose Forgot password to add or reset a password.'
+  }
+  return data.error || (registration ? 'Account creation failed.' : 'Sign in failed.')
+}
+
 async function authFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
@@ -94,7 +101,8 @@ export default function SignInPage() {
       if (cancelled || !window.google || !googleButtonRef.current) return
       googleButtonRef.current.replaceChildren()
       window.google.accounts.id.initialize({ client_id: GOOGLE_WEB_CLIENT_ID, callback: response => void completeGoogle(response), auto_select: false })
-      window.google.accounts.id.renderButton(googleButtonRef.current, { type: 'icon', theme: 'outline', size: 'large', shape: 'circle' })
+      const width = Math.max(240, Math.min(googleButtonRef.current.clientWidth || 320, 360))
+      window.google.accounts.id.renderButton(googleButtonRef.current, { type: 'standard', theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', width })
     }
     const existing = document.querySelector<HTMLScriptElement>('script[data-otya-google]')
     if (existing) {
@@ -325,7 +333,7 @@ export default function SignInPage() {
           setMode('twofactor'); setSecondFactor('')
           throw new Error(data.error || 'Two-step verification is required.')
         }
-        throw new Error(data.error || (registration ? 'Account creation failed.' : 'Sign in failed.'))
+        throw new Error(accountError(data, registration))
       }
       if (registration) {
         setPassword('')
@@ -375,7 +383,14 @@ export default function SignInPage() {
           {mode === 'verify' && <><button type="button" disabled={busy} onClick={() => void resendVerification()}>Resend code</button><button type="button" onClick={() => switchMode('signin')}>Back to sign in</button></>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>}
-        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5"><p className="mb-3 text-center text-[11px] font-bold tracking-wide otya-muted">Other ways to continue</p><div className={`flex items-center justify-center gap-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}><div ref={googleButtonRef} className="h-11 w-11 overflow-hidden rounded-full grid place-items-center" aria-label="Continue with Google" title="Continue with Google" /><button type="button" onClick={() => void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="h-11 w-11 grid place-items-center rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg></button></div></div>}
+        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5">
+          <p className="mb-2 text-center text-[11px] font-bold tracking-wide otya-muted">OTHER WAYS TO CONTINUE</p>
+          <p className="mx-auto mb-4 max-w-sm text-center text-xs leading-5 otya-muted">Use the method you chose when creating your account. Google or Telegram accounts may not have an Otya password yet.</p>
+          <div className={`space-y-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
+            <div ref={googleButtonRef} className="min-h-11 w-full flex items-center justify-center overflow-hidden rounded-full" aria-label="Continue with Google" title="Continue with Google" />
+            <button type="button" onClick={() => void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="w-full min-h-11 inline-flex items-center justify-center gap-2.5 rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent px-5 text-sm font-bold disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg><span>Continue with Telegram</span></button>
+          </div>
+        </div>}
       </div>
       <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs otya-muted"><Link href="https://petersmartlink.com/terms">Terms</Link><Link href="https://petersmartlink.com/privacy">Privacy</Link><Link href="https://docs.petersmartlink.com">Help & Docs</Link></div>
     </section>
