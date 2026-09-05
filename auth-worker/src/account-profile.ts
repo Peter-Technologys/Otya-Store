@@ -123,16 +123,7 @@ export async function handleAccountProfile(request: Request, env: Env): Promise<
       const body = await request.json().catch(() => null) as Record<string, unknown> | null
       if (!body) return json({ error: 'Invalid JSON body' }, 400)
 
-      const allowed = [
-        'email',
-        'name',
-        'avatar_url',
-        'recovery_email',
-        'country_code',
-        'locale',
-        'timezone',
-        'username',
-      ] as const
+      const allowed = ['email', 'name', 'avatar_url', 'recovery_email', 'country_code', 'locale', 'timezone', 'username'] as const
       if (!allowed.some(key => Object.prototype.hasOwnProperty.call(body, key))) {
         return json({ error: 'No supported profile fields supplied' }, 400)
       }
