@@ -1,5 +1,5 @@
 name = "otya-core"
-main = "src/new-way-entrypoint.mjs"
+main = "src/production-router.mjs"
 compatibility_date = "2026-07-19"
 compatibility_flags = ["nodejs_compat"]
 keep_vars = true
