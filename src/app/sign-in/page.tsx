@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { OtyaBrandMark } from '@/components/OtyaBrandMark'
+import { TurnstileChallenge } from '@/components/TurnstileChallenge'
 
 const API = '/api/account-session'
 const GOOGLE_WEB_CLIENT_ID = '82776565585-obr8k53b8n6djsggissv8qne81cm3u5u.apps.googleusercontent.com'
@@ -67,10 +68,13 @@ export default function SignInPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0)
 
   const registration = mode === 'register'
   const providerMode = mode === 'signin' || mode === 'register'
   const ownerMode = mode === 'owner' || mode === 'owner-otp' || mode === 'owner-telegram'
+  const securityMode = mode === 'signin' || mode === 'register' || mode === 'forgot' || mode === 'reset' || mode === 'twofactor'
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -122,8 +126,13 @@ export default function SignInPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, terms, privacy, marketing])
 
+  function resetSecurityChallenge() {
+    setTurnstileToken('')
+    setTurnstileResetKey(value => value + 1)
+  }
+
   function switchMode(next: Mode) {
-    setMode(next); setError(''); setNotice(''); setOtp(''); setNewPassword(''); setConfirmPassword(''); setSecondFactor(''); setUseRecovery(false)
+    setMode(next); setError(''); setNotice(''); setOtp(''); setNewPassword(''); setConfirmPassword(''); setSecondFactor(''); setUseRecovery(false); resetSecurityChallenge()
   }
 
   function openDestination() {
@@ -234,10 +243,12 @@ export default function SignInPage() {
   async function completeGoogle(response: GoogleCredentialResponse) {
     const idToken = response.credential || ''
     if (!idToken) return setError('Google did not return a valid sign-in credential.')
+    if (!turnstileToken) return setError('Complete the Cloudflare security check before continuing with Google.')
     if (registration && (!terms || !privacy)) return setError('Accept the Terms and Privacy Policy before creating your account.')
+    const securityToken = turnstileToken
     setBusy(true); setError(''); setNotice('')
     try {
-      const result = await authFetch('google', { method: 'POST', body: JSON.stringify({ id_token: idToken, ...(registration ? { terms_accepted: true, terms_version: TERMS_VERSION, privacy_accepted: true, privacy_version: PRIVACY_VERSION, marketing_consent: marketing } : {}) }) })
+      const result = await authFetch('google', { method: 'POST', body: JSON.stringify({ id_token: idToken, turnstile_token: securityToken, ...(registration ? { terms_accepted: true, terms_version: TERMS_VERSION, privacy_accepted: true, privacy_version: PRIVACY_VERSION, marketing_consent: marketing } : {}) }) })
       const data = await result.json().catch(() => ({})) as Json
       if (!result.ok) {
         if (result.status === 428 || data.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
@@ -248,18 +259,26 @@ export default function SignInPage() {
       }
       await verifySessionAndOpen()
     } catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
+    finally { resetSecurityChallenge(); setBusy(false) }
   }
 
   async function startTelegram() {
     if (busy) return
+    if (!turnstileToken) return setError('Complete the Cloudflare security check before continuing with Telegram.')
+    const securityToken = turnstileToken
     setBusy(true); setError(''); setNotice('')
     try {
-      const response = await fetch('/api/auth/telegram/start?mode=login', { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+      const response = await fetch('/api/auth/telegram/start?mode=login', {
+        method: 'POST',
+        headers: { 'X-Otya-Turnstile': securityToken },
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
       const data = await response.json().catch(() => ({})) as Json
       if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Telegram Sign-In is temporarily unavailable.')
       window.location.assign(data.authorization_url)
     } catch (cause) { setError((cause as Error).message); setBusy(false) }
+    finally { resetSecurityChallenge() }
   }
 
   async function resendVerification() {
@@ -284,7 +303,10 @@ export default function SignInPage() {
     if (mode === 'twofactor' && !secondFactor.trim()) return setError(useRecovery ? 'Enter a recovery code.' : 'Enter your authenticator code.')
     if (mode === 'reset' && (!otp.trim() || newPassword.length < 8)) return setError('Enter the reset code and a new password of at least 8 characters.')
     if (mode === 'reset' && newPassword !== confirmPassword) return setError('The new passwords do not match.')
+    if (securityMode && !turnstileToken) return setError('Complete the Cloudflare security check before continuing.')
 
+    const protectedSubmit = securityMode
+    const securityToken = protectedSubmit ? turnstileToken : ''
     setBusy(true); setError(''); setNotice('')
     try {
       if (mode === 'owner-otp') {
@@ -306,7 +328,7 @@ export default function SignInPage() {
         return
       }
       if (mode === 'forgot') {
-        const response = await authFetch('forgot-password', { method: 'POST', body: JSON.stringify({ email: email.trim() }) })
+        const response = await authFetch('forgot-password', { method: 'POST', body: JSON.stringify({ email: email.trim(), turnstile_token: securityToken }) })
         const data = await response.json().catch(() => ({})) as Json
         if (!response.ok) throw new Error(data.error || 'Could not request a password reset.')
         setNotice(data.message || 'If that account exists, a reset code has been requested.')
@@ -314,7 +336,7 @@ export default function SignInPage() {
         return
       }
       if (mode === 'reset') {
-        const response = await authFetch('reset-password', { method: 'POST', body: JSON.stringify({ email: email.trim(), otp: otp.trim(), new_password: newPassword }) })
+        const response = await authFetch('reset-password', { method: 'POST', body: JSON.stringify({ email: email.trim(), otp: otp.trim(), new_password: newPassword, turnstile_token: securityToken }) })
         const data = await response.json().catch(() => ({})) as Json
         if (!response.ok) throw new Error(data.error || 'Could not reset your password.')
         setPassword(''); setNewPassword(''); setConfirmPassword(''); setOtp(''); setMode('signin')
@@ -324,8 +346,8 @@ export default function SignInPage() {
 
       const endpoint = registration ? 'register' : 'login'
       const payload = registration
-        ? { email: email.trim(), password, name: name.trim() || undefined, terms_accepted: true, terms_version: TERMS_VERSION, privacy_accepted: true, privacy_version: PRIVACY_VERSION, marketing_consent: marketing }
-        : { email: email.trim(), password, ...(mode === 'twofactor' && !useRecovery ? { totp_code: secondFactor.trim() } : {}), ...(mode === 'twofactor' && useRecovery ? { recovery_code: secondFactor.trim() } : {}) }
+        ? { email: email.trim(), password, name: name.trim() || undefined, terms_accepted: true, terms_version: TERMS_VERSION, privacy_accepted: true, privacy_version: PRIVACY_VERSION, marketing_consent: marketing, turnstile_token: securityToken }
+        : { email: email.trim(), password, turnstile_token: securityToken, ...(mode === 'twofactor' && !useRecovery ? { totp_code: secondFactor.trim() } : {}), ...(mode === 'twofactor' && useRecovery ? { recovery_code: secondFactor.trim() } : {}) }
       const response = await authFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) })
       const data = await response.json().catch(() => ({})) as Json
       if (!response.ok) {
@@ -344,28 +366,28 @@ export default function SignInPage() {
       }
       await verifySessionAndOpen()
     } catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
+    finally { if (protectedSubmit) resetSecurityChallenge(); setBusy(false) }
   }
 
   const title = mode === 'register' ? 'Create your Otya account' : mode === 'verify' ? 'Verify your email' : mode === 'twofactor' ? 'Confirm it’s you' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : mode === 'owner-otp' ? 'Confirm owner access' : mode === 'owner-telegram' ? 'Confirm owner identity' : mode === 'owner' ? 'Owner access' : 'Sign in to Otya'
   const subtitle = mode === 'verify' ? `Enter the 5-character code sent to ${email || 'your email'}.` : mode === 'twofactor' ? 'Use your authenticator or a recovery code.' : mode === 'forgot' ? 'Enter your email to request a reset code.' : mode === 'reset' ? 'Enter the code from your email and choose a new password.' : mode === 'owner-otp' ? 'This is the same Otya account. Enter the fresh code sent to its verified owner email.' : mode === 'owner-telegram' ? 'Finish the owner check with the Telegram identity linked to this same Otya account.' : mode === 'owner' ? 'Admin is a role inside this Otya account, not a second account.' : registration ? 'Create one account for Otya.' : 'One account opens your Otya Space.'
 
-  return <main className="min-h-screen bg-[color:var(--cosmos-scaffold)] text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
+  return <main className="otya-auth-page min-h-screen text-[color:var(--cosmos-text-primary)] grid place-items-center px-4 py-8 sm:py-12">
     <section className="w-full max-w-[460px]">
-      <Link href="https://petersmartlink.com" aria-label="PeterSmart Link home" className="inline-flex items-center gap-2.5 mb-8"><span className="h-10 w-10 rounded-xl grid place-items-center border border-black/[.08] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] text-xs font-black">PS</span><span><span className="block font-black text-[15px] tracking-[-.03em]">PeterSmart Link</span><span className="block text-[11px] otya-muted">Otya Space</span></span></Link>
-      <div className="rounded-[30px] border border-black/[.07] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] p-5 sm:p-7 shadow-[0_24px_80px_rgba(20,16,35,.09)]">
-        <div className="mb-5"><OtyaBrandMark size={38}/></div>
+      <Link href="https://petersmartlink.com" aria-label="PeterSmart Link home" className="inline-flex items-center gap-2.5 mb-8"><span className="h-10 w-10 rounded-xl grid place-items-center border border-white/[.10] bg-[color:var(--cosmos-surface)] text-xs font-black">PS</span><span><span className="block font-black text-[15px] tracking-[-.03em]">PeterSmart Link</span><span className="block text-[11px] otya-muted">Otya Space</span></span></Link>
+      <div className="otya-auth-card rounded-[30px] border p-5 sm:p-7">
+        <div className="mb-5"><OtyaBrandMark size={46}/></div>
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-.05em]">{title}</h1>
         <p className="mt-2 mb-6 text-sm leading-6 otya-muted">{subtitle}</p>
-        {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
-        {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-700 dark:text-emerald-200">{notice}</div>}
+        {error && <div className="rounded-2xl border border-red-500/20 bg-red-500/[.07] px-4 py-3 mb-4 text-sm text-red-200">{error}</div>}
+        {notice && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[.07] px-4 py-3 mb-4 text-sm text-emerald-200">{notice}</div>}
 
         {mode === 'owner' ? <div className="space-y-3">
           {ownerEligible && <button type="button" disabled={busy} onClick={() => void beginOwnerVerification()} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Checking…' : 'Retry owner verification'}</button>}
-          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-black/[.08] dark:border-white/[.10]">Open Space</button>
+          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-white/[.10]">Open Space</button>
         </div> : mode === 'owner-telegram' ? <div className="space-y-3">
           <button type="button" disabled={busy} onClick={() => void startOwnerTelegram()} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Completing verification…' : 'Continue with Telegram'}</button>
-          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-black/[.08] dark:border-white/[.10]">Open Space</button>
+          <button type="button" onClick={() => window.location.replace(DEFAULT_AFTER_AUTH)} className="w-full rounded-full min-h-12 px-5 font-black border border-white/[.10]">Open Space</button>
         </div> : <form onSubmit={submit} className="space-y-3">
           {registration && <Field value={name} onChange={setName} placeholder="Name" autoComplete="name" />}
           {!ownerMode && <Field value={email} onChange={setEmail} placeholder="Email" type="email" autoComplete="email" disabled={mode === 'twofactor' || mode === 'reset' || mode === 'verify'} />}
@@ -374,6 +396,7 @@ export default function SignInPage() {
           {mode === 'twofactor' && <><Field value={secondFactor} onChange={setSecondFactor} placeholder={useRecovery ? 'Recovery code' : '6-digit authenticator code'} autoFocus/><button type="button" onClick={() => { setUseRecovery(value => !value); setSecondFactor(''); setError('') }} className="w-full py-1 text-sm font-bold otya-muted">{useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}</button></>}
           {mode === 'reset' && <><Field value={otp} onChange={setOtp} placeholder="Reset code" autoComplete="one-time-code"/><Field value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" autoComplete="new-password"/><Field value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm new password" type="password" autoComplete="new-password"/></>}
           {registration && <div className="space-y-3 py-2 text-sm otya-muted"><Check checked={terms} onChange={setTerms}>I accept the <Link href="/terms" className="font-black text-[color:var(--cosmos-text-primary)]">Terms</Link>.</Check><Check checked={privacy} onChange={setPrivacy}>I accept the <Link href="/privacy" className="font-black text-[color:var(--cosmos-text-primary)]">Privacy Policy</Link>.</Check><Check checked={marketing} onChange={setMarketing}>Send me optional Otya product news.</Check></div>}
+          {securityMode && <TurnstileChallenge onTokenChange={setTurnstileToken} resetKey={turnstileResetKey} />}
           <button disabled={busy} className="cosmos-button w-full rounded-full min-h-12 px-5 font-black disabled:opacity-55">{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify and continue' : mode === 'twofactor' ? 'Verify and sign in' : mode === 'forgot' ? 'Request reset code' : mode === 'reset' ? 'Update password' : mode === 'owner-otp' ? 'Verify owner and continue' : 'Sign in'}</button>
         </form>}
 
@@ -383,12 +406,12 @@ export default function SignInPage() {
           {mode === 'verify' && <><button type="button" disabled={busy} onClick={() => void resendVerification()}>Resend code</button><button type="button" onClick={() => switchMode('signin')}>Back to sign in</button></>}
           {(mode === 'forgot' || mode === 'reset' || mode === 'twofactor') && <button type="button" onClick={() => switchMode('signin')}>Back to sign in</button>}
         </div>}
-        {providerMode && <div className="mt-7 border-t border-black/[.07] dark:border-white/[.08] pt-5">
+        {providerMode && <div className="mt-7 border-t border-white/[.08] pt-5">
           <p className="mb-2 text-center text-[11px] font-bold tracking-wide otya-muted">OTHER WAYS TO CONTINUE</p>
           <p className="mx-auto mb-4 max-w-sm text-center text-xs leading-5 otya-muted">Use the method you chose when creating your account. Google or Telegram accounts may not have an Otya password yet.</p>
-          <div className={`space-y-3 ${busy ? 'pointer-events-none opacity-55' : ''}`}>
+          <div className={`space-y-3 ${busy || !turnstileToken ? 'pointer-events-none opacity-55' : ''}`}>
             <div ref={googleButtonRef} className="min-h-11 w-full flex items-center justify-center overflow-hidden rounded-full" aria-label="Continue with Google" title="Continue with Google" />
-            <button type="button" onClick={() => void startTelegram()} disabled={busy} aria-label="Continue with Telegram" title="Continue with Telegram" className="w-full min-h-11 inline-flex items-center justify-center gap-2.5 rounded-full border border-black/[.08] dark:border-white/[.10] bg-transparent px-5 text-sm font-bold disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg><span>Continue with Telegram</span></button>
+            <button type="button" onClick={() => void startTelegram()} disabled={busy || !turnstileToken} aria-label="Continue with Telegram" title="Continue with Telegram" className="w-full min-h-11 inline-flex items-center justify-center gap-2.5 rounded-full border border-white/[.10] bg-transparent px-5 text-sm font-bold disabled:opacity-35"><svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current"><path d="M21.6 3.5 18.7 20c-.2 1.2-.8 1.5-1.7.9l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.8.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L7.2 14.2 2.7 12.8c-1-.3-1-1 .2-1.5L20.4 4.5c.8-.3 1.5.2 1.2-1z"/></svg><span>Continue with Telegram</span></button>
           </div>
         </div>}
       </div>
@@ -397,5 +420,5 @@ export default function SignInPage() {
   </main>
 }
 
-function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value: string; onChange: (value: string) => void; placeholder: string; type?: string; autoComplete?: string; disabled?: boolean; autoFocus?: boolean }) { return <input value={value} onChange={event => onChange(event.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-black/[.08] dark:border-white/[.10] px-4 outline-none bg-transparent placeholder:text-black/35 dark:placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)]" /> }
-function Check({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) { return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1 accent-violet-500"/><span>{children}</span></label> }
+function Field({ value, onChange, placeholder, type = 'text', autoComplete, disabled, autoFocus }: { value: string; onChange: (value: string) => void; placeholder: string; type?: string; autoComplete?: string; disabled?: boolean; autoFocus?: boolean }) { return <input value={value} onChange={event => onChange(event.target.value)} type={type} placeholder={placeholder} autoComplete={autoComplete} disabled={disabled} autoFocus={autoFocus} className="w-full min-h-12 rounded-2xl border border-white/[.10] px-4 outline-none bg-[color:var(--cosmos-surface-elevated)] placeholder:text-white/35 disabled:opacity-50 focus:border-[color:var(--cosmos-primary)] focus:shadow-[0_0_0_3px_rgba(39,232,255,.10)]" /> }
+function Check({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) { return <label className="flex gap-3 items-start"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1 accent-[color:var(--cosmos-primary)]"/><span>{children}</span></label> }
