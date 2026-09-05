@@ -120,20 +120,36 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
   if (!user || typeof user !== 'object' || Array.isArray(user)) return response
   const account = user as Record<string, unknown>
   const id = typeof account.id === 'string' ? account.id : ''
-  if (!id || typeof account.otya_id === 'string') return response
+  if (!id) return response
+
+  const hasPublicId = typeof account.otya_id === 'string' && account.otya_id.length > 0
+  const hasUsername = typeof account.username === 'string' && account.username.length > 0
+  if (hasPublicId && hasUsername) return response
 
   try {
-    const row = await env.AUTH_DB.prepare('SELECT otya_id FROM users WHERE id = ? LIMIT 1').bind(id).first<{ otya_id?: string | null }>()
-    if (!row?.otya_id) return response
+    const row = await env.AUTH_DB.prepare(
+      'SELECT otya_id, username FROM users WHERE id = ? LIMIT 1',
+    ).bind(id).first<{ otya_id?: string | null; username?: string | null }>()
+    if (!row) return response
+
+    const normalizedUser = {
+      ...account,
+      ...(hasPublicId || !row.otya_id ? {} : { otya_id: row.otya_id }),
+      ...(hasUsername || !row.username ? {} : { username: row.username }),
+    }
+
     const headers = new Headers(response.headers)
     headers.set('Cache-Control', 'no-store')
-    return new Response(JSON.stringify({ ...data, user: { ...account, otya_id: row.otya_id } }), {
+    return new Response(JSON.stringify({ ...data, user: normalizedUser }), {
       status: response.status,
       statusText: response.statusText,
       headers,
     })
   } catch (error) {
-    console.error('[auth] Could not attach public Otya ID:', (error as Error)?.message)
+    // During the isolated rollout the username column may not exist until the
+    // additive migration is applied. Preserve the original successful auth
+    // response rather than turning that migration window into a login outage.
+    console.error('[auth] Could not attach public OTYA identity:', (error as Error)?.message)
     return response
   }
 }
