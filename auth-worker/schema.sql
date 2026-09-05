@@ -28,6 +28,19 @@ CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_otya_id ON users(otya_id) WHERE otya_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE phone_number IS NOT NULL;
 
+-- Public OTYA usernames are additive identity metadata. Keeping them in their
+-- own table lets existing accounts adopt @handles without changing the core
+-- users primary record or provider-linking model.
+CREATE TABLE IF NOT EXISTS user_public_usernames (
+  username   TEXT PRIMARY KEY COLLATE NOCASE,
+  user_id    TEXT NOT NULL UNIQUE,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_public_usernames_user
+  ON user_public_usernames(user_id);
+
 CREATE TABLE IF NOT EXISTS user_products (
   user_id       TEXT NOT NULL,
   product_id    TEXT NOT NULL,
