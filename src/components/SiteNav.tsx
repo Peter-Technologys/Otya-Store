@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { OtyaBrandMark } from '@/components/OtyaBrandMark'
 
 type User = { name?: string; email?: string; avatar_url?: string }
 type Session = { authenticated?: boolean; user?: User }
@@ -27,8 +28,11 @@ function SpaceGlyph() { return <svg viewBox="0 0 24 24" className="h-4 w-4" fill
 
 function Brand() {
   return <Link href="/" className="inline-flex items-center gap-2.5 shrink-0" aria-label="PeterSmart Link home">
-    <span className="h-9 w-9 rounded-xl grid place-items-center border border-black/[.08] dark:border-white/[.10] bg-[color:var(--cosmos-surface)] text-sm font-black tracking-[-.05em]">PS</span>
-    <span className="hidden sm:block font-black text-[15px] tracking-[-.035em] whitespace-nowrap">PeterSmart Link</span>
+    <span className="grid h-10 w-10 place-items-center rounded-xl border border-[color:var(--cosmos-divider)] bg-[color:var(--cosmos-surface)] shadow-[0_0_24px_rgba(18,107,255,.10)]"><OtyaBrandMark size={32} /></span>
+    <span className="hidden sm:block leading-tight">
+      <span className="block font-black text-[15px] tracking-[-.035em] whitespace-nowrap">PeterSmart Link</span>
+      <span className="block text-[10px] font-bold tracking-[.08em] uppercase otya-muted">Otya Player</span>
+    </span>
   </Link>
 }
 
