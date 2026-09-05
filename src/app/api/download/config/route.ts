@@ -1,21 +1,28 @@
 import { NextResponse } from 'next/server'
-import { getCloudflareContext } from '@opennextjs/cloudflare'
+
+import { getTurnstilePublicConfig } from '@/lib/turnstile'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const { env } = await getCloudflareContext()
-    const siteKey = (env as Record<string, unknown>).TURNSTILE_SITE_KEY
-    return NextResponse.json({
-      turnstile: typeof siteKey === 'string' && siteKey.length > 0,
-      siteKey: typeof siteKey === 'string' ? siteKey : null,
-    }, {
-      headers: { 'Cache-Control': 'no-store' },
+    const config = await getTurnstilePublicConfig()
+    return NextResponse.json(config, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
     })
   } catch {
-    return NextResponse.json({ turnstile: false, siteKey: null }, {
-      headers: { 'Cache-Control': 'no-store' },
-    })
+    return NextResponse.json(
+      { turnstile: false, siteKey: '' },
+      {
+        status: 503,
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      },
+    )
   }
 }
