@@ -2,18 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-type TurnstileApi = {
-  render(element: HTMLElement, options: Record<string, unknown>): string
-  reset(widgetId?: string): void
-  remove(widgetId: string): void
-}
-
-declare global {
-  interface Window {
-    turnstile?: TurnstileApi
-  }
-}
-
 type Props = {
   onTokenChange: (token: string) => void
   resetKey?: number
@@ -29,7 +17,6 @@ const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render
 
 export function TurnstileChallenge({ onTokenChange, resetKey = 0, className = '' }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const widgetRef = useRef<string | null>(null)
   const [siteKey, setSiteKey] = useState('')
   const [scriptReady, setScriptReady] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -78,40 +65,31 @@ export function TurnstileChallenge({ onTokenChange, resetKey = 0, className = ''
 
   useEffect(() => {
     if (!siteKey || !scriptReady || !hostRef.current || !window.turnstile) return
-    if (widgetRef.current) {
-      window.turnstile.remove(widgetRef.current)
-      widgetRef.current = null
-    }
-    hostRef.current.replaceChildren()
-    widgetRef.current = window.turnstile.render(hostRef.current, {
+
+    const host = hostRef.current
+    setStatus('loading')
+    onTokenChange('')
+    host.replaceChildren()
+    window.turnstile.render(host, {
       sitekey: siteKey,
       theme: 'dark',
       size: 'flexible',
-      appearance: 'always',
       callback: (token: string) => {
         setStatus('ready')
         onTokenChange(token)
       },
-      'expired-callback': () => onTokenChange(''),
-      'timeout-callback': () => onTokenChange(''),
+      'expired-callback': () => {
+        setStatus('loading')
+        onTokenChange('')
+      },
       'error-callback': () => {
         setStatus('error')
         onTokenChange('')
       },
     })
-    return () => {
-      if (widgetRef.current && window.turnstile) window.turnstile.remove(widgetRef.current)
-      widgetRef.current = null
-    }
-  }, [onTokenChange, scriptReady, siteKey])
 
-  useEffect(() => {
-    onTokenChange('')
-    if (widgetRef.current && window.turnstile) {
-      window.turnstile.reset(widgetRef.current)
-      setStatus('loading')
-    }
-  }, [onTokenChange, resetKey])
+    return () => host.replaceChildren()
+  }, [onTokenChange, resetKey, scriptReady, siteKey])
 
   return <div className={`otya-turnstile-shell ${className}`}>
     <div className="flex items-start gap-3">
