@@ -211,6 +211,21 @@ select {
   box-shadow: 0 0 22px rgba(39,232,255,.18);
 }
 
+@keyframes otya-brand-thinking {
+  0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 0 rgba(39,232,255,0)); }
+  50% { transform: rotate(180deg) scale(1.035); filter: drop-shadow(0 0 14px rgba(39,232,255,.24)); }
+  100% { transform: rotate(360deg) scale(1); filter: drop-shadow(0 0 0 rgba(39,232,255,0)); }
+}
+
+.otya-brand-thinking {
+  animation: otya-brand-thinking 1.6s cubic-bezier(.55,.1,.45,.9) infinite;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otya-brand-thinking { animation: none; }
+}
+
 .text-violet-400,
 .text-violet-500,
 .text-violet-600 { color: var(--cosmos-primary) !important; }
@@ -221,9 +236,13 @@ select {
 
 .ring-violet-500 { --tw-ring-color: rgba(39,232,255,.38) !important; }
 
-/* Legacy admin chrome falls back to the canonical Otya product identity. */
-img[src='/android-chrome-192x192.png'] {
-  content: url('/otya-icon.svg');
+/* Legacy admin chrome resolves to the same approved Otya mark. */
+img[src='/android-chrome-192x192.png'],
+img[src='/otya-icon.svg'],
+img[src='/otya-icon-dark.svg'],
+img[src='/otya-ai.svg'],
+img[src='/otya-ai-thinking.svg'] {
+  content: url('/otya-mark-current.png');
   object-fit: contain !important;
   background: transparent !important;
 }
