@@ -19,8 +19,9 @@
     "audit:all": "npm audit --audit-level=high",
     "prepreview": "npm run sync:brand",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "migrate:together": "wrangler d1 execute otya-store-db --remote --file=migrations/0007_together_control_plane.sql",
     "predeploy": "npm run sync:brand",
-    "deploy": "node scripts/ensure-admin-session-secret.mjs && opennextjs-cloudflare build && node scripts/deploy-core-version.mjs && node scripts/verify-admin-mfa.mjs",
+    "deploy": "npm run migrate:together && node scripts/ensure-admin-session-secret.mjs && opennextjs-cloudflare build && node scripts/deploy-core-version.mjs && node scripts/verify-admin-mfa.mjs",
     "maintenance:edge-csp": "bash scripts/remove-legacy-edge-csp.sh",
     "cf-typegen": "wrangler types"
   },
