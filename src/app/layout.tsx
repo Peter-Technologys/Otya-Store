@@ -9,6 +9,7 @@ const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font
 const SITE_URL = 'https://petersmartlink.com'
 const APP_VERSION = '1.0.0'
 const ADSENSE_ID = 'ca-pub-2517163652161686'
+const OTYA_MARK = '/otya-mark-current.png'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -56,28 +57,24 @@ export const metadata: Metadata = {
       'Official Otya Player by PeterSmart Link for local Android music and video, offline playback, nearby Transfer and Private media.',
     images: [
       {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
+        url: OTYA_MARK,
+        width: 1024,
+        height: 1024,
         alt: 'Otya Player by PeterSmart Link',
-        type: 'image/jpeg',
+        type: 'image/png',
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'Otya Player — Offline Music & Video Player for Android',
     description: 'Official Otya Player by PeterSmart Link for local Android media.',
-    images: ['/og-image.jpg'],
+    images: [OTYA_MARK],
   },
   icons: {
-    icon: [
-      { url: '/otya-icon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-    ],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: '/favicon.ico',
+    icon: [{ url: OTYA_MARK, sizes: '1024x1024', type: 'image/png' }],
+    apple: [{ url: OTYA_MARK, sizes: '1024x1024', type: 'image/png' }],
+    shortcut: OTYA_MARK,
   },
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'Otya Player', statusBarStyle: 'black-translucent' },
@@ -85,8 +82,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F6F8FB' },
-    { media: '(prefers-color-scheme: dark)', color: '#080B12' },
+    { media: '(prefers-color-scheme: light)', color: '#F5FAFF' },
+    { media: '(prefers-color-scheme: dark)', color: '#050812' },
   ],
   width: 'device-width', initialScale: 1, maximumScale: 5,
 }
@@ -99,7 +96,7 @@ const schemaOrg = {
       '@id': `${SITE_URL}/#organization`,
       name: 'PeterSmart Link',
       url: SITE_URL,
-      logo: `${SITE_URL}/otya-icon.svg`,
+      logo: `${SITE_URL}${OTYA_MARK}`,
       email: 'support@petersmartlink.com',
     },
     {
@@ -119,7 +116,7 @@ const schemaOrg = {
       publisher: { '@id': `${SITE_URL}/#organization` },
       description:
         'Offline-first Android music and video player for local media, nearby Transfer, Private media, playlists, subtitles and practical media tools.',
-      image: `${SITE_URL}/og-image.jpg`,
+      image: `${SITE_URL}${OTYA_MARK}`,
       featureList: [
         'Local music playback',
         'Local video playback',

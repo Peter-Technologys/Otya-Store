@@ -1,13 +1,12 @@
 {
   "name": "OTYA Player",
   "short_name": "OTYA Player",
-  "description": "Free offline media player for Android. Built in Uganda.",
+  "description": "Free offline-first music and video player for Android by PeterSmart Link.",
   "icons": [
-    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/otya-mark-current.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" }
   ],
-  "theme_color": "#7C3AED",
-  "background_color": "#07050f",
+  "theme_color": "#050812",
+  "background_color": "#050812",
   "display": "standalone",
   "start_url": "/",
   "scope": "/"

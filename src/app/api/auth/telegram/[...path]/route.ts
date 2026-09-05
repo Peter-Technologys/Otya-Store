@@ -1,6 +1,8 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextRequest, NextResponse } from 'next/server'
 
+import { verifyTurnstileToken } from '@/lib/turnstile'
+
 export const dynamic = 'force-dynamic'
 
 const PUBLIC_PREFIX = '/api/auth/telegram/'
@@ -74,9 +76,24 @@ async function forward(request: NextRequest): Promise<Response> {
 
     const publicUrl = new URL(request.url)
     if (!publicUrl.pathname.startsWith(PUBLIC_PREFIX)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const publicLoginStart = request.method === 'POST'
+      && publicUrl.pathname.endsWith('/start')
+      && publicUrl.searchParams.get('mode') === 'login'
+    if (publicLoginStart) {
+      const verification = await verifyTurnstileToken(request.headers.get('X-Otya-Turnstile'), request)
+      if (!verification.ok) {
+        return NextResponse.json(
+          { error: verification.error, code: verification.code },
+          { status: verification.status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } },
+        )
+      }
+    }
+
     const authUrl = new URL(request.url)
     authUrl.pathname = `${AUTH_PREFIX}${publicUrl.pathname.slice(PUBLIC_PREFIX.length)}`
     const headers = new Headers(request.headers)
+    headers.delete('X-Otya-Turnstile')
     headers.set('X-OTYA-Public-Auth-Route', publicUrl.pathname)
     const accessToken = request.cookies.get(ACCESS_COOKIE)?.value
     if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`)

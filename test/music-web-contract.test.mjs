@@ -4,27 +4,18 @@ import { existsSync, readFileSync } from 'node:fs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('organization navigation identifies PeterSmart Link while the Otya product mark stays canonical', () => {
+test('organization navigation identifies PeterSmart Link while Otya uses the synced approved mark', () => {
   const nav = read('src/components/SiteNav.tsx')
   const mark = read('src/components/OtyaBrandMark.tsx')
-  const icon = read('public/otya-icon.svg')
-  const darkIcon = read('public/otya-icon-dark.svg')
+  const sync = read('scripts/sync-brand-assets.mjs')
 
   assert.match(nav, /PeterSmart Link/)
   assert.match(nav, /\['Otya', '\/otya-player'\]/)
-  assert.match(mark, /otya-icon\.svg/)
-  assert.match(mark, /otya-icon-dark\.svg/)
+  assert.match(mark, /otya-mark-current\.png/)
+  assert.doesNotMatch(mark, /otya-icon\.svg|otya-icon-dark\.svg|otya-ai\.svg/)
+  assert.match(sync, /assets\/branding\/otya_mark_current\.png/)
+  assert.match(sync, /APPROVED_APP_COMMIT/)
   assert.doesNotMatch(nav, /web-app-manifest-192x192\.png/)
-
-  for (const source of [icon, darkIcon]) {
-    assert.match(source, /M160 98 138 117 116 146/)
-    assert.match(source, /M180 142 159 147 139 157/)
-    assert.match(source, /M405 164 410 190 408 224/)
-    assert.match(source, /#2979ff/i)
-    assert.match(source, /#ff3b30/i)
-    assert.match(source, /#ffd60a/i)
-    assert.doesNotMatch(source, /M256 106a150 150/)
-  }
 })
 
 test('Music web page describes the local product and has no streaming catalog runtime', () => {

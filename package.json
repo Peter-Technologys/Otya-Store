@@ -6,7 +6,10 @@
     "node": ">=22 <23"
   },
   "scripts": {
+    "sync:brand": "node scripts/sync-brand-assets.mjs",
+    "predev": "npm run sync:brand",
     "dev": "next dev",
+    "prebuild": "npm run sync:brand",
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs",
@@ -14,7 +17,9 @@
     "check": "npm run validate:config && npm test && npm run typecheck",
     "audit:runtime": "npm audit --omit=dev --audit-level=high",
     "audit:all": "npm audit --audit-level=high",
+    "prepreview": "npm run sync:brand",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "predeploy": "npm run sync:brand",
     "deploy": "node scripts/ensure-admin-session-secret.mjs && opennextjs-cloudflare build && node scripts/deploy-core-version.mjs && node scripts/verify-admin-mfa.mjs",
     "maintenance:edge-csp": "bash scripts/remove-legacy-edge-csp.sh",
     "cf-typegen": "wrangler types"

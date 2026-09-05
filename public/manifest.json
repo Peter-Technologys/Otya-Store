@@ -1,17 +1,17 @@
 {
-  "name": "Otya",
+  "name": "Otya Player",
   "short_name": "Otya",
-  "description": "Otya — media, music discovery, transfer, private content and intelligent assistance.",
+  "description": "Otya Player — offline-first music and video, nearby Transfer, Private media and practical media tools.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F7F7F8",
-  "theme_color": "#101114",
+  "background_color": "#050812",
+  "theme_color": "#050812",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/otya-icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
+      "src": "/otya-mark-current.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
