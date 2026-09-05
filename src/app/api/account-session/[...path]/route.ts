@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
+import { verifyTurnstileToken } from '@/lib/turnstile'
+
 export const dynamic = 'force-dynamic'
 
 const ACCESS_COOKIE = '__Secure-otya_access'
@@ -8,6 +10,13 @@ const REFRESH_COOKIE = '__Secure-otya_refresh'
 const COOKIE_DOMAIN = '.petersmartlink.com'
 const ACCESS_MAX_AGE = 15 * 60
 const REFRESH_MAX_AGE = 30 * 24 * 60 * 60
+const TURNSTILE_PROTECTED_AUTH = new Set([
+  'login',
+  'register',
+  'google',
+  'forgot-password',
+  'reset-password',
+])
 
 type AuthBinding = { fetch(request: Request): Promise<Response> }
 type JsonRecord = Record<string, unknown>
@@ -72,6 +81,40 @@ function sanitizedAuthPayload(data: JsonRecord) {
   delete result.access_token
   delete result.refresh_token
   return result
+}
+
+function securityFailure(result: Exclude<Awaited<ReturnType<typeof verifyTurnstileToken>>, { ok: true }>) {
+  return NextResponse.json(
+    { error: result.error, code: result.code },
+    {
+      status: result.status,
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    },
+  )
+}
+
+async function protectedBrowserBody(request: NextRequest, suffix: string): Promise<string | ArrayBuffer | NextResponse | undefined> {
+  if (request.method === 'GET' || request.method === 'HEAD') return undefined
+  if (!TURNSTILE_PROTECTED_AUTH.has(suffix)) return request.arrayBuffer()
+
+  let body: JsonRecord
+  try {
+    body = jsonRecord(await request.json())
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid authentication request.' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+
+  const verification = await verifyTurnstileToken(body.turnstile_token, request)
+  if (!verification.ok) return securityFailure(verification)
+
+  delete body.turnstile_token
+  return JSON.stringify(body)
 }
 
 async function refreshBrowserSession(auth: AuthBinding, request: NextRequest): Promise<{ accessToken: string; refreshToken?: string } | null> {
@@ -140,7 +183,8 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
     return response
   }
 
-  const requestBody = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer()
+  const requestBody = await protectedBrowserBody(request, suffix)
+  if (requestBody instanceof NextResponse) return requestBody
 
   if (publicAction) {
     const upstream = await authFetch(auth, suffix, request, { body: requestBody })
@@ -153,10 +197,10 @@ async function proxyBrowserAccount(request: NextRequest, context: { params: Prom
   if (sessionCreatingEntry) {
     const upstream = await authFetch(auth, suffix, request, { body: requestBody })
     const data = await decode(upstream)
-    if (!upstream.ok) return NextResponse.json(data, { status: upstream.status })
+    if (!upstream.ok) return NextResponse.json(data, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } })
     const accessToken = typeof data.access_token === 'string' ? data.access_token : ''
     const refreshToken = typeof data.refresh_token === 'string' ? data.refresh_token : ''
-    if (!accessToken || !refreshToken) return NextResponse.json({ error: 'Authentication service did not create a complete session' }, { status: 502 })
+    if (!accessToken || !refreshToken) return NextResponse.json({ error: 'Authentication service did not create a complete session' }, { status: 502, headers: { 'Cache-Control': 'no-store' } })
     const response = NextResponse.json(sanitizedAuthPayload(data), { status: upstream.status })
     setSessionCookies(response, accessToken, refreshToken)
     response.headers.set('Cache-Control', 'no-store')
