@@ -127,28 +127,43 @@ async function normalizeAccountResponse(response: Response, env: ProductionEnv):
   if (hasPublicId && hasUsername) return response
 
   try {
-    const row = await env.AUTH_DB.prepare(
-      'SELECT otya_id, username FROM users WHERE id = ? LIMIT 1',
-    ).bind(id).first<{ otya_id?: string | null; username?: string | null }>()
-    if (!row) return response
+    let normalizedData: Record<string, unknown> = data
 
-    const normalizedUser = {
-      ...account,
-      ...(hasPublicId || !row.otya_id ? {} : { otya_id: row.otya_id }),
-      ...(hasUsername || !row.username ? {} : { username: row.username }),
+    // Keep the immutable public OTYA ID normalization contract unchanged.
+    // Username is additive and is resolved independently so an older schema can
+    // never turn a successful sign-in into an outage during rollout.
+    if (!hasPublicId) {
+      const row = await env.AUTH_DB.prepare(
+        'SELECT otya_id FROM users WHERE id = ? LIMIT 1',
+      ).bind(id).first<{ otya_id?: string | null }>()
+      if (row?.otya_id) {
+        normalizedData = { ...data, user: { ...account, otya_id: row.otya_id } }
+      }
     }
 
+    if (!hasUsername) {
+      try {
+        const usernameRow = await env.AUTH_DB.prepare(
+          'SELECT username FROM users WHERE id = ? LIMIT 1',
+        ).bind(id).first<{ username?: string | null }>()
+        if (usernameRow?.username) {
+          const normalizedUser = normalizedData.user as Record<string, unknown>
+          normalizedData = { ...normalizedData, user: { ...normalizedUser, username: usernameRow.username } }
+        }
+      } catch (error) {
+        console.error('[auth] Could not attach OTYA username:', (error as Error)?.message)
+      }
+    }
+
+    if (normalizedData === data) return response
     const headers = new Headers(response.headers)
     headers.set('Cache-Control', 'no-store')
-    return new Response(JSON.stringify({ ...data, user: normalizedUser }), {
+    return new Response(JSON.stringify(normalizedData), {
       status: response.status,
       statusText: response.statusText,
       headers,
     })
   } catch (error) {
-    // During the isolated rollout the username column may not exist until the
-    // additive migration is applied. Preserve the original successful auth
-    // response rather than turning that migration window into a login outage.
     console.error('[auth] Could not attach public OTYA identity:', (error as Error)?.message)
     return response
   }
